@@ -52,6 +52,8 @@ export async function copyTenderWbs(admin: SupabaseClient, tenantId: string, pro
     const { error } = await admin.from("project_work_packages").insert(batch.map((it) => ({
       id: it.new_id, tenant_id: tenantId, project_id: projectId, parent_id: it.parent, source_wbs_item_id: it.source_id, code: it.code, name: it.name,
       owner_employee_id: it.owner_employee_id, code_is_manual: it.code_is_manual, sort_order: it.sort_order, created_by: userId,
+      // A building keeps its code (0253); only an item that has one carries the key, so a database without the column is never asked for it.
+      ...(it.building_code ? { building_code: it.building_code } : {}),
     })));
     if (error) { await undo(); return none({ failed: true, pending: isMissingSchema(error) }); }
     made.push(...batch.map((it) => it.new_id));

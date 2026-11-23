@@ -91,7 +91,10 @@ const REVISION_COLS = "id, project_id, rev_no, status, justification_code, justi
 const LINE_COLS_BASE = "id, line_no, line_key, resource_code, cost_code, wbs, description, qty, unit, unit_cost, amount, cost_known, source_ref, reserve, committed, actual";
 // The allocation columns of migration 0240; a database that has not had it yet is read with the base list.
 const ALLOCATION_LINE_COLS = "allocated, client_rate, client_amount, source_line_id";
-const LINE_COLS = `${LINE_COLS_BASE}, ${ALLOCATION_LINE_COLS}`;
+const LINE_COLS_ALLOCATION = `${LINE_COLS_BASE}, ${ALLOCATION_LINE_COLS}`;
+// The element columns of migration 0253 (buildings and element codes); read first, with the older lists as the fallbacks.
+export const ELEMENT_LINE_COLS = "element_type, element_code, client_qty, model_qty";
+const LINE_COLS = `${LINE_COLS_ALLOCATION}, ${ELEMENT_LINE_COLS}`;
 
 export const normaliseProject = (r: Record<string, unknown>): ProjectRow => ({
   ...(r as unknown as ProjectRow), contract_value: Number(r.contract_value ?? 0),
@@ -109,12 +112,20 @@ export const normaliseLine = (r: Record<string, unknown>): BudgetLine => ({
   allocated: r.allocated !== false,
   client_rate: r.client_rate == null ? null : Number(r.client_rate), client_amount: r.client_amount == null ? null : Number(r.client_amount),
   source_line_id: typeof r.source_line_id === "string" ? r.source_line_id : null,
+  element_type: typeof r.element_type === "string" ? r.element_type : null,
+  element_code: typeof r.element_code === "string" ? r.element_code : null,
+  client_qty: r.client_qty == null ? null : Number(r.client_qty),
+  model_qty: r.model_qty == null ? null : Number(r.model_qty),
 });
 
 /** The columns the allocation added to a budget line row (what is stripped when the database has not had migration 0240). */
 const ALLOCATION_KEYS = ["allocated", "client_rate", "client_amount", "source_line_id"] as const;
 export const stripAllocation = (rows: readonly Record<string, unknown>[]): Record<string, unknown>[] =>
   rows.map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => !(ALLOCATION_KEYS as readonly string[]).includes(k))));
+/** The columns migration 0253 added to a budget line row (what is stripped when the database has not had it). */
+const ELEMENT_KEYS = ["element_type", "element_code", "client_qty", "model_qty"] as const;
+export const stripElements = (rows: readonly Record<string, unknown>[]): Record<string, unknown>[] =>
+  rows.map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => !(ELEMENT_KEYS as readonly string[]).includes(k))));
 /** Is the allocation schema (migration 0240) in the database? One cheap probe. */
 export async function allocationSchemaReady(admin: SupabaseClient): Promise<boolean> {
   const { error } = await admin.from("project_budget_lines").select("allocated").limit(1);
@@ -178,6 +189,7 @@ export function currentRevision(revisions: readonly RevisionRow[]): RevisionRow 
 export async function loadLines(admin: SupabaseClient, tenantId: string, revisionId: string): Promise<BudgetLine[]> {
   const read = (cols: string) => readAllPages((lo, hi) => admin.from("project_budget_lines").select(cols).eq("tenant_id", tenantId).eq("revision_id", revisionId).order("line_no", { ascending: true }).order("id", { ascending: true }).range(lo, hi));
   let { data, error } = await read(LINE_COLS);
+  if (error && isMissingSchema(error)) ({ data, error } = await read(LINE_COLS_ALLOCATION));
   if (error && isMissingSchema(error)) ({ data, error } = await read(LINE_COLS_BASE));
   if (error) return [];
   return ((data ?? []) as Record<string, unknown>[]).map(normaliseLine);
@@ -282,6 +294,9 @@ export const draftAmount = (l: Pick<DraftLine, "qty" | "unit_cost" | "amount" | 
 /** Rows ready to insert: the amount is recomputed here, line numbers are 1..n in the order given, and a new line gets a fresh key. */
 export function lineRows(tenantId: string, projectId: string, revisionId: string, lines: readonly DraftLine[]): Record<string, unknown>[] {
   return lines.map((l, i) => ({
+    // The element fields (0253) go in only when a line has them, so a database without the migration is never asked for a column it lacks.
+    ...(l.element_type ? { element_type: l.element_type } : {}), ...(l.element_code ? { element_code: l.element_code } : {}),
+    ...(l.client_qty !== undefined && l.client_qty !== null ? { client_qty: l.client_qty } : {}), ...(l.model_qty !== undefined && l.model_qty !== null ? { model_qty: l.model_qty } : {}),
     tenant_id: tenantId, project_id: projectId, revision_id: revisionId, line_no: i + 1, line_key: l.line_key || randomUUID(),
     resource_code: l.resource_code, cost_code: l.cost_code, wbs: l.wbs, description: l.description, qty: l.qty, unit: l.unit,
     unit_cost: l.allocated === false ? 0 : l.unit_cost, amount: draftAmount(l), cost_known: true, source_ref: l.source_ref, reserve: l.reserve,
@@ -294,11 +309,13 @@ export function lineRows(tenantId: string, projectId: string, revisionId: string
  * without them (a line made then simply counts as allocated, as before) rather than failing.
  */
 export async function insertLines(admin: SupabaseClient, rows: Record<string, unknown>[]): Promise<{ message: string } | null> {
-  let legacy = false;
+  // Two fallbacks, in order: without the element columns (0253 pending), then without the allocation columns as well (0240 pending).
+  let level: 0 | 1 | 2 = 0;
+  const shape = (batch: Record<string, unknown>[]) => (level === 0 ? batch : level === 1 ? stripElements(batch) : stripAllocation(stripElements(batch)));
   for (let i = 0; i < rows.length; i += 500) {
     const batch = rows.slice(i, i + 500);
-    let { error } = await admin.from("project_budget_lines").insert(legacy ? stripAllocation(batch) : batch);
-    if (error && !legacy && isMissingSchema(error)) { legacy = true; ({ error } = await admin.from("project_budget_lines").insert(stripAllocation(batch))); }
+    let { error } = await admin.from("project_budget_lines").insert(shape(batch));
+    while (error && level < 2 && isMissingSchema(error)) { level = (level + 1) as 1 | 2; ({ error } = await admin.from("project_budget_lines").insert(shape(batch))); }
     if (error) return { message: error.message };
   }
   return null;
@@ -317,19 +334,36 @@ export async function refreshRevisionTotal(admin: SupabaseClient, tenantId: stri
  * failed insert leaves the old budget exactly as it was; a failed removal takes the new rows out again.
  */
 export async function replaceLines(admin: SupabaseClient, tenantId: string, projectId: string, revisionId: string, lines: readonly DraftLine[]): Promise<{ ok: true; total: number } | { ok: false; error: string }> {
-  const { data: oldRows, error: readErr } = await readAllPages((lo, hi) => admin.from("project_budget_lines").select("id").eq("tenant_id", tenantId).eq("revision_id", revisionId).order("id", { ascending: true }).range(lo, hi));
-  if (readErr) return { ok: false, error: readErr.message };
-  const oldIds = ((oldRows ?? []) as { id: string }[]).map((r) => r.id);
+  const readOld = (cols: string) => readAllPages((lo, hi) => admin.from("project_budget_lines").select(cols).eq("tenant_id", tenantId).eq("revision_id", revisionId).order("id", { ascending: true }).range(lo, hi));
+  let old = await readOld("id, element_code");
+  if (old.error && isMissingSchema(old.error)) old = await readOld("id");
+  if (old.error) return { ok: false, error: old.error.message };
+  const oldRows = (old.data ?? []) as unknown as { id: string; element_code?: string | null }[];
+  const oldIds = oldRows.map((r) => r.id);
   const rows: (Record<string, unknown> & { id: string })[] = lineRows(tenantId, projectId, revisionId, lines).map((r) => ({ ...r, id: randomUUID() }));
+
+  // An element code is unique on a revision (0253), and the new rows go in before the old ones go out: the old rows give their codes up for that moment
+  // and get them back if anything fails, so a save that cannot complete leaves the budget exactly as it was.
+  const coded = oldRows.filter((r) => !!r.element_code);
+  const releaseCodes = async () => {
+    for (let i = 0; i < coded.length; i += 200) await admin.from("project_budget_lines").update({ element_code: null }).eq("tenant_id", tenantId).eq("revision_id", revisionId).in("id", coded.slice(i, i + 200).map((r) => r.id));
+  };
+  const restoreCodes = async () => {
+    for (const r of coded) await admin.from("project_budget_lines").update({ element_code: r.element_code }).eq("id", r.id).eq("tenant_id", tenantId).eq("revision_id", revisionId);
+  };
+  if (coded.length > 0) await releaseCodes();
+
   const failed = await insertLines(admin, rows);
   if (failed) {
     await admin.from("project_budget_lines").delete().eq("tenant_id", tenantId).eq("revision_id", revisionId).in("id", rows.map((r) => r.id));
+    if (coded.length > 0) await restoreCodes();
     return { ok: false, error: failed.message };
   }
   for (let i = 0; i < oldIds.length; i += 200) {
     const { error } = await admin.from("project_budget_lines").delete().eq("tenant_id", tenantId).eq("revision_id", revisionId).in("id", oldIds.slice(i, i + 200));
     if (error) {
       await admin.from("project_budget_lines").delete().eq("tenant_id", tenantId).eq("revision_id", revisionId).in("id", rows.map((r) => r.id));
+      if (coded.length > 0) await restoreCodes();
       return { ok: false, error: error.message };
     }
   }

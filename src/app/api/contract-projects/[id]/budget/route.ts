@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { logChange } from "@/lib/changeLog";
 import { getAuthUser } from "@/lib/supabase-server";
 import { budgetTotals, cleanDraftLines } from "@/lib/contractProjects/budget";
+import { carryElements } from "@/lib/elements/lines";
 import { checkLineCodes, loadLines, loadProject, loadRevision, needsUpdate, openProjectRequest, replaceLines, UUID_RE } from "@/lib/contractProjects/server";
 
 // GET /api/contract-projects/[id]/budget?revision=<id>   the lines of one revision with their totals (any revision stays readable).
@@ -54,7 +55,8 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
   if (!codes.ok) return NextResponse.json({ error: codes.error }, { status: codes.status });
 
   const before = await loadLines(admin, tenantId, revision.id);
-  const saved = await replaceLines(admin, tenantId, id, revision.id, cleaned.lines);
+  // The grid does not edit an element's type, code or quantities: each line keeps what the stored line with its key has.
+  const saved = await replaceLines(admin, tenantId, id, revision.id, carryElements(cleaned.lines, before));
   if (!saved.ok) return NextResponse.json({ error: saved.error }, { status: 500 });
   await admin.from("contract_projects").update({ updated_at: new Date().toISOString() }).eq("id", id).eq("tenant_id", tenantId);
 

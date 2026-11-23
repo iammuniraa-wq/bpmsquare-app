@@ -3,7 +3,7 @@ import type { Figures, Share, TreeItem } from "@/lib/wbs/tree";
 // The WBS of a tender deal (migration 0243; docs/design/wbs.md). The tree rules are in src/lib/wbs/tree.ts; this is the tender's shapes.
 
 /** One row of tender_wbs_items as the app reads it. */
-export type WbsItemRow = TreeItem & { opportunity_id: string; note: string | null };
+export type WbsItemRow = TreeItem & { opportunity_id: string; note: string | null; /** 0253. A level-1 item with a code is a building. */ building_code?: string | null };
 
 /** An item as the screens get it: in tree order, with its depth, its owner's name and whether it is a leaf. */
 export type WbsItemView = WbsItemRow & { owner_name: string | null; depth: number; is_leaf: boolean };

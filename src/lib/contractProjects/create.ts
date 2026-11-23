@@ -8,13 +8,14 @@ import { insertWithMasterRef } from "@/lib/masterRef";
 import { loadOpportunity, loadOpportunityLines } from "@/lib/sales/opportunityServer";
 import { loadTender, accountInTenant } from "@/lib/tender/server";
 import { budgetTotals, round2 } from "./budget";
-import { contractValueFor, mapTenderToBudget, projectNameFromDeal, type BoqInfo, type DealLine } from "./fromTender";
+import { contractValueFor, mapTenderToBudget, projectNameFromDeal, type BoqInfo, type DealLine, type TenderElementInfo } from "./fromTender";
 import {
   allocationSchemaReady, draftAmount, ensureMasterSeeds, existingCodes, insertLines, isMissingSchema, lineRows, loadProjectBySource, memberInTenant, needsAllocationUpdate, needsSourceUpdate, needsUpdate, normaliseProject,
   sourceSchemaReady, UUID_RE, type Failure, type ProjectCtx,
 } from "./server";
 import { PROJECT_SOURCE_LABEL, type DraftLine, type ProjectRow, type ProjectSourceType } from "./types";
 import { copyTenderWbs, type WbsCopyResult } from "./copyWbs";
+import { resolveElementsSettings } from "@/lib/elements/types";
 
 import { readAllPages } from "@/lib/pagedRead";
 // Making a contract project (slice 5a): from an awarded tender or an accepted quote in one step, or by hand. Both paths end the same way: a project, its
@@ -74,13 +75,16 @@ export async function loadTenderSource(admin: SupabaseClient, tenantId: string, 
   const tenant = await getTenant();
   await ensureMasterSeeds(admin, tenantId);
 
-  const [deal, boqRes] = await Promise.all([
+  const readBoq = (cols: string) => readAllPages((lo, hi) => admin.from("tender_boq_lines").select(cols).eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("id", { ascending: true }).range(lo, hi));
+  const [deal, boqFull] = await Promise.all([
     loadOpportunityLines(admin, tenantId, opportunityId),
-    readAllPages((lo, hi) => admin.from("tender_boq_lines").select("line_id, item_no, cost_code").eq("tenant_id", tenantId).eq("opportunity_id", opportunityId).order("id", { ascending: true }).range(lo, hi)),
+    // The element columns (0253) first; a database that has not had that migration is read with the older list.
+    readBoq("line_id, item_no, cost_code, file_qty, element_type, element_code, model_qty"),
   ]);
-  const boq = new Map<string, Pick<BoqInfo, "item_no" | "cost_code">>();
-  for (const r of ((boqRes.error ? [] : boqRes.data ?? []) as { line_id: string | null; item_no: string | null; cost_code: string | null }[])) {
-    if (r.line_id) boq.set(r.line_id, { item_no: r.item_no, cost_code: r.cost_code });
+  const boqRes = boqFull.error && isMissingSchema(boqFull.error) ? await readBoq("line_id, item_no, cost_code") : boqFull;
+  const boq = new Map<string, Pick<BoqInfo, "item_no" | "cost_code"> & TenderElementInfo>();
+  for (const r of ((boqRes.error ? [] : boqRes.data ?? []) as unknown as ({ line_id: string | null; item_no: string | null; cost_code: string | null } & TenderElementInfo)[])) {
+    if (r.line_id) boq.set(r.line_id, { item_no: r.item_no, cost_code: r.cost_code, file_qty: r.file_qty != null ? Number(r.file_qty) : null, element_type: r.element_type ?? null, element_code: r.element_code ?? null, model_qty: r.model_qty != null ? Number(r.model_qty) : null });
   }
   const codes = [...new Set([...boq.values()].map((b) => b.cost_code?.trim()).filter((c): c is string => !!c))];
   const costCodes = await existingCodes(admin, tenantId, "cost_code", codes);
@@ -146,6 +150,12 @@ export async function createProject(req: ProjectCtx, input: CreateInput): Promis
   if (input.lines.length > 0) {
     const failed = await insertLines(admin, lineRows(tenantId, projectId, revisionId, input.lines));
     if (failed) { await undo(); return { ok: false, status: 500, error: failed.message }; }
+  }
+
+  // Codes issued on the tender come with the lines: the project freezes the pattern now, so it keeps issuing in the format those codes follow (0253).
+  if (input.lines.some((l) => l.element_code)) {
+    const tenant = await getTenant();
+    await admin.from("contract_projects").update({ element_pattern: resolveElementsSettings(tenant?.config?.contract_elements).pattern }).eq("id", projectId).eq("tenant_id", tenantId);
   }
 
   // The tender's WBS becomes the project's own copy (docs/design/wbs.md 2.5). While 0243 is pending, or if the copy fails, the project is made without one and says so.

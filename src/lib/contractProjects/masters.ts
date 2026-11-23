@@ -63,7 +63,7 @@ export function parseMasterGrid(grid: readonly (readonly Cell[])[], kind: Master
   for (let r = header.row + 1; r < grid.length; r++) {
     const line = grid[r] ?? [];
     const sheetRow = r + 1;
-    const code = cellText(line[cols.code]);
+    const code = kind === "element_type" ? cellText(line[cols.code]).toUpperCase() : cellText(line[cols.code]);
     const name = cellText(line[cols.name]);
     const parent = cols.parent >= 0 ? cellText(line[cols.parent]) : "";
     if (!code && !name && !parent) continue;
@@ -72,6 +72,8 @@ export function parseMasterGrid(grid: readonly (readonly Cell[])[], kind: Master
       break;
     }
     if (!code) { problems.push({ row: sheetRow, message: "No code" }); continue; }
+    // An element type code is what element codes are built from: 2 to 5 letters or digits, kept upper-case (0253).
+    if (kind === "element_type" && !/^[A-Za-z0-9]{2,5}$/.test(code)) { problems.push({ row: sheetRow, message: `Code ${code.slice(0, 12)} is not 2 to 5 letters or digits` }); continue; }
     if (code.length > MASTER_IMPORT_LIMITS.codeLength) { problems.push({ row: sheetRow, message: `Code ${code.slice(0, 12)}... is longer than ${MASTER_IMPORT_LIMITS.codeLength} characters` }); continue; }
     if (!name) { problems.push({ row: sheetRow, message: `Code ${code} has no name` }); continue; }
     if (name.length > MASTER_IMPORT_LIMITS.nameLength) { problems.push({ row: sheetRow, message: `Name of ${code} is longer than ${MASTER_IMPORT_LIMITS.nameLength} characters` }); continue; }

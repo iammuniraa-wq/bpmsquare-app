@@ -5,6 +5,7 @@ import { isMissingSchema, loadMasters, needsUpdate, openProjectRequest } from "@
 import { parseMasterGrid, MASTER_IMPORT_LIMITS } from "@/lib/contractProjects/masters";
 import { readMasterFile } from "@/lib/contractProjects/mastersFile";
 import { MASTER_KIND_LABEL, isMasterKind } from "@/lib/contractProjects/types";
+import { buildingsOn } from "@/lib/elements/server";
 
 // POST /api/contract-projects/masters/import   multipart: kind, file (.csv or .xlsx, up to 5 MB, 20,000 rows), preview=1 (optional)
 //   Reads a code list: a header row with Code and Name (and optionally Parent; for resource levels also Link to inventory, Budget
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
   try { form = await request.formData(); } catch { return NextResponse.json({ error: "Send the file as a form upload" }, { status: 400 }); }
   const kind = form.get("kind");
   if (!isMasterKind(kind)) return NextResponse.json({ error: "Choose which list the file is for" }, { status: 400 });
+  if (kind === "element_type" && !(await buildingsOn(supabase, tenantId))) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const file = form.get("file");
   if (!(file instanceof File)) return NextResponse.json({ error: "Choose a file" }, { status: 400 });
   if (file.size > MASTER_IMPORT_LIMITS.maxBytes) return NextResponse.json({ error: "That file is larger than 5 MB" }, { status: 413 });

@@ -126,7 +126,10 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   contract_projects: "contract_projects",
   "contract-projects": "contract_projects",
   project_budget_revisions: "contract_projects",
-  project_budget_lines: "contract_projects",
+  // Buildings and element codes (0253): the Data Workbench objects that read and write the element columns belong to the add-on, not to the module.
+  project_budget_lines: "contract_buildings",
+  project_wbs_items: "contract_buildings",
+  project_elements: "contract_buildings",
   erp_masters: "contract_projects",
   // After award: variations (0231) and invoicing milestones (0232) of a contract project. In-app routes only: they carry internal cost.
   contract_project_variations: "contract_projects",

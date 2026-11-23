@@ -9,19 +9,25 @@ import type { LineMembers, WbsItemRow } from "./types";
 // Reads of the tender WBS (migration 0243). Every query is tenant-scoped on the service-role client and tolerates the migration being
 // pending: a missing table or column reads as `pending` with nothing in it, never as a crash. The writes are in server.ts.
 
-const ITEM_COLS = "id, opportunity_id, parent_id, code, name, owner_employee_id, sort_order, code_is_manual, note, created_at";
+const ITEM_COLS_BASE = "id, opportunity_id, parent_id, code, name, owner_employee_id, sort_order, code_is_manual, note, created_at";
+// 0253 adds the building code on a level-1 item; a database without it is read with the older list.
+const ITEM_COLS = `${ITEM_COLS_BASE}, building_code`;
 
 type Raw = Record<string, unknown>;
 const toItem = (r: Raw): WbsItemRow => ({
   id: String(r.id), opportunity_id: String(r.opportunity_id), parent_id: (r.parent_id as string | null) ?? null, code: String(r.code), name: String(r.name),
   owner_employee_id: (r.owner_employee_id as string | null) ?? null, sort_order: Number(r.sort_order ?? 0), code_is_manual: r.code_is_manual === true,
   note: (r.note as string | null) ?? null, created_at: typeof r.created_at === "string" ? r.created_at : null,
+  building_code: typeof r.building_code === "string" ? r.building_code : null,
 });
 
-export async function loadItems(admin: SupabaseClient, tenantId: string, oppId: string): Promise<{ items: WbsItemRow[]; pending: boolean }> {
-  const res = await readAllPages((lo, hi) => admin.from("tender_wbs_items").select(ITEM_COLS).eq("tenant_id", tenantId).eq("opportunity_id", oppId).order("sort_order", { ascending: true }).order("id", { ascending: true }).range(lo, hi));
+export async function loadItems(admin: SupabaseClient, tenantId: string, oppId: string): Promise<{ items: WbsItemRow[]; pending: boolean; /** 0253 is not applied: no item can be a building yet. */ buildingsPending?: boolean }> {
+  const read = (cols: string) => readAllPages((lo, hi) => admin.from("tender_wbs_items").select(cols).eq("tenant_id", tenantId).eq("opportunity_id", oppId).order("sort_order", { ascending: true }).order("id", { ascending: true }).range(lo, hi));
+  let res = await read(ITEM_COLS);
+  let buildingsPending = false;
+  if (res.error && isMissingSchema(res.error)) { res = await read(ITEM_COLS_BASE); buildingsPending = !res.error; }
   if (res.error) return { items: [], pending: isMissingSchema(res.error) };
-  return { items: ((res.data ?? []) as Raw[]).map(toItem), pending: false };
+  return { items: ((res.data ?? []) as unknown as Raw[]).map(toItem), pending: false, buildingsPending };
 }
 
 /** Which item each BOQ line sits in, and the parts of the split ones. `pending` when either table or the column is not there yet. */
