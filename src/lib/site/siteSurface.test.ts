@@ -53,11 +53,11 @@ describe("the migrations have no member write path (WFM and 0199 lessons)", () =
 
   it("the bundles are the migrations, wrapped in one transaction", () => {
     for (const [bundle, n] of [["run-bundle-site-0258-expenses-2026-11-24.sql", "0258"], ["run-bundle-site-0259-receipts-2026-11-24.sql", "0259"], ["run-bundle-site-0260-site-entry-2026-11-24.sql", "0260"]]) {
-      const b = read(`scripts/${bundle}`);
+      const b = read(`scripts/${bundle}`).split("\r").join("");
       expect(b).toMatch(/\nbegin;\n/);
       expect(b.trimEnd().endsWith("commit;")).toBe(true);
       const mig = read(`supabase/migrations/${readdirSync(path.join(ROOT, "supabase/migrations")).find((f) => f.startsWith(n))!}`);
-      expect(b).toContain(mig.trim().split("\n").filter((l) => !l.startsWith("--")).slice(0, 6).join("\n"));
+      expect(b).toContain(mig.split("\r").join("").trim().split("\n").filter((l) => !l.startsWith("--")).slice(0, 6).join("\n"));
     }
   });
 });
