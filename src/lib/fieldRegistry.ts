@@ -98,7 +98,7 @@ export type PilotObjectType =
   | "account" | "contact" | "asset" | "supplier"
   | "case" | "work_order" | "quote" | "invoice" | "purchase_order" | "inventory"
   | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "process_study" | "newsletter" | "abm_program" | "abm_target" | "abm_member"
-  | "standard_quote" | "sales_order";
+  | "standard_quote" | "sales_order" | "drawing";
 
 // ISO 639-1 codes the Newsletter Studio can write in (src/lib/newsletter/types.ts LANGUAGES); duplicated as data
 // here because this registry is imported by client code and must not pull the studio in.
@@ -688,6 +688,21 @@ export const FIELD_REGISTRY: Record<PilotObjectType, ObjectFieldRegistry> = {
     ],
   },
 
+  // Drawing (0255): the header only. Revisions, files, elements and the release are the register's own screens and routes, never a bulk file:
+  // the number is fixed once a revision was submitted (the route says so), and a status or a revision cannot be set from here at all.
+  // Type, tender, project and building are pointers with their own pickers and are excluded.
+  drawing: {
+    sections: ["Identity"],
+    fields: [
+      { key: "ref",         defaultLabel: "Drawing ID",     widget: "text", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
+      { key: "drawing_no",  defaultLabel: "Drawing number",  widget: "text", defaultSection: "Identity" },
+      { key: "title",       defaultLabel: "Title",           widget: "text", defaultSection: "Identity" },
+      { key: "external_no", defaultLabel: "External number", widget: "text", defaultSection: "Identity" },
+      { key: "released_rev", defaultLabel: "Released revision", widget: "text", defaultSection: "Identity", locked: true, editable: false, exportOnly: true },
+      { key: "created_at",  defaultLabel: "Created",        widget: "date", defaultSection: "Identity", locked: true, editable: false, exportOnly: true, hiddenByDefault: true },
+    ],
+  },
+
   invoice: {
     sections: ["Identity", "Commercial", "Saudi e-invoice", "Notes"],
     fields: [
@@ -822,7 +837,7 @@ const PILOT_OBJECT_TYPES: readonly PilotObjectType[] = [
   "account", "contact", "asset", "supplier",
   "case", "work_order", "quote", "invoice", "purchase_order", "inventory",
   "employee", "product", "project", "opportunity", "rfq", "estimate", "process_study", "newsletter", "abm_program", "abm_target", "abm_member",
-  "standard_quote", "sales_order",
+  "standard_quote", "sales_order", "drawing",
 ];
 
 export function isPilotObjectType(objectType: string): objectType is PilotObjectType {

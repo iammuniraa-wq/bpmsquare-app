@@ -59,6 +59,7 @@ export const FEATURE_KEYS = [
  *  afterwards, deliberately by hand. */
 export const EXPERIMENTAL_FEATURE_KEYS: readonly string[] = [
   "next_experience", "enterprise_theme", "spectacular_theme", "marketing_scoring", "ai_assistant_web", "ai_assistant_actions", "sales_orders", "einvoicing_ksa", "gcc_tender", "deal_room", "contract_projects",
+  "drawing_register",
 ];
 
 /** The runbook's package table (TENANT_PROVISIONING.md §0), as data. */

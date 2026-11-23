@@ -13,7 +13,7 @@ import { SettingsHeaderActions } from "@/components/settings/SettingsHeaderActio
 import { useTenant } from "@/lib/tenant-context";
 import type { TenantFeatures } from "@/lib/constants";
 
-type ObjectType = "account" | "contact" | "case" | "quote" | "work_order" | "asset" | "supplier" | "inventory" | "purchase_order" | "invoice" | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "process_study" | "abm_program" | "abm_target" | "abm_member" | "standard_quote" | "sales_order";
+type ObjectType = "account" | "contact" | "case" | "quote" | "work_order" | "asset" | "supplier" | "inventory" | "purchase_order" | "invoice" | "employee" | "product" | "project" | "opportunity" | "rfq" | "estimate" | "process_study" | "abm_program" | "abm_target" | "abm_member" | "standard_quote" | "sales_order" | "drawing";
 type FieldType = "text" | "number" | "date" | "select" | "checkbox" | "textarea";
 
 interface CustomField {
@@ -53,6 +53,7 @@ const OBJECTS: { key: ObjectType; label: string; icon: string; featureKey: keyof
   { key: "abm_program",    label: "ABM program",         icon: "◎", featureKey: "abm" },
   { key: "abm_target",     label: "ABM target account",  icon: "◉", featureKey: "abm" },
   { key: "abm_member",     label: "ABM buying group member", icon: "☰", featureKey: "abm" },
+  { key: "drawing",        label: "Drawing",             icon: "◫", featureKey: "drawing_register" },
 ];
 
 const FIELD_TYPES: { key: FieldType; label: string }[] = [
