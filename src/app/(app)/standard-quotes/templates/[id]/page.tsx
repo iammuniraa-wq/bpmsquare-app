@@ -5,6 +5,7 @@ import { ROUTES } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
 import TabTitle from "@/components/TabTitle";
 import TemplateBuilderClient from "./TemplateBuilderClient";
+import { pickEntity, readPdfDesign } from "@/lib/pdf/frameServer";
 
 export default async function StandardQuoteTemplateBuilderPage({ params }: { params: Promise<{ id: string }> }) {
   let role: string;
@@ -32,6 +33,9 @@ export default async function StandardQuoteTemplateBuilderPage({ params }: { par
         template={template}
         companyInfo={tenant?.company_info ?? {}}
         logoUrl={tenant?.logo_url ?? null}
+        design={readPdfDesign(tenant?.config)}
+        entity={pickEntity(tenant?.config, null)}
+        tenantName={tenant?.name ?? ""}
       />
     </>
   );

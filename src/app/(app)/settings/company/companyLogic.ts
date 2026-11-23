@@ -19,6 +19,10 @@ export type CompanyDraft = {
   tax: TenantTaxConfig;
   currency: CurrencyCode;
   quoteFormat: QuoteIdFormat;
+  /** The Standard Quote number pattern (its own series); null = the fixed SQ-YYYY-NNNN. */
+  sqFormat: QuoteIdFormat | null;
+  /** Keep revisions and lock issued Standard Quotes (PDF design, slice 2). Off unless a workspace turns it on. */
+  keepRevisions: boolean;
 };
 
 export function draftFrom(
@@ -37,6 +41,8 @@ export function draftFrom(
     tax: { ...DEFAULT_TAX, ...(config?.tax ?? {}) },
     currency: isCurrencyCode(currency) ? currency : DEFAULT_CURRENCY,
     quoteFormat: { ...DEFAULT_QUOTE_ID_FORMAT, ...(config?.quote_id_format ?? {}) },
+    sqFormat: config?.standard_quote_id_format ?? null,
+    keepRevisions: config?.revisions?.standard_quote === true,
   };
 }
 
@@ -99,6 +105,8 @@ export function planCompanySave(initial: CompanyDraft, draft: CompanyDraft): Sav
   if (!same(initial.entities, draft.entities)) config.entities = entities;
   if (!same(initial.tax, draft.tax)) config.tax = draft.tax;
   if (!same(initial.quoteFormat, draft.quoteFormat)) config.quote_id_format = draft.quoteFormat;
+  if (!same(initial.sqFormat, draft.sqFormat)) config.standard_quote_id_format = draft.sqFormat as QuoteIdFormat;
+  if (initial.keepRevisions !== draft.keepRevisions) config.revisions = { standard_quote: draft.keepRevisions };
   if (Object.keys(config).length > 0) steps.push({ id: "config", url: "/api/settings/entities", method: "PATCH", body: config });
 
   if (initial.currency !== draft.currency) steps.push({ id: "currency", url: "/api/settings/currency", method: "PUT", body: { code: draft.currency } });

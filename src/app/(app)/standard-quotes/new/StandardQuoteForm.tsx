@@ -36,6 +36,9 @@ type EditQuote = {
   shipping_amount: number;
   intro_text: string | null;
   print_options?: { alternatives?: "all" | "chosen"; breaks?: "all" | "chosen" } | null;
+  project_title?: string | null;
+  subject?: string | null;
+  entity_id?: string | null;
   lines: {
     id: string;
     sl_no: string | null; description: string; uom: string | null; qty: number; rate: number; discount_pct: number;
@@ -46,7 +49,7 @@ type EditQuote = {
 };
 
 export default function StandardQuoteForm({
-  accounts, contacts, templates, editQuote, products = [], pricingEngineQuotesEnabled = false,
+  accounts, contacts, templates, editQuote, products = [], pricingEngineQuotesEnabled = false, docDetails,
 }: {
   accounts: { id: string; name: string }[];
   contacts: { id: string; name: string; account_id: string }[];
@@ -57,6 +60,9 @@ export default function StandardQuoteForm({
   /** Both pricing_engine + pricing_engine_quotes tenant features -- resolved
    *  server-side by the page, never inferred here. */
   pricingEngineQuotesEnabled?: boolean;
+  /** The framed-document fields (project title, subject, issuing entity). Passed only once migration 0251 is applied and the
+   *  workspace has a page frame or legal entities; absent = the card is not shown. */
+  docDetails?: { entities: { id: string; name: string; is_default: boolean }[] };
 }) {
   const cur = useCurrency();
   const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
@@ -71,6 +77,9 @@ export default function StandardQuoteForm({
   const [notes, setNotes] = useState(editQuote?.notes ?? "");
   const [terms, setTerms] = useState(editQuote?.terms ?? "");
   const [introText, setIntroText] = useState(editQuote?.intro_text ?? "");
+  const [projectTitle, setProjectTitle] = useState(editQuote?.project_title ?? "");
+  const [subject, setSubject] = useState(editQuote?.subject ?? "");
+  const [entityId, setEntityId] = useState(editQuote?.entity_id ?? "");
   const [headerDiscountPct, setHeaderDiscountPct] = useState(String(editQuote?.header_discount_pct ?? 0));
   const [taxPct, setTaxPct] = useState(String(editQuote?.tax_pct ?? 0));
   const [shippingAmount, setShippingAmount] = useState(String(editQuote?.shipping_amount ?? 0));
@@ -107,7 +116,7 @@ export default function StandardQuoteForm({
   // sends, snapshotted once at mount and compared on every render. `saved`
   // flips right before the post-save navigation so the save itself is
   // never questioned.
-  const snapshot = JSON.stringify({ accountId, contactId, validUntil, inquiryDate, notes, terms, introText, headerDiscountPct, taxPct, shippingAmount, templateId, printOptions, lines });
+  const snapshot = JSON.stringify({ accountId, contactId, validUntil, inquiryDate, notes, terms, introText, projectTitle, subject, entityId, headerDiscountPct, taxPct, shippingAmount, templateId, printOptions, lines });
   const [initialSnapshot] = useState(snapshot);
   const [saved, setSaved] = useState(false);
   const dirty = !saved && snapshot !== initialSnapshot;
@@ -202,6 +211,7 @@ export default function StandardQuoteForm({
         print_options: printOptions,
         intro_text: introText || null,
         inquiry_date: inquiryDate || null,
+        ...(docDetails ? { project_title: projectTitle || null, subject: subject || null, entity_id: entityId || null } : {}),
       };
       const res = editQuote
         ? await fetch(`/api/standard-quotes/${editQuote.id}`, {
@@ -354,6 +364,23 @@ export default function StandardQuoteForm({
                 </Field>
               </div>
             </Card>
+
+            {docDetails && (
+              <Card title="Document" padding={18}>
+                <div className="fg2">
+                  <Field label="Project title" info="Printed in the front block of a framed quotation."><Input value={projectTitle} onChange={(e) => setProjectTitle(e.target.value)} maxLength={300} data-guide="sq-project-title" /></Field>
+                  <Field label="Subject" info="Printed under the project title on a framed quotation."><Input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={300} data-guide="sq-subject" /></Field>
+                </div>
+                {docDetails.entities.length > 0 && (
+                  <Field label="Issued by" info="The legal entity whose address and registration numbers the page frame prints." style={{ marginBottom: 0 }}>
+                    <Select value={entityId} onChange={(e) => setEntityId(e.target.value)} data-guide="sq-entity">
+                      <option value="">Default entity</option>
+                      {docDetails.entities.map((en) => <option key={en.id} value={en.id}>{en.name}{en.is_default ? " (default)" : ""}</option>)}
+                    </Select>
+                  </Field>
+                )}
+              </Card>
+            )}
 
             <Card padding={18}>
               <Field label="Notes">

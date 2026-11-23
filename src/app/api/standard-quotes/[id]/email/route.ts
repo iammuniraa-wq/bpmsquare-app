@@ -10,6 +10,7 @@ import { Resend } from "resend";
 import { getGmailConnectorCredentials, findOriginalMessage, sendViaGmail, stripReplyPrefixes, buildReplySubject } from "@/lib/connectors/gmailReply";
 import { blockingLines, flaggedLinesOf } from "@/lib/pricing/quoteLineFlags";
 import { emitQuoteSent } from "@/lib/events/emitters";
+import { revisionsActive } from "@/lib/revisions/state";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -33,8 +34,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { id } = await params;
 
-  const { data: quoteRow } = await supabase.from("standard_quotes").select("id, sent_at").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  const { data: quoteRow } = await supabase.from("standard_quotes").select("*").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
   if (!quoteRow) return NextResponse.json({ error: "Quote not found" }, { status: 404 });
+  // With revisions on, what the customer receives is an issued revision, never a working copy.
+  const { data: cfgRow } = await supabase.from("tenants").select("config").eq("id", tenantId).maybeSingle();
+  if (revisionsActive(cfgRow?.config as Parameters<typeof revisionsActive>[0], quoteRow) && (quoteRow as { revision_state?: string | null }).revision_state !== "issued") {
+    return NextResponse.json({ error: "Issue the quotation before sending it, so what the customer gets is a revision that cannot change." }, { status: 409 });
+  }
 
   // Pricing guardrails (0114, same gate as api/quotes/[id]/email): a line
   // the engine flagged under a "block" policy holds the quote until it is
@@ -121,7 +127,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           to: recipient,
           subject: threadedSubject,
           text,
-          attachments: [{ filename: `${quote.ref}.pdf`, content: pdfBuffer }],
+          attachments: [{ filename: `${String(quote.ref).replace(/[^A-Za-z0-9._ -]+/g, "-")}.pdf`, content: pdfBuffer }],
           inReplyTo: original.messageId,
           references: original.messageId,
         });
@@ -143,7 +149,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       replyTo,
       subject,
       text,
-      attachments: [{ filename: `${quote.ref}.pdf`, content: pdfBuffer }],
+      attachments: [{ filename: `${String(quote.ref).replace(/[^A-Za-z0-9._ -]+/g, "-")}.pdf`, content: pdfBuffer }],
     });
     sendError = result.error ?? null;
   }

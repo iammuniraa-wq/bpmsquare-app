@@ -801,6 +801,8 @@ export async function assembleEstimateQuote(tenantId: string, estimateId: string
         tenant_id: tenantId, ref: candidate, account_id: estimate.account_id, contact_id: estimate.contact_id ?? null,
         status: "draft", header_discount_pct: 0, tax_pct: taxPct, shipping_amount: 0, subtotal: 0, total: 0,
         created_by: opts.userId ?? null,
+        // Where it was made from (0251); dropped by writeHeaderTolerant while that migration is pending.
+        source_type: "estimate", source_id: estimate.id,
       },
       async (row) => await admin.from("standard_quotes").insert(row).select("id, ref").single()
     );

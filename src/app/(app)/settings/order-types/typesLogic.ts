@@ -31,6 +31,10 @@ export const BLOCK_LABELS: Record<StandardQuoteTemplateBlockType, string> = {
   footer_text: "Footer text",
   specs_table: "Specifications table",
   cta_banner: "Call-to-action banner",
+  front_block: "Front block (customer, project, subject)",
+  clause_section: "Clause section",
+  scope_matrix: "Scope matrix",
+  closing: "Closing and signatory",
 };
 export const CONTENT_BLOCKS = new Set<StandardQuoteTemplateBlockType>(["intro_text", "footer_text", "specs_table", "cta_banner"]);
 export const CONTENT_HELP: Partial<Record<StandardQuoteTemplateBlockType, string>> = {

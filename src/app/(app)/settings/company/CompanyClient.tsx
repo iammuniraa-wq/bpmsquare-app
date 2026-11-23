@@ -110,7 +110,13 @@ export default function CompanyClient() {
             onCurrency={(currency) => edit({ currency })} onTax={(p) => edit({ tax: { ...draft.tax, ...p } })}
           />
         )}
-        {tab === "numbering" && <NumberingTab features={features} format={draft.quoteFormat} onFormat={(p) => edit({ quoteFormat: { ...draft.quoteFormat, ...p } })} />}
+        {tab === "numbering" && (
+          <NumberingTab
+            features={features} format={draft.quoteFormat} onFormat={(p) => edit({ quoteFormat: { ...draft.quoteFormat, ...p } })}
+            sqFormat={draft.sqFormat} onSqFormat={(sqFormat) => edit({ sqFormat })}
+            keepRevisions={draft.keepRevisions} onKeepRevisions={(keepRevisions) => edit({ keepRevisions })} accent={accent}
+          />
+        )}
       </div>
     </div>
   );
