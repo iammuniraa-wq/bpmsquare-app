@@ -18,7 +18,11 @@ import type { ConfirmCard } from "@/lib/assistant/cards";
 import ConfirmCardView from "@/components/assistant/ConfirmCardView";
 import { AnalysisConsentRow, CreateDetailsRow, WebConsentRow, WebSources, type CreateDetailsMode, type CreateDetailsState } from "@/components/assistant/WebResearch";
 import AnalysisCardView from "@/components/analysis/AnalysisCardView";
-import ReportCardView, { ReportConsentRow } from "@/components/analysis/ReportCardView";
+import ReportCardView, { ReportConsentRow, ReportProgressRows, type PartState } from "@/components/analysis/ReportCardView";
+import type { BriefHistory } from "@/lib/analysis/report/history";
+import { postBriefSave } from "@/lib/analysis/report/clientSave";
+import { parseBriefLine, splitBriefChunk, STREAM_ENDED_EARLY } from "@/lib/analysis/report/stream";
+import { REPORT_PARTS, type ReportPartId } from "@/lib/analysis/report/types";
 import type { DockAnalysis } from "@/lib/assistant/analysisTool";
 import type { DockReport, ReportSaveTarget } from "@/lib/assistant/reportTool";
 import { WEB_TAINT_WINDOW, applyChoice, settleOnNewAsk, type ConsentState, type WebAllow, type WebChoice } from "@/lib/assistant/webConsent";
@@ -37,8 +41,9 @@ type Msg = {
   /** The assistant asked to search the web, or to analyse a company with web research; answered with the chips. */
   consent?: {
     kind: "web_search" | "analyse_company" | "create_research" | "research_report"; query: string; subject?: string; state: ConsentState; token: string;
-    /** research_report: the most searches the report may run, quoted on the chip. */
+    /** research_report: the most searches the brief may run, quoted on the chip, and whether it is a first brief or only the missing parts. */
     searches?: number;
+    mode?: "brief" | "retry";
     /** create_research: what the chip shows (the search words); `query` is the signed string sent back with the Yes. */
     shown?: string; object?: string;
   };
@@ -51,11 +56,13 @@ type Msg = {
   analysis?: DockAnalysis;
   /** A company report, drawn as a card from its fields. */
   companyReport?: DockReport;
+  /** The four research parts of a brief that is running. Never kept: a reload drops it. */
+  progress?: { subject: string; parts: Record<ReportPartId, PartState> };
 };
 /** What an Analyse or Refresh press sends: the company, never record content. */
 type AnalyseRequest = { account_id?: string; name?: string; domain?: string; country?: string; refresh?: boolean };
 /** What a report Refresh sends: the company, never record content. */
-type ReportRequest = AnalyseRequest & { lead_id?: string };
+type ReportRequest = AnalyseRequest & { lead_id?: string; retry?: boolean };
 type GuideOffer = { id: string; label: string };
 type Usage = { percent: number; off: boolean };
 
@@ -152,7 +159,7 @@ export default function AIDock({ liftForTabBar = false }: {
     if (!hydrated) return;
     try {
       if (messages.length === 0) { localStorage.removeItem(chatKey); return; }
-      let keep = messages.slice(-DOCK_CHAT_MAX);
+      let keep = messages.filter((m) => !m.progress).slice(-DOCK_CHAT_MAX);
       let json = JSON.stringify(keep);
       while (json.length > DOCK_CHAT_BYTES && keep.length > 2) { keep = keep.slice(2); json = JSON.stringify(keep); }
       localStorage.setItem(chatKey, json);
@@ -184,7 +191,7 @@ export default function AIDock({ liftForTabBar = false }: {
       const d = (e as CustomEvent<DockAskDetail>).detail;
       if (!d || typeof d.question !== "string" || !d.question.trim()) return;
       setOpen(true);
-      setTimeout(() => { void askRef.current(d.question); }, 60);
+      setTimeout(() => { void askRef.current(d.question, undefined, undefined, undefined, d.report); }, 60);
     };
     window.addEventListener(AI_DOCK_ASK_EVENT, onAsk);
     return () => window.removeEventListener(AI_DOCK_ASK_EVENT, onAsk);
@@ -260,7 +267,8 @@ export default function AIDock({ liftForTabBar = false }: {
     // The question this answers is the person's last message before the chip; for a lookup it sits behind the two-chip question.
     const asked = [...base].reverse().find((x) => x.from === "me");
     if (!asked) return;
-    if (out.allow) void ask(asked.text, undefined, { base, allow: out.allow, query: m.consent.query, token: m.consent.token });
+    if (out.allow && m.consent.kind === "research_report") void runBrief(base, asked.text, m.consent.subject ?? "this company", m.consent.query, m.consent.token);
+    else if (out.allow) void ask(asked.text, undefined, { base, allow: out.allow, query: m.consent.query, token: m.consent.token });
     // No to the lookup is not a dead end: the card opens with just the name.
     else if (m.consent.kind === "create_research" && m.consent.object && m.consent.subject) {
       void ask(asked.text, undefined, { base, createFlow: { object: m.consent.object, name: m.consent.subject, mode: "manual" } });
@@ -350,6 +358,7 @@ export default function AIDock({ liftForTabBar = false }: {
               shown: typeof json.consent.shown === "string" ? (json.consent.shown as string) : undefined,
               object: typeof json.consent.object === "string" ? (json.consent.object as string) : undefined,
               searches: typeof json.consent.searches === "number" ? (json.consent.searches as number) : undefined,
+              mode: json.consent.mode === "retry" ? ("retry" as const) : json.consent.mode === "brief" ? ("brief" as const) : undefined,
             } : undefined;
         const clarify = json.clarify?.kind === "create_details" && typeof json.clarify.object === "string" && typeof json.clarify.name === "string"
           ? { object: json.clarify.object as string, name: json.clarify.name as string, state: "pending" as const } : undefined;
@@ -388,14 +397,100 @@ export default function AIDock({ liftForTabBar = false }: {
       : s.leadId ? { lead_id: s.leadId, refresh: true }
       : { name: s.name, domain: s.domain ?? undefined, country: s.country ?? undefined, refresh: true });
   }
-  async function saveReport(d: DockReport, t: ReportSaveTarget): Promise<{ ok: boolean; message: string }> {
-    const res = await fetch("/api/ai/report/save", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind: t.kind, id: t.id, competitor_id: t.competitorId, key: d.key }),
-    });
-    const json = await res.json().catch(() => ({}));
-    return res.ok ? { ok: true, message: typeof json.message === "string" ? json.message : "Saved." } : { ok: false, message: typeof json.error === "string" ? json.error : "Could not save just now." };
+  const saveReport = (d: DockReport, t: ReportSaveTarget): Promise<{ ok: boolean; message: string }> => postBriefSave(d.key, t);
+  // Retry runs only the parts the saved brief is missing: it is asked first (a chip), like any research.
+  function retryReport(d: DockReport) {
+    const s = d.subject;
+    void ask(`Try the missing parts of the brief on ${s.name}`, undefined, undefined, undefined, s.accountId
+      ? { account_id: s.accountId, retry: true }
+      : s.leadId ? { lead_id: s.leadId, retry: true }
+      : { name: s.name, domain: s.domain ?? undefined, country: s.country ?? undefined, retry: true });
   }
+
+  // The Yes on a brief chip: the four research parts run at the same time, and the route answers one line per change, then the card.
+  async function runBrief(base: Msg[], question: string, subject: string, query: string, token: string) {
+    if (busy) return;
+    const waiting = Object.fromEntries(REPORT_PARTS.map((p) => [p, "waiting"])) as Record<ReportPartId, PartState>;
+    const history = base.slice(-12).map((m) => ({
+      role: m.from === "me" ? "user" : "assistant",
+      text: m.analysis ? `${m.text}\n${m.analysis.digest}` : m.companyReport ? `${m.text}\n${m.companyReport.digest}` : m.text,
+      ...(m.from === "bot" && (m.web || m.analysis?.webDerived || m.companyReport || m.fromWeb) ? { web: true } : {}),
+    }));
+    setBusy(true);
+    setSearching(true);
+    setMessages((prev) => [...prev, { from: "bot", text: "", progress: { subject, parts: waiting } }]);
+    const finish = (msg: Msg) => setMessages((prev) => [...prev.filter((m) => !m.progress), msg]);
+    try {
+      const page = parsePageContext(pathname);
+      const res = await fetch("/api/ai/report/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, history, route: pathname, objectType: page?.objectType ?? null, recordId: page?.recordId ?? null, allow_web: "once", consent_query: query, consent_token: token }),
+      });
+      if (!res.ok || !res.body) {
+        const json = await res.json().catch(() => ({}));
+        finish({ from: "bot", text: typeof json.error === "string" ? json.error : "Something went wrong." });
+        return;
+      }
+      const reader = res.body.getReader();
+      let carry = "";
+      let ended = false;
+      const onLine = (line: string) => {
+        const ev = parseBriefLine(line);
+        if (!ev) return;
+        if (ev.type === "part") {
+          setMessages((prev) => prev.map((m) => (m.progress ? { ...m, progress: { ...m.progress, parts: { ...m.progress.parts, [ev.part]: ev.state } } } : m)));
+        } else if (ev.type === "done") {
+          ended = true;
+          const d = ev.companyReport as DockReport | undefined;
+          const companyReport: DockReport | undefined = d?.report && typeof d.digest === "string" && Array.isArray(d.targets) ? d : undefined;
+          const c0 = ev.consent as { kind?: string; query?: unknown; token?: unknown; subject?: unknown; searches?: unknown; mode?: unknown } | undefined;
+          const consent = c0 && c0.kind === "research_report" && typeof c0.query === "string" && typeof c0.token === "string"
+            ? { kind: "research_report" as const, query: c0.query, token: c0.token, subject: typeof c0.subject === "string" ? c0.subject : undefined, state: "pending" as const, searches: typeof c0.searches === "number" ? c0.searches : undefined, mode: c0.mode === "retry" ? ("retry" as const) : ("brief" as const) }
+            : undefined;
+          finish({ from: "bot", text: ev.answer, companyReport, consent });
+          if (companyReport) window.dispatchEvent(new CustomEvent("bpm:brief-updated"));
+        } else {
+          ended = true;
+          finish({ from: "bot", text: ev.message });
+        }
+      };
+      const decoder = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const got = splitBriefChunk(carry, decoder.decode(value, { stream: true }));
+        carry = got.rest;
+        got.lines.forEach(onLine);
+      }
+      if (carry.trim()) onLine(carry);
+      if (!ended) finish({ from: "bot", text: STREAM_ENDED_EARLY });
+    } catch {
+      finish({ from: "bot", text: "Could not reach the server." });
+    } finally {
+      setBusy(false);
+      setSearching(false);
+    }
+  }
+
+  // "Your history with them" is read live for each card drawn and is never kept: not in the chat, not in the brief.
+  const [histories, setHistories] = useState<Record<string, BriefHistory | null>>({});
+  const askedHistory = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const m of messages) {
+      const d = m.companyReport;
+      if (!d || d.report.v !== 2 || askedHistory.current.has(d.key)) continue;
+      askedHistory.current.add(d.key);
+      const q = new URLSearchParams({ include: "history" });
+      if (d.subject.accountId) q.set("account_id", d.subject.accountId);
+      else if (d.subject.leadId) q.set("lead_id", d.subject.leadId);
+      else { q.set("name", d.subject.name); if (d.subject.domain) q.set("domain", d.subject.domain); if (d.subject.country) q.set("country", d.subject.country); }
+      fetch(`/api/ai/report/brief?${q.toString()}`).then((r) => (r.ok ? r.json() : null)).then((j) => {
+        setHistories((prev) => ({ ...prev, [d.key]: j?.history ?? null }));
+      }).catch(() => setHistories((prev) => ({ ...prev, [d.key]: null })));
+    }
+  }, [messages]);
+
   const here = parsePageContext(pathname);
   const analyseHere = canAnalyse && here?.objectType === "account" && here.recordId && context ? { id: here.recordId, name: context } : null;
 
@@ -544,7 +639,7 @@ export default function AIDock({ liftForTabBar = false }: {
             )}
             {messages.map((m, i) => (
               <div key={i} className="bms-dock-msg" data-from={m.from} style={{ display: "flex", flexDirection: "column", gap: 8, alignSelf: m.from === "me" ? "flex-end" : "stretch", maxWidth: m.from === "me" ? "88%" : undefined }}>
-                <div
+                {!m.progress && <div
                   className="bms-dock-bubble"
                   data-from={m.from}
                   style={{
@@ -560,7 +655,7 @@ export default function AIDock({ liftForTabBar = false }: {
                 >
                   {/* The assistant's text is markdown (lists, bold); what the person typed is shown as typed. */}
                   {m.from === "bot" ? <Markdown text={m.text} links={!m.web && !m.fromWeb} /> : <span style={{ whiteSpace: "pre-wrap" }}>{m.text}</span>}
-                </div>
+                </div>}
                 {m.cards?.map((card) => (
                   <button
                     key={card.id}
@@ -580,11 +675,15 @@ export default function AIDock({ liftForTabBar = false }: {
                 {m.analysis && (
                   <AnalysisCardView data={m.analysis} busy={busy} onOpen={go} onRefresh={() => refreshAnalysis(m.analysis!)} onAsk={(q) => ask(q)} />
                 )}
+                {m.progress && <ReportProgressRows parts={m.progress.parts} subject={m.progress.subject} />}
                 {m.companyReport && (
-                  <ReportCardView data={m.companyReport} busy={busy} onRefresh={() => refreshReport(m.companyReport!)} onSave={(t) => saveReport(m.companyReport!, t)} />
+                  <ReportCardView
+                    data={m.companyReport} busy={busy} history={histories[m.companyReport.key] ?? null} onOpen={go}
+                    onRefresh={() => refreshReport(m.companyReport!)} onRetry={() => retryReport(m.companyReport!)} onSave={(t) => saveReport(m.companyReport!, t)}
+                  />
                 )}
                 {m.consent?.kind === "research_report" && (
-                  <ReportConsentRow subject={m.consent.subject ?? "this company"} searches={m.consent.searches} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />
+                  <ReportConsentRow subject={m.consent.subject ?? "this company"} searches={m.consent.searches} mode={m.consent.mode} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />
                 )}
                 {m.consent?.kind === "analyse_company" && (
                   <AnalysisConsentRow subject={m.consent.subject ?? "this company"} state={m.consent.state} disabled={busy} onChoice={(choice) => answerConsent(i, choice)} />
