@@ -26,6 +26,10 @@ const BLOCK_LABELS: Record<StandardQuoteTemplateBlockType, string> = {
   footer_text: "Footer text",
   specs_table: "Specifications table",
   cta_banner: "Call-to-action banner",
+  front_block: "Front block (customer, project, subject)",
+  clause_section: "Clause section",
+  scope_matrix: "Scope matrix",
+  closing: "Closing and signatory",
 };
 const HAS_CONTENT: Partial<Record<StandardQuoteTemplateBlockType, string>> = {
   intro_text: "Shown above the line items — e.g. a short cover note. Can be overridden per-quote.",

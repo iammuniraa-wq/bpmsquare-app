@@ -47,6 +47,8 @@ export type Account = {
   created_at: string;
   custom_data: Record<string, unknown> | null;
   marketing_opt_out: boolean;
+  /** Entity extra ids this customer sees on printed documents ("selected customers" ids, 0251). Absent while 0251 is pending. */
+  print_ids?: string[] | null;
   /** ISO 639-1 (0143). Present only once that migration is applied. */
   preferred_language?: string | null;
   /** Coverage (0101) -- auto-resolved from the account's matching OWNER
@@ -473,7 +475,20 @@ export type StandardQuote = {
   opportunity_id?: string | null;
   /** Tenant-defined fields (0209), cf_-prefixed keys only. Absent while 0209 is pending. */
   custom_data?: Record<string, unknown> | null;
+  /** The two front-block fields of a framed quotation, the legal entity that issues it (config.entities id), the per-quotation
+   *  sections, and where the quote came from (0251). All absent while 0251 is pending. */
+  subject?: string | null;
+  project_title?: string | null;
+  entity_id?: string | null;
+  doc_sections?: DocSections | null;
+  source_type?: StandardQuoteSourceType | null;
+  source_id?: string | null;
+  /** Revision history (0252): the number of the latest issued revision (null = none yet) and where the working copy stands. */
+  current_revision?: number | null;
+  revision_state?: "draft" | "issued" | null;
 };
+
+export type StandardQuoteSourceType = "email" | "estimate" | "drawing" | "lead" | "opportunity" | "standard_quote" | "quotation" | "project" | "direct";
 
 export type StandardQuoteLine = {
   id: string;
@@ -632,7 +647,44 @@ export type StandardQuoteAttachment = {
 export type StandardQuoteTemplateBlockType =
   | "letterhead" | "quote_meta" | "bill_to" | "intro_text" | "line_items"
   | "totals" | "notes" | "terms" | "signature" | "footer_text"
-  | "specs_table" | "cta_banner";
+  | "specs_table" | "cta_banner"
+  // Framed documents (PDF redesign, slice 1): structured blocks that carry their content in `data`.
+  | "front_block" | "clause_section" | "scope_matrix" | "closing";
+
+/** The record fields a front-block row can show. `cf:<key>` reads a custom field. */
+export type FrontField =
+  | "date" | "ref" | "account" | "account_phone" | "account_email" | "contact" | "contact_phone" | "contact_email"
+  | "project_title" | "subject" | "valid_until" | "inquiry_date" | `cf:${string}`;
+export type FrontRow = { label: string; field: FrontField; label2?: string; field2?: FrontField };
+/** `title` and `reference_label` are what the page frame's title band prints ("QUOTATION", "RFQ #"). */
+export type FrontBlockData = { rows: FrontRow[]; greeting?: string; opening?: string; title?: string; reference_label?: string };
+
+/** One lettered clause. `edit` = the text of this item is written per quotation (the sample's "dynamic" text). */
+/** `band` prints the heading as a coloured sub-band (the sample's "EX-FACTORY (PRODUCTION) ONLY" row). */
+export type ClauseItem = { id: string; heading?: string; text: string; sub?: string[]; edit?: boolean; band?: boolean };
+export type ClauseSectionData = { title: string; numbered: boolean; items: ClauseItem[]; optional?: boolean; page_break?: boolean };
+
+export type MatrixRow = { id: string; text: string };
+export type ScopeMatrixData = { title: string; columns: [string, string, string]; remark: boolean; rows: MatrixRow[] };
+
+export type LineItemsData = { preset?: "boq"; total_label?: string; note?: string };
+export type ClosingData = { text: string; regards: string; signatory_name?: string; signatory_title?: string };
+
+export type StandardQuoteBlockData = FrontBlockData | ClauseSectionData | ScopeMatrixData | LineItemsData | ClosingData;
+
+/** What a quotation holds per document for the blocks marked "edit per document" (standard_quotes.doc_sections, keyed by block id). */
+export type DocSectionEntry = {
+  hidden?: boolean;
+  /** Clause items rewritten for this quotation, by item id. */
+  items?: Record<string, { text?: string; sub?: string[] }>;
+  /** Scope matrix: 0 = the first column, 1 = the second, 2 = the third ("N/A"), by row id. */
+  ticks?: Record<string, 0 | 1 | 2>;
+  remarks?: Record<string, string>;
+  extra_rows?: MatrixRow[];
+  /** The whole matrix does not apply: it collapses to one row with this reason. */
+  not_applicable?: string;
+};
+export type DocSections = Record<string, DocSectionEntry>;
 
 export const STANDARD_QUOTE_REQUIRED_BLOCKS: StandardQuoteTemplateBlockType[] = [
   "letterhead", "quote_meta", "bill_to", "line_items", "totals",
@@ -643,6 +695,8 @@ export type StandardQuoteTemplateBlock = {
   type: StandardQuoteTemplateBlockType;
   visible: boolean;
   content?: string;
+  /** Structured content of a framed-document block (front_block, clause_section, scope_matrix, closing; line_items preset). */
+  data?: StandardQuoteBlockData;
 };
 
 export type StandardQuoteTemplate = {
