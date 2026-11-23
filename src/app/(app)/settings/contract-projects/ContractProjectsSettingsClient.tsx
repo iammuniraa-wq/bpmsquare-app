@@ -14,6 +14,7 @@ import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 import type { MasterKind, MasterRow } from "@/lib/contractProjects/types";
 import type { PaymentTermTemplate } from "@/lib/constants";
 import PaymentTermsSection from "./PaymentTermsSection";
+import FinanceSettingsSection, { type FinanceForm } from "./FinanceSettingsSection";
 
 type KindRow = { kind: MasterKind; label: string; total: number; active: number; files: number; defaults: number; manual: number };
 type ImportResult = { added: number; updated: number; refused: number; problems: { row: number; message: string }[]; warnings: { row: number; message: string }[]; preview: boolean; error?: string };
@@ -30,7 +31,9 @@ export default function ContractProjectsSettingsClient() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [panel, setPanel] = useState<KindRow | null>(null);
-  const { dirty, markSaved } = useSettingsDirty(floor);
+  // Cost and margin (only with the project_dashboards flag): null when the workspace does not own it.
+  const [fin, setFin] = useState<FinanceForm | null>(null);
+  const { dirty, markSaved } = useSettingsDirty(`${floor}|${JSON.stringify(fin)}`);
 
   const load = useCallback(async () => {
     const [m, s] = await Promise.all([fetch("/api/contract-projects/masters?summary=1"), fetch("/api/settings/contract-projects")]);
@@ -40,7 +43,13 @@ export default function ContractProjectsSettingsClient() {
     setKinds(mj.kinds as KindRow[]);
     if (s.ok) {
       const f = sj.margin_floor_pct === null || sj.margin_floor_pct === undefined ? "" : String(sj.margin_floor_pct);
-      setFloor(f); markSaved(f);
+      setFloor(f);
+      let finForm: FinanceForm | null = null;
+      if (sj.finance) {
+        finForm = { visibility: sj.finance.visibility, drop: String(sj.finance.drop_points), cash: String(sj.finance.cash_days), late: String(sj.finance.late_pct) };
+        setFin(finForm);
+      }
+      markSaved(`${f}|${JSON.stringify(finForm)}`);
       setTemplates((sj.payment_term_templates ?? []) as PaymentTermTemplate[]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -49,11 +58,14 @@ export default function ContractProjectsSettingsClient() {
 
   async function saveFloor() {
     setBusy(true); setMsg(null);
-    const res = await fetch("/api/settings/contract-projects", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ margin_floor_pct: floor.trim() === "" ? null : Number(floor) }) });
+    const res = await fetch("/api/settings/contract-projects", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+      margin_floor_pct: floor.trim() === "" ? null : Number(floor),
+      ...(fin ? { finance_visibility: fin.visibility, finance_lights: { drop_points: Number(fin.drop), cash_days: Number(fin.cash), late_pct: Number(fin.late) } } : {}),
+    }) });
     const j = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) { setMsg({ ok: false, text: j.error ?? "Couldn't save." }); return; }
-    markSaved(floor); setMsg({ ok: true, text: "Saved." });
+    markSaved(`${floor}|${JSON.stringify(fin)}`); setMsg({ ok: true, text: "Saved." });
   }
 
   /** Saves the whole list of templates; the server answers with the ids it gave the new ones. */
@@ -97,6 +109,8 @@ export default function ContractProjectsSettingsClient() {
           <span style={{ color: c.hint }}>%</span>
         </label>
       </section>
+
+      {fin && <FinanceSettingsSection value={fin} onChange={setFin} />}
 
       <SettingsSave dirty={dirty} saving={busy} saved={!!msg?.ok} error={msg && !msg.ok ? msg.text : ""} onSave={saveFloor} />
       {panel && <KindPanel kind={panel} onClose={() => { setPanel(null); void load(); }} />}

@@ -29,6 +29,7 @@ import type { TenderDeskStyle } from "@/lib/tenderDesk/types";
 import { isTenderBlockId } from "@/lib/dashboardBlocks";
 import { tenderBlockSpec } from "@/components/tenderDesk/TenderBlocks";
 import { DashLookScope, LookSwitch } from "@/components/tenderDesk/DashLook";
+import { isPfBlockId, pfBlockSpec } from "@/components/projectFinance/PfBlocks";
 import RichDashboard from "@/components/RichDashboard";
 import { buildRichDashboard } from "@/lib/richDashboard";
 import { buildWelcome } from "@/lib/richWelcome";
@@ -660,6 +661,11 @@ export function renderWidget(id: AnalyticsMetricId, a: AnalyticsData, size: "com
     const spec = tenderBlockSpec(id, a.tender ?? null, tenderLook);
     if (!spec) return null;
     return spec.kind === "tile" ? spec.node : <AnalyticsCard title={spec.title} href={spec.href} info={spec.info}>{spec.body}</AnalyticsCard>;
+  }
+  // Project cost and profitability blocks read a.projectFinance (null: the module is off or this person may not see cost and margin: nothing is drawn).
+  if (isPfBlockId(id)) {
+    const spec = pfBlockSpec(id, a.projectFinance ?? null);
+    return spec ? <AnalyticsCard title={spec.title} href={spec.href} info={spec.info}>{spec.body}</AnalyticsCard> : null;
   }
   const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const COLORS = [pillar.blue.base, pillar.teal.base, pillar.amber.base, pillar.purple.base, pillar.green.base];

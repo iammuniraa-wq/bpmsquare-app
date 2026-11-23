@@ -1,0 +1,86 @@
+/* Project cost and profitability screens (docs/design/pcbs-project-dashboards.md). No colour literal lives here: every colour is one of the
+   app's own theme variables (--ink, --muted, --hint, --line, --panel2, --card-bg, --accent ...) or a token set inline from src/lib/theme.ts.
+   One column under 700 px, tap targets of 44 px, nothing scrolls sideways. */
+
+.stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.stack *, .stack *::before, .stack *::after { box-sizing: border-box; }
+.row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; min-width: 0; }
+.quiet { margin: 0; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.mono { font-variant-numeric: tabular-nums; }
+
+/* The four figures of the Health card and the strips on the Forecast tab: two across on a phone. */
+.figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.figures3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 700px) {
+  .figures, .figures3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.light { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: 13px; color: var(--ink); }
+.dot { flex: none; width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; }
+.dotFull { background: currentColor; }
+
+.nextLink {
+  display: inline-flex; align-items: center; min-height: 44px; font-size: 12.5px; font-weight: 600; color: var(--tip-accent, var(--accent)); text-decoration: none; border-radius: 6px;
+}
+.nextLink:hover { text-decoration: underline; }
+.nextLink:focus-visible, .actionBtn:focus-visible, .input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The cost bar: one scale, markers at the approved budget and the contract value. */
+.bar { position: relative; display: flex; height: 22px; border-radius: 11px; overflow: hidden; background: var(--panel2); }
+.seg { height: 100%; flex: none; }
+.hatch { background-image: repeating-linear-gradient(135deg, transparent 0 4px, var(--card-bg) 4px 6px); }
+.marks { position: relative; height: 34px; }
+.mark { position: absolute; top: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.markTick { width: 2px; height: 10px; background: var(--ink); border-radius: 1px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; list-style: none; margin: 0; padding: 0; font-size: 12.5px; color: var(--ink); }
+.legend li { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { flex: none; width: 10px; height: 10px; border-radius: 3px; }
+
+/* A category of the forecast table: a card on every width, its figures flowing to the room there is. */
+.cat { border: 1px solid var(--line); border-radius: var(--card-radius); background: var(--card-bg); padding: 10px 12px; min-width: 0; }
+.catHead { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-height: 44px; }
+.catName { flex: 1 1 160px; min-width: 0; font-weight: 600; font-size: 13.5px; color: var(--ink); overflow-wrap: anywhere; }
+.catFigs { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 6px 12px; margin-top: 6px; }
+.fig { min-width: 0; }
+.figLabel { font-size: 11px; color: var(--hint); text-transform: uppercase; letter-spacing: 0.3px; }
+.figValue { font-size: 13.5px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cellRow { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
+.toggle { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: transparent; color: var(--muted); cursor: pointer; border-radius: 8px; }
+.toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.input {
+  width: 100%; min-height: 44px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card-bg); color: var(--ink);
+  font-size: 14px; font-variant-numeric: tabular-nums;
+}
+.flag { font-size: 11.5px; color: var(--amberink, var(--ink)); font-weight: 600; }
+
+/* The margin bridge: a waterfall where there is room, signed rows on a phone. */
+.bridgeWide { display: block; }
+.bridgeRows { display: none; list-style: none; margin: 0; padding: 0; }
+@media (max-width: 700px) {
+  .bridgeWide { display: none; }
+  .bridgeRows { display: block; }
+}
+.bridgeRows li { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; border-top: 1px solid var(--line); font-size: 13.5px; }
+.bridgeRows li:first-child { border-top: 0; }
+
+/* The sticky bar of the Forecast tab: the one primary action, in its one place on a phone. */
+.sticky { position: sticky; bottom: 0; z-index: 3; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding: 10px 0; background: var(--card-bg); border-top: 1px solid var(--line); }
+.actionBtn {
+  min-height: 44px; padding: 0 18px; border-radius: 10px; border: 0; background: var(--accent); color: var(--accent-ink, var(--card-bg)); font-weight: 600; font-size: 14px; cursor: pointer;
+}
+.actionBtn:disabled { opacity: 0.5; cursor: default; }
+
+/* Portfolio blocks */
+.worst { display: flex; flex-direction: column; gap: 2px; list-style: none; margin: 0; padding: 0; }
+.worstRow { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 44px; color: inherit; text-decoration: none; border-radius: 8px; padding: 0 6px; margin: 0 -6px; }
+.worstRow:hover { background: var(--panel2); }
+.worstRow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.trackBar { height: 8px; border-radius: 4px; background: var(--panel2); overflow: hidden; }
+.trackFill { height: 100%; border-radius: 4px; }
+.donutWrap { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+
+.tableWrap { overflow-x: auto; max-width: 100%; }
+.table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.table th, .table td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.table th:first-child, .table td:first-child { text-align: left; }
+.table th { color: var(--hint); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; }
