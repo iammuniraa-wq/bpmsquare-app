@@ -1541,6 +1541,8 @@ export type AnalyticsData = {
     draftOrders: number;
     openOrders: number;
     openOrderValue: number;
+    /** Drawing revisions waiting for a named approver to release (0255). */
+    drawingsWaiting?: number;
   };
   accountsByType: Array<{ type: string; label: string; count: number }>;
   leadFunnel: Array<{ stage: string; count: number }>;
@@ -1597,7 +1599,7 @@ export async function getAnalyticsDataLive(opts: { tender?: boolean } = {}): Pro
   const tenantId = await currentTenantId();
   if (!tenantId) {
     return {
-      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0, openRfqs: 0, rfqsToAward: 0, draftEstimates: 0, quotedEstimates: 0, abmTargets: 0, abmEngaged: 0, draftOrders: 0, openOrders: 0, openOrderValue: 0 },
+      totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0, openRfqs: 0, rfqsToAward: 0, draftEstimates: 0, quotedEstimates: 0, abmTargets: 0, abmEngaged: 0, draftOrders: 0, openOrders: 0, openOrderValue: 0, drawingsWaiting: 0 },
       accountsByType: [], leadFunnel: [], assetsByKind: [],
       loanerStock: { available: 0, onLoan: 0, total: 0 },
       quotesByStatus: [], quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
@@ -1660,6 +1662,10 @@ export async function getAnalyticsDataLive(opts: { tender?: boolean } = {}): Pro
     // 0212 may be pending: an error reads as no orders.
     readAllPages((lo, hi) => supabase.from("sales_orders").select("status, total").eq("tenant_id", tenantId).in("status", ["draft", "confirmed"]).order("id", { ascending: true }).range(lo, hi)),
   ]);
+  // Drawings waiting for release (0255): asked only of a workspace that owns the register; a pending migration reads as none.
+  const drawingsWaiting = tenant?.features?.drawing_register === true
+    ? (await supabase.from("drawing_revisions").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("status", "in_review")).count ?? 0
+    : 0;
   const orderRows = (orderRaw ?? []) as Array<{ status: string; total: number | null }>;
   const abmRows = (abmRaw ?? []) as unknown as Array<{ progress: string }>;
   const estimateRows = (estimateRaw ?? []) as Array<{ status: string }>;
@@ -1702,6 +1708,7 @@ export async function getAnalyticsDataLive(opts: { tender?: boolean } = {}): Pro
     draftOrders:     orderRows.filter((o) => o.status === "draft").length,
     openOrders:      orderRows.filter((o) => o.status === "confirmed").length,
     openOrderValue:  orderRows.filter((o) => o.status === "confirmed").reduce((s, o) => s + Number(o.total ?? 0), 0),
+    drawingsWaiting,
   };
 
   const accountTypeCounts = new Map<string, number>();
@@ -2384,6 +2391,13 @@ const SEARCH_SPECS: SearchSpec[] = [
     textCols: ["name", "ref"],
     toResult: (r) => ({ id: r.id, title: r.name, subtitle: [r.ref, r.status].filter(Boolean).join(" · ") || "Contract project", href: ROUTES.contractProject(r.id), matched: "name" }),
     featureKeys: ["contract_projects"],
+  },
+  {
+    // The header only (number, title, reference): a file, its path and a revision's state are never part of a search result.
+    type: "drawing", table: "drawings", columns: "id, ref, drawing_no, title, external_no",
+    textCols: ["drawing_no", "title", "ref", "external_no"],
+    toResult: (r) => ({ id: r.id, title: r.drawing_no, subtitle: r.title || r.ref || "Drawing", href: ROUTES.drawing(r.id), matched: "drawing_no" }),
+    featureKeys: ["drawing_register"],
   },
   {
     // Name, ref and status only: the budget, the quotes and the committed cost are internal and never part of a search result. Opens the project's Buy-out tab.

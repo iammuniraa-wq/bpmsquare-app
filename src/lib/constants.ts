@@ -140,6 +140,10 @@ export const ROUTES = {
   contractProject: (id: string) => `/contract-projects/${id}`,
   contractProjectNew: "/contract-projects/new",
   settingsContractProjects: "/settings/contract-projects",
+  drawings: "/drawings",
+  drawing: (id: string) => `/drawings/${id}`,
+  drawingNew: "/drawings/new",
+  settingsDrawingTypes: "/settings/drawing-types",
   employees: "/employees",
   configPricing: "/settings/pricing",
   settingsNumberRanges: "/settings/number-ranges",
@@ -338,7 +342,9 @@ export const NAV: NavGroup[] = [
           { label: "Sales Orders", href: ROUTES.salesOrders, icon: "▣", pillar: "blue", featureKey: "sales_orders", workcenterKey: "sales_orders" },
           { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "blue", featureKey: "purchasing", workcenterKey: "purchase_orders" },
           { label: "Contract Projects", href: ROUTES.contractProjects, icon: "▤", pillar: "blue", featureKey: "contract_projects", workcenterKey: "contract_projects" },
-          { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
+          // Drawing register (0255): numbered drawings with revisions and a release; only Released feeds the BOQ, estimate and handover.
+          { label: "Drawings", href: ROUTES.drawings, icon: "◫", pillar: "blue", featureKey: "drawing_register", workcenterKey: "drawing_register" },
+          { label: "Invoices",  href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
         ],
       },
     ],
@@ -844,6 +850,11 @@ export type TenantFeatures = {
   // an element is a contract line with a type, a unique code and a second (model) quantity, and a model comparison sets the drawings beside the budget.
   // Platform-admin-only, default OFF; needs contract_projects. With it off no screen, route or API answer shows any of it.
   contract_buildings: boolean;
+  // Drawing register (docs/design/pcbs-drawing-register.md): numbered drawings with append-only revisions, a status flow
+  // (draft, in review, released, superseded), release by named approvers, element schedules and a comparison of a new revision.
+  // Only a RELEASED revision feeds the BOQ, estimate and handover. Platform-admin-only, default OFF, missing key = false; with it off
+  // there is no menu item, route, API answer or button, and the new tables are never queried.
+  drawing_register: boolean;
   // AI automation (docs/design/nova-crew-agents.md, section 3.1): the workcenter of pre-built agents. Three platform-admin-only
   // flags (set in /admin/tenants, never by a workspace admin), each default OFF, a missing key reads false, and none depends on
   // Nova or the dock assistant. `crew` = the page and the runner exist; `crew_tender_watch` needs gcc_tender + pipeline;
@@ -1181,6 +1192,7 @@ export type AnalyticsMetricId =
   | "estimates_open"
   | "inbox_open"
   | "sales_orders_open"
+  | "drawings_waiting"
   | "abm_targets_engaged"
   | "wfm_attendance_today" | "wfm_night_shift_cost"
   | "wfm_corrections_queue" | "wfm_leave_requests_queue" | "wfm_recheck_queue"

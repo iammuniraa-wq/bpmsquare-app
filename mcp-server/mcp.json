@@ -748,6 +748,51 @@
       }
     },
     {
+      "name": "list_drawings",
+      "description": "List the tenant's engineering drawings with their RELEASED revision: id, ref, drawing number, external number, title, type, whether a revision is released, its label and release date, effective date, and the tender or project it is filed under. Needs an API key explicitly scoped to \"drawings\". Files, fingerprints and drafts or revisions still in review are never returned.",
+      "method": "GET",
+      "path": "/api/v1/drawings",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Only drawings of this drawing type (its name, e.g. Shop drawing)"
+          },
+          "opportunity_id": {
+            "type": "string",
+            "description": "Only drawings filed under this tender (deal UUID)"
+          },
+          "project_id": {
+            "type": "string",
+            "description": "Only drawings filed under this contract project (UUID)"
+          },
+          "released": {
+            "type": "string",
+            "description": "true to list only drawings that have a released revision"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_drawing",
+      "description": "Fetch one drawing by id with its released revision. Needs an API key explicitly scoped to \"drawings\".",
+      "method": "GET",
+      "path": "/api/v1/drawings/{id}",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Drawing UUID as returned by list_drawings"
+          }
+        }
+      }
+    },
+    {
       "name": "list_tenders",
       "description": "List the tenant's tender deals: deal id and ref, title, customer, tender number, issuer, portal, bid end date, bid guarantee, change requests, go / no-go decision, stage, outcome and amount. Needs an API key explicitly scoped to \"tenders\". Decision reasons, the source e-mail and costs are never returned.",
       "method": "GET",

@@ -10,6 +10,7 @@ import { listTenders } from "@/lib/tender/server";
 import { fetchAllRows } from "@/lib/import/server";
 import { ELEMENTS_API_SCOPE, PROJECT_ELEMENT_FIELDS, loadProjectElementRows } from "@/lib/elements/apiRows";
 import { loadStandardQuotesForApi } from "@/lib/api/standardQuoteRows";
+import { DRAWING_API_FIELDS, loadDrawingsForApi } from "@/lib/drawings/apiRows";
 import { loadSalesOrdersForApi } from "@/lib/api/salesOrderRows";
 import { loadEinvoiceSummaries } from "@/lib/einvoicing/listRows";
 
@@ -553,6 +554,15 @@ export const LIST_SOURCES: Record<string, ListSource> = {
         _links: { self: `/api/v1/products/${p.id}` },
       }));
     },
+  },
+  // Drawing register (0255): the header and the RELEASED revision only. File path, fingerprint, ACC ids, drafts, reviews and who signed are internal
+  // and deliberately not here (src/lib/drawings/apiRows.ts). Explicit-scope only (project IP): a wildcard key does not reach it.
+  drawings: {
+    label: "Drawings (released)",
+    description: "Engineering drawings with their number and the released revision: type, revision label, release date and where each is filed.",
+    relatedWorkcenter: "drawing_register",
+    fields: DRAWING_API_FIELDS,
+    load: (tenantId) => loadDrawingsForApi(createAdminSupabase(), tenantId),
   },
   opportunities: {
     label: "Deals (pipeline)",

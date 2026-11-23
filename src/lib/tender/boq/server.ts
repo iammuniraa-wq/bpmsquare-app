@@ -30,6 +30,7 @@ import { partsOf, remainderOf, type Share } from "@/lib/wbs/tree";
 import { splitListText } from "@/lib/wbs/screen";
 
 import { readAllPages } from "@/lib/pagedRead";
+import { boqDrawingFlags } from "@/lib/drawings/pinsRead";
 // Server side of the tender BOQ (migration 0223, slice 3a). Every query is tenant-scoped on the admin client and every one
 // tolerates the migration being pending (a missing table answers `pending`, never a crash). The BOQ is reached ONLY through
 // openBoqRequest(): flags gcc_tender + pipeline, the caller's view (or edit, for a write) of the Pipeline workcenter, and a tender
@@ -180,6 +181,8 @@ export type BoqLineView = {
   stale: boolean; stale_text: string | null; stale_accepted: boolean; unit_cost: number | null; markup_pct: number | null; file_rate: number | null;
   /** The WBS item the line sits in (the default), and its shares when it is split across items (then wbs_item_id is null). Empty until 0243 is applied. */
   wbs_item_id: string | null; wbs_parts: Share[];
+  /** A quantity taken from a released drawing (migration 0257): the chip's words, and whether a later release waits for review. Empty when none. */
+  drawing_chip?: string | null; drawing_review?: boolean;
 };
 export type BoqState = {
   pending: boolean;
@@ -227,6 +230,9 @@ export async function buildBoqState(r: BoqRequest): Promise<BoqState> {
   // Where each line sits in the WBS (0243). Pending reads as "no WBS", never as a failure of the BOQ.
   const { state: wbs, members } = await wbsStateFor(admin, tenantId, opp.id, lines);
   if (!wbs.pending) for (const l of lines) { const m = membershipOf(members, l.id); l.wbs_item_id = m.wbs_item_id; l.wbs_parts = [...m.parts]; }
+  // Lines that take a quantity from a released drawing (0257). Nothing here when the register is off or the migration is pending.
+  const flags = await boqDrawingFlags(admin, tenantId, opp.id);
+  if (flags.size > 0) for (const l of lines) { const f = flags.get(l.id); if (f) { l.drawing_chip = f.label; l.drawing_review = f.review; } }
   const active = lines.filter((l) => !l.removed);
   return {
     pending: false,

@@ -51,6 +51,7 @@ export const ANALYTICS_META: Record<AnalyticsMetricId, { label: string; feature?
   estimates_open:          { label: "Estimates (draft / quoted)", feature: "estimator" },
   inbox_open:              { label: "Inbox (unhandled / reply time)", feature: "inbox" },
   sales_orders_open:       { label: "Sales orders (to confirm / open)", feature: "sales_orders" },
+  drawings_waiting:        { label: "Drawings (waiting for release)", feature: "drawing_register" },
   abm_targets_engaged:     { label: "ABM (targets engaged)", feature: "abm" },
   wfm_attendance_today:    { label: "Attendance by site (today)", feature: "wfm" },
   wfm_night_shift_cost:    { label: "Night shift cost (today)",   feature: "wfm" },

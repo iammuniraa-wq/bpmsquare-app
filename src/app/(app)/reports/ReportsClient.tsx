@@ -408,6 +408,7 @@ const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof Te
   estimates_open:         { label: "Estimates KPI",        feature: "estimator", workcenter: "estimates" },
   inbox_open:             { label: "Inbox KPI",            feature: "inbox", workcenter: "inbox" },
   sales_orders_open:      { label: "Sales Orders KPI",     feature: "sales_orders", workcenter: "sales_orders" },
+  drawings_waiting:       { label: "Drawings KPI",         feature: "drawing_register", workcenter: "drawing_register" },
   abm_targets_engaged:    { label: "ABM targets engaged KPI", feature: "abm", workcenter: "abm" },
   open_cases:             { label: "Open Cases KPI",       feature: "cases", workcenter: "cases" },
   work_orders:            { label: "Work Orders KPI",      feature: "work_orders", workcenter: "work_orders" },

@@ -121,6 +121,7 @@ export type AnalyticsData = {
     draftOrders: number;
     openOrders: number;
     openOrderValue: number;
+    drawingsWaiting?: number;
   };
   accountsByType: Array<{ type: string; label: string; count: number }>;
   leadFunnel: Array<{ stage: string; count: number }>;

@@ -8,7 +8,7 @@ import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
 // never recovered -- same posture as GitHub/Stripe.
 
 // Objects a key's scope may name. Aligns with the v1 endpoint slugs; "*" = all.
-const SCOPABLE_OBJECTS = ["quotations", "accounts", "cases", "inventory", "invoices", "purchase-orders", "pricing", "products", "projects", "opportunities", "employees", "rfqs", "estimates", "abm_programs", "abm_targets", "standard_quotes", "sales_orders", "contract_projects", "tenders"];
+const SCOPABLE_OBJECTS = ["quotations", "accounts", "cases", "inventory", "invoices", "purchase-orders", "pricing", "products", "projects", "opportunities", "employees", "rfqs", "estimates", "abm_programs", "abm_targets", "standard_quotes", "sales_orders", "contract_projects", "drawings", "tenders"];
 
 type ScopeInput = { read?: unknown; write?: unknown; objects?: unknown };
 

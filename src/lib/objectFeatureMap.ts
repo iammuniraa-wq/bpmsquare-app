@@ -175,6 +175,11 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   sales_orders: "sales_orders",
   sales_order_lines: "sales_orders",
   "sales-orders": "sales_orders",
+  // Drawing register (0255-0257): every spelling a surface uses (tables, the Data Workbench family, the v1 endpoint). Platform-admin flag.
+  drawings: "drawing_register",
+  drawing_types: "drawing_register",
+  drawing_revisions: "drawing_register",
+  drawing_revision_elements: "drawing_register",
   suppliers: "suppliers",
   work_orders: "work_orders",
   "work-orders": "work_orders",

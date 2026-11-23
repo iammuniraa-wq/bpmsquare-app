@@ -6,7 +6,7 @@ export type ImportObjectId =
   | "standard_quotes" | "standard_quote_lines"
   | "sales_orders" | "sales_order_lines"
   | "tender_boq_lines" | "tender_wbs_items"
-  | "project_budget_lines" | "project_wbs_items";
+  | "project_budget_lines" | "project_wbs_items" | "drawings";
 
 /**
  * Which objects have an Export or an Update is decided by the route folders under src/app/api/{export,update} and

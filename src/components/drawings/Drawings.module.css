@@ -1,0 +1,52 @@
+/* The drawing register's screens. Colours come from the theme variables only (no hex), so every theme and both colour modes follow.
+   One column under 900 px, tap targets of 44 px on touch, no horizontal page scroll (wide tables scroll inside their own wrapper). */
+
+.alert { border: 1px solid var(--redink); background: var(--redbg); color: var(--redink); border-radius: var(--card-radius, 10px); padding: 10px 12px; font-size: 13px; }
+.alert ul { margin: 6px 0 0; padding-left: 18px; font-weight: 400; }
+
+.quiet { color: var(--hint); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
+/* The revision rail: A -> B -> C, newest on the right, scrolls inside its own box on a phone. */
+.rail { list-style: none; margin: 0; padding: 2px 0 6px; display: flex; gap: 10px; overflow-x: auto; }
+.railItem { flex: 0 0 auto; min-width: 118px; display: grid; gap: 6px; justify-items: start; border: 1px solid var(--line); border-radius: var(--card-radius, 10px); padding: 10px 12px; background: var(--panel2); }
+.railItem[data-status="released"] { border-color: var(--greenink); background: var(--greenbg); }
+.railItem[data-status="in_review"] { border-color: var(--amberink); background: var(--amberbg); }
+.railItem[data-status="superseded"] { opacity: 0.75; }
+.railLabel { font-size: 22px; font-weight: 700; color: var(--ink); line-height: 1; }
+.railWho { font-size: 11.5px; color: var(--muted); }
+
+.revHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.revTitle { font-size: 15px; font-weight: 700; color: var(--ink); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 16px; margin: 12px 0 0; }
+.facts dt { font-size: 11.5px; color: var(--hint); font-weight: 600; }
+.facts dd { margin: 2px 0 0; font-size: 13px; color: var(--ink); word-break: break-word; }
+.note { margin: 10px 0 0; font-size: 13px; color: var(--ink); white-space: pre-wrap; }
+.returned { margin: 10px 0 0; font-size: 13px; color: var(--amberink); background: var(--amberbg); border-radius: 8px; padding: 8px 10px; }
+.returnBox { margin-top: 10px; display: grid; gap: 8px; }
+
+/* Summary strip and tables */
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.tableWrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--card-radius, 10px); }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table th { text-align: left; color: var(--hint); font-weight: 500; font-size: 11.5px; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.table td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.table td.num, .table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.added { color: var(--greenink); }
+.removed { color: var(--redink); }
+.changed { color: var(--amberink); }
+.was { color: var(--hint); text-decoration: line-through; margin-right: 6px; }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--card-bg); color: var(--muted); padding: 0 12px; min-height: 34px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accentbg); color: var(--ink); font-weight: 600; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.chipRow { display: flex; gap: 6px; flex-wrap: wrap; }
+
+@media (max-width: 900px) {
+  .two { grid-template-columns: minmax(0, 1fr); }
+  .actions :global(.bpm-btn), .toolbar :global(.bpm-btn) { min-height: 44px; }
+  .seg button { min-height: 44px; }
+  .railItem { min-width: 108px; }
+}

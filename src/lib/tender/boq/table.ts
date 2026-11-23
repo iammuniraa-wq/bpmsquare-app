@@ -13,6 +13,8 @@ export type RowLike = {
   item_no: string | null; row_no: number; priced: boolean; removed: boolean;
   price_source: PriceSource | null; price_source_ref: string | null;
   stale: boolean; stale_accepted: boolean;
+  /** Where the line takes a quantity from a released drawing (drawing register): the words on the chip, and whether a later release waits for review. */
+  drawing_chip?: string | null; drawing_review?: boolean;
 };
 
 /** A row counts as stale the way the totals count it: priced, older than the workspace's limit, and not accepted knowingly. */
@@ -96,7 +98,7 @@ export function estimateRefsOf(l: Pick<RowLike, "price_source" | "price_source_r
   return [...new Set(refs)];
 }
 
-export type Chip = { kind: "estimate" | "rfq" | "unpriced" | "stale" | "changed"; label: string };
+export type Chip = { kind: "estimate" | "rfq" | "unpriced" | "stale" | "changed" | "drawing" | "drawing_review"; label: string };
 
 /** The chips of a row, in a fixed order: estimate, RFQ, then what needs a person (unpriced, stale, estimate changed). */
 export function rowChips(l: RowLike & { id: string }, links: readonly EstimateLinkLike[] = []): Chip[] {
@@ -107,6 +109,7 @@ export function rowChips(l: RowLike & { id: string }, links: readonly EstimateLi
   if (!l.priced) chips.push({ kind: "unpriced", label: "Unpriced" });
   else if (l.stale) chips.push({ kind: "stale", label: l.stale_accepted ? "Stale, accepted" : "Stale" });
   if (links.some((k) => k.boq_id === l.id && (k.stale || k.waiting) && !k.broken)) chips.push({ kind: "changed", label: "Estimate changed" });
+  if (l.drawing_chip) chips.push({ kind: l.drawing_review ? "drawing_review" : "drawing", label: l.drawing_chip });
   return chips;
 }
 
