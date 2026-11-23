@@ -5,7 +5,7 @@ import { requireFeature, getTenant } from "@/lib/tenant";
 import { getStandardQuoteLive, listStandardQuoteTemplates } from "@/lib/data/live";
 import { ROUTES } from "@/lib/constants";
 import StandardQuoteForm from "../../new/StandardQuoteForm";
-import { standardQuoteProducts, pricingOnStandardQuotes } from "../../formData";
+import { standardQuoteProducts, pricingOnStandardQuotes, docColumnsReady, docDetailsFor } from "../../formData";
 
 export default async function EditStandardQuotePage({ params }: { params: Promise<{ id: string }> }) {
   await requireWorkcenterView("standard_quotes");
@@ -34,7 +34,9 @@ export default async function EditStandardQuotePage({ params }: { params: Promis
       templates={templates.map((t) => ({ id: t.id, name: t.name, is_default: t.is_default }))}
       products={products}
       pricingEngineQuotesEnabled={pricingOnStandardQuotes(tenant)}
+      docDetails={docColumnsReady(quote) ? docDetailsFor(tenant) : undefined}
       editQuote={{
+        project_title: quote.project_title ?? null, subject: quote.subject ?? null, entity_id: quote.entity_id ?? null,
         id: quote.id, ref: quote.ref, account_id: quote.account_id, contact_id: quote.contact_id,
         valid_until: quote.valid_until, inquiry_date: quote.inquiry_date, notes: quote.notes, terms: quote.terms, template_id: quote.template_id,
         header_discount_pct: quote.header_discount_pct, tax_pct: quote.tax_pct,

@@ -49,6 +49,7 @@ const CRM_OBJECT_FEATURES: (keyof TenantFeatures)[] = ["accounts", "contacts", "
 export const SETTINGS_MENU: SettingsMenuEntry[] = [
   // ── Company ──
   { id: "company", group: "company", label: "Company", description: "Name, logo and letterhead, legal entities, tax and currency, and how IDs are numbered", href: ROUTES.settingsCompany, keywords: ["general", "general settings", "workspace", "name", "organisation", "company profile", "entities", "entities & tax", "gst", "vat", "legal", "branding", "logo", "letterhead", "currency", "money", "rupee", "dollar", "format", "number ranges", "ids", "prefix", "numbering", "sequence"], adminOnly: true },
+  { id: "pdf-documents", group: "company", label: "PDF documents", description: "The page frame, header and footer your documents print with, and the layouts of a quotation", href: ROUTES.settingsPdfDocuments, keywords: ["pdf", "page frame", "header", "footer", "letterhead", "layout", "template", "design", "margins", "font", "colours", "colors", "quotation layout", "standard quote templates", "print"], adminOnly: true, featureKey: "standard_quotes" },
 
   // ── Users & access ──
   { id: "people", group: "access", label: "People", description: "Invite people, set who is admin, and choose which screens each person reaches", href: ROUTES.settingsPeople, keywords: ["team", "users", "invite", "members", "roles", "business users", "business roles", "permissions", "workcenter", "access", "login", "lock"], adminOnly: true },

@@ -15,6 +15,7 @@ import { outcomeForStatus } from "@/lib/middleware/types";
 import { scheduleQuoteDispatch } from "@/lib/middleware/schedule";
 import type { TenantFeatures } from "@/lib/constants";
 import { cfOnly } from "@/lib/customData";
+import { readDocFields } from "@/lib/sales/standardQuoteDocFields";
 
 const VALID_STATUSES = ["draft", "sent", "accepted", "rejected", "expired"];
 
@@ -100,6 +101,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     } else patch.opportunity_id = null;
   }
   if ("status" in body) patch.status = body.status;
+  // Framed-document fields (0251). The layout the quote prints with decides which per-quotation sections exist, so a changed
+  // template id in the same request is the one that counts. A database without 0251 drops the columns (writeHeaderTolerant).
+  const docs = await readDocFields(supabase, tenantId, body, { templateId: (("template_id" in body ? body.template_id : before.template_id) as string | null) || null, allowSource: false });
+  if (!docs.ok) return NextResponse.json({ error: docs.error }, { status: docs.status });
+  Object.assign(patch, docs.fields);
   // Tenant fields (0209): cf_ keys only; writeHeaderTolerant drops the column while 0209 is pending.
   if (cfOnly(body.custom_data)) patch.custom_data = cfOnly(body.custom_data);
 

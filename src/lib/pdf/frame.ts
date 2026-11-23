@@ -89,11 +89,11 @@ function tokenLines(tok: PdfFrameToken, f: FrameInput, area: "header" | "footer"
 const linesOf = (toks: PdfFrameToken[], f: FrameInput, area: "header" | "footer") => toks.flatMap((t) => tokenLines(t, f, area));
 
 /** Footer: "Label: value" on one line. */
-const footerLine = (l: Line) => `<div class="fl">${l.label ? `<b>${esc(l.label)}:</b> ` : ""}<span dir="auto">${esc(l.value)}</span></div>`;
+const footerLine = (l: Line) => `<div class="pff-fl">${l.label ? `<b>${esc(l.label)}:</b> ` : ""}<span dir="auto">${esc(l.value)}</span></div>`;
 /** Header: a labelled id stacks label over value, as the sample's vendor number does. */
 const headerLine = (l: Line) => l.label
-  ? `<div class="hl"><div class="hk" dir="auto">${esc(l.label)}</div><div class="hv" dir="auto">${esc(l.value)}</div></div>`
-  : `<div class="hl"><div class="hv" dir="auto">${esc(l.value)}</div></div>`;
+  ? `<div class="pfh-hl"><div class="pfh-hk" dir="auto">${esc(l.label)}</div><div class="pfh-hv" dir="auto">${esc(l.value)}</div></div>`
+  : `<div class="pfh-hl"><div class="pfh-hv" dir="auto">${esc(l.value)}</div></div>`;
 
 function fontFace(fonts: FrameFonts): string {
   if (!fonts) return "";
@@ -128,34 +128,34 @@ export function resolvePdfFrame(f: FrameInput): PdfFrame | null {
 
   const baseCss = `html,body{margin:0;padding:0;}*{box-sizing:border-box;}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;font-family:${stack};color:${c.text};}`;
 
-  const headerInner = `<div class="hdr">
-  <div class="row">
-    ${d.header.logo === "none" ? "" : `<div class="brand">${f.logoDataUri ? `<img class="logo" src="${esc(f.logoDataUri)}" alt="">` : ""}<div class="nm"><div class="n1" dir="auto">${esc(brandName)}</div>${nameAr ? `<div class="n2" dir="auto">${esc(nameAr)}</div>` : ""}</div></div>`}
-    <div class="ids">${rightLines.map(headerLine).join("")}</div>
+  const headerInner = `<div class="pfh">
+  <div class="pfh-row">
+    ${d.header.logo === "none" ? "" : `<div class="pfh-brand">${f.logoDataUri ? `<img class="pfh-logo" src="${esc(f.logoDataUri)}" alt="">` : ""}<div class="pfh-nm"><div class="pfh-n1" dir="auto">${esc(brandName)}</div>${nameAr ? `<div class="pfh-n2" dir="auto">${esc(nameAr)}</div>` : ""}</div></div>`}
+    <div class="pfh-ids">${rightLines.map(headerLine).join("")}</div>
   </div>
-  ${d.header.title_band ? `<div class="band"><span class="bt">${esc(f.title)}</span><span class="br">${esc([f.referenceLabel, f.reference].filter(Boolean).join(" "))}${f.revision ? ` ${esc(f.revision)}` : ""}</span></div>` : ""}
+  ${d.header.title_band ? `<div class="pfh-band"><span class="pfh-bt">${esc(f.title)}</span><span class="pfh-br">${esc([f.referenceLabel, f.reference].filter(Boolean).join(" "))}${f.revision ? ` ${esc(f.revision)}` : ""}</span></div>` : ""}
 </div>`;
   const justify = d.header.logo === "center" ? "center" : d.header.logo === "right" ? "flex-end" : "flex-start";
-  const headerCss = `.hdr{width:100%;padding:5mm ${m.right}mm 0 ${m.left}mm;font-size:8pt;}
-.row{display:flex;align-items:flex-start;justify-content:space-between;gap:6mm;min-height:${topRowMm}mm;${d.header.logo === "right" ? "flex-direction:row-reverse;" : ""}}
-.brand{display:flex;align-items:center;gap:3mm;${d.header.logo === "center" ? "margin:0 auto;" : ""}justify-content:${justify};}
-.logo{height:${logoMm}mm;width:auto;max-width:60mm;object-fit:contain;}
-.n1{font-size:10pt;font-weight:700;line-height:1.2;}.n2{font-size:9pt;font-weight:700;line-height:1.3;}
-.ids{text-align:right;}.hl{margin-bottom:1mm;}.hk{font-size:7.5pt;font-weight:700;text-transform:uppercase;line-height:1.1;}.hv{font-size:9pt;font-weight:700;line-height:1.2;}
-.band{margin-top:2mm;background:${c.band};color:${c.band_text};display:flex;justify-content:space-between;align-items:center;padding:1.3mm 2.5mm;}
-.bt{font-size:15pt;font-weight:700;letter-spacing:.3pt;}.br{font-size:10pt;font-weight:700;text-decoration:underline;}`;
+  const headerCss = `.pfh{width:100%;padding:5mm ${m.right}mm 0 ${m.left}mm;font-size:8pt;}
+.pfh-row{display:flex;align-items:flex-start;justify-content:space-between;gap:6mm;min-height:${topRowMm}mm;${d.header.logo === "right" ? "flex-direction:row-reverse;" : ""}}
+.pfh-brand{display:flex;align-items:center;gap:3mm;${d.header.logo === "center" ? "margin:0 auto;" : ""}justify-content:${justify};}
+.pfh-logo{height:${logoMm}mm;width:auto;max-width:60mm;object-fit:contain;}
+.pfh-n1{font-size:10pt;font-weight:700;line-height:1.2;}.pfh-n2{font-size:9pt;font-weight:700;line-height:1.3;}
+.pfh-ids{text-align:right;}.pfh-hl{margin-bottom:1mm;}.pfh-hk{font-size:7.5pt;font-weight:700;text-transform:uppercase;line-height:1.1;}.pfh-hv{font-size:9pt;font-weight:700;line-height:1.2;}
+.pfh-band{margin-top:2mm;background:${c.band};color:${c.band_text};display:flex;justify-content:space-between;align-items:center;padding:1.3mm 2.5mm;}
+.pfh-bt{font-size:15pt;font-weight:700;letter-spacing:.3pt;}.pfh-br{font-size:10pt;font-weight:700;text-decoration:underline;}`;
 
-  const strip = d.footer.strip ? `<div class="strip">${d.footer.strip.map((col) => `<i style="background:${col}"></i>`).join("")}</div>` : "";
-  const footerInner = `<div class="ftr">
-  ${d.footer.rule ? `<div class="rule"></div>` : ""}
-  <div class="cols"><div class="col">${leftFoot.map(footerLine).join("")}</div><div class="col r">${rightFoot.map(footerLine).join("")}${d.footer.page_numbers ? `<div class="pg">Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>` : ""}</div></div>
+  const strip = d.footer.strip ? `<div class="pff-strip">${d.footer.strip.map((col) => `<i style="background:${col}"></i>`).join("")}</div>` : "";
+  const footerInner = `<div class="pff">
+  ${d.footer.rule ? `<div class="pff-rule"></div>` : ""}
+  <div class="pff-cols"><div class="pff-col">${leftFoot.map(footerLine).join("")}</div><div class="pff-col r">${rightFoot.map(footerLine).join("")}${d.footer.page_numbers ? `<div class="pff-pg">Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>` : ""}</div></div>
   ${strip}
 </div>`;
-  const footerCss = `.ftr{width:100%;padding:0 ${m.right}mm 0 ${m.left}mm;font-size:7.5pt;line-height:1.3;}
-.rule{border-top:.3mm solid ${c.rule};margin-bottom:1mm;}
-.cols{display:flex;justify-content:space-between;gap:6mm;}.col{flex:1;}.col.r{text-align:right;}
-.fl b{font-weight:700;}.pg{font-size:8.5pt;margin-top:.8mm;}
-.strip{display:flex;height:2.2mm;margin-top:1.5mm;}.strip i{flex:1;display:block;}`;
+  const footerCss = `.pff{width:100%;padding:0 ${m.right}mm 0 ${m.left}mm;font-size:7.5pt;line-height:1.3;}
+.pff-rule{border-top:.3mm solid ${c.rule};margin-bottom:1mm;}
+.pff-cols{display:flex;justify-content:space-between;gap:6mm;}.pff-col{flex:1;}.pff-col.r{text-align:right;}
+.pff-fl b{font-weight:700;}.pff-pg{font-size:8.5pt;margin-top:.8mm;}
+.pff-strip{display:flex;height:2.2mm;margin-top:1.5mm;}.pff-strip i{flex:1;display:block;}`;
 
   const templateWrap = (css: string, inner: string) => `<style>${baseCss}${fontFace(f.fonts)}${css}</style>${inner}`;
 

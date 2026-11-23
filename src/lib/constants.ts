@@ -170,6 +170,7 @@ export const ROUTES = {
   settings: "/settings",
   settingsGeneral: "/settings/general", // redirects to settingsCompany
   settingsCompany: "/settings/company",
+  settingsPdfDocuments: "/settings/pdf-documents",
   settingsCurrency: "/settings/currency",
   settingsNavigation: "/settings/navigation",
   settingsQuoteTypes: "/settings/quote-types", // redirects to the Quotations offer types tab

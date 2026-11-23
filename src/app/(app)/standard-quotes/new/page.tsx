@@ -3,7 +3,7 @@ import { requireWorkcenterView } from "@/lib/permissions";
 import { requireFeature, getTenant } from "@/lib/tenant";
 import { listStandardQuoteTemplates } from "@/lib/data/live";
 import StandardQuoteForm from "./StandardQuoteForm";
-import { standardQuoteProducts, pricingOnStandardQuotes } from "../formData";
+import { standardQuoteProducts, pricingOnStandardQuotes, docDetailsFor, docColumnsReadyForTenant } from "../formData";
 
 export default async function NewStandardQuotePage() {
   await requireWorkcenterView("standard_quotes");
@@ -25,6 +25,7 @@ export default async function NewStandardQuotePage() {
       templates={templates.map((t) => ({ id: t.id, name: t.name, is_default: t.is_default }))}
       products={products}
       pricingEngineQuotesEnabled={pricingOnStandardQuotes(tenant)}
+      docDetails={(await docColumnsReadyForTenant(supabase, tenantId)) ? docDetailsFor(tenant) : undefined}
     />
   );
 }
