@@ -4,7 +4,7 @@ import { buildWelcome, isFreshWorkspace } from "./richWelcome";
 
 const totals = { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0, openRfqs: 0, rfqsToAward: 0, draftEstimates: 0, quotedEstimates: 0, abmTargets: 0, abmEngaged: 0, draftOrders: 0, openOrders: 0, openOrderValue: 0 };
 const data = (over: Partial<AnalyticsData> = {}): AnalyticsData => ({
-  totals, quotesByStatus: [], invoiceTotals: { invoiced: 0, paid: 0, outstanding: 0 }, tender: null,
+  totals, quotesByStatus: [], standardQuotes: { open: 0, openValue: 0, acceptedValue: 0, byStatus: [] }, invoiceTotals: { invoiced: 0, paid: 0, outstanding: 0 }, tender: null,
   wfmWorkforceComposition: { totalActive: 0, supervisors: 0, fullTime: 0, contractors: 0 }, ...over,
 } as unknown as AnalyticsData);
 
