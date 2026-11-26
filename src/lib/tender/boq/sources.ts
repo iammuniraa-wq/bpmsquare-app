@@ -67,7 +67,7 @@ async function productsWhere(admin: Db, tenantId: string, col: "id" | "name" | "
   return out;
 }
 
-export async function loadPriceContext(admin: Db, tenantId: string, opportunityId: string, lines: readonly SourceLine[], file: PriceContext["file"]): Promise<PriceContext> {
+export async function loadPriceContext(admin: Db, tenantId: string, opportunityId: string, lines: readonly SourceLine[], file: PriceContext["file"], opts: { skipPastProjects?: boolean } = {}): Promise<PriceContext> {
   const ctx = emptyContext(file);
 
   // 1. Which products the lines are about: linked, else the same SKU as the cost code, else the same name as the description.
@@ -157,7 +157,7 @@ export async function loadPriceContext(admin: Db, tenantId: string, opportunityI
   }
 
   // 5. Past projects: the lines of tender deals this workspace WON (not this deal), with their cost codes.
-  const tenderIds = new Set((await rows<{ opportunity_id: string }>(readAllPages((lo, hi) => admin.from("opportunity_tenders").select("opportunity_id").eq("tenant_id", tenantId).order("opportunity_id", { ascending: true }).range(lo, hi)))).map((t) => t.opportunity_id));
+  const tenderIds = new Set(opts.skipPastProjects ? [] : (await rows<{ opportunity_id: string }>(readAllPages((lo, hi) => admin.from("opportunity_tenders").select("opportunity_id").eq("tenant_id", tenantId).order("opportunity_id", { ascending: true }).range(lo, hi)))).map((t) => t.opportunity_id));
   tenderIds.delete(opportunityId);
   if (tenderIds.size > 0) {
     const wonOpps = (await rows<{ id: string; ref: string | null; title: string; closed_at: string | null; updated_at: string | null }>(
