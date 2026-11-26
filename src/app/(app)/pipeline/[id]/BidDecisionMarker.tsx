@@ -54,7 +54,7 @@ export default function BidDecisionMarker({ opportunityId, tender, approval, onE
           type="button" data-guide="tender.decision.marker" data-tone={m.tone} data-state={m.key} aria-haspopup="dialog" aria-expanded={open}
           onClick={() => setOpen(true)}
           style={{
-            display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 1, minHeight: 44, minWidth: 44, padding: "4px 12px", borderRadius: 10,
+            display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 1, minHeight: 44, padding: "4px 12px", borderRadius: 10,
             background: t.bg, color: t.ink, border: `1px solid ${t.edge}`, cursor: "pointer", font: "inherit", textAlign: "left", maxWidth: "100%", minWidth: 150, overflow: "hidden",
           }}
         >
