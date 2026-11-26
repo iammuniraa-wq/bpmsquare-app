@@ -1,16 +1,18 @@
 import "server-only";
 import { NextRequest } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { PermissionSet } from "@/lib/permissions";
 import type { CardDuplicate } from "@/lib/assistant/cards";
-import { actionByKey, availableActions } from "./registry";
+import { actionByKey, availableActions, availableUpdates, availableVerbs, updateByKey, verbByKey } from "./registry";
+import { refuse, routeStatus, type ActBody, type ExecCtx, type ExecOutcome } from "./outcome";
+import { executeUpdate } from "./update";
+import { executeVerb } from "./verbs";
 import { auditValues, dupHash, hash8, duplicatesFor, evaluateFields, loadSpec, normaliseValue, refExists, structureHash, toRouteBody } from "./card";
 import { claimCard, finishCard, usedResult } from "./ledger";
 import { verifyToken } from "./token";
 import { runVia } from "./via";
 import { redactText } from "@/lib/middleware/redact";
 
-// A pressed confirm card becomes a create here, and nowhere else. Order matters and is the safety argument:
+// A pressed confirm card becomes a create here, a change in update.ts and a tender step in verbs.ts (dispatched below, after
+// the token and the card id are checked); all three end in the object's own route. For a create, order matters and is the safety argument:
 //   1 the token proves this server showed this person this card, for this workspace, and has not expired
 //   2 the flag, the module and the Business Role are checked again, now, not as they were when the card was shown
 //   3 the card's structure is rebuilt from the current field config and must match the token (a field config that
@@ -27,24 +29,7 @@ import { redactText } from "@/lib/middleware/redact";
 // everything in `values`, web-derived or typed, is untrusted input that steps 4 and 5 check exactly as for a manual
 // create. A card whose values came from the web therefore still creates after research, while create_record stays off.
 
-export type ExecCtx = {
-  supabase: SupabaseClient;
-  admin: SupabaseClient;
-  tenantId: string;
-  userId: string;
-  perms: PermissionSet;
-  features: Record<string, boolean | undefined>;
-  /** Base for the in-process request to the route; only the path is used. */
-  baseUrl: string;
-  now?: number;
-};
-
-export type ActBody = { card_id?: unknown; token?: unknown; values?: unknown; confirm_duplicates?: unknown };
-
-export type ExecOutcome = { status: number; body: Record<string, unknown> };
-
-const refuse = (status: number, code: string, error: string, extra: Record<string, unknown> = {}): ExecOutcome =>
-  ({ status, body: { ok: false, code, error, ...extra } });
+export type { ExecCtx, ActBody, ExecOutcome } from "./outcome";
 
 export async function executeCard(ctx: ExecCtx, body: ActBody): Promise<ExecOutcome> {
   const cardId = typeof body.card_id === "string" ? body.card_id : "";
@@ -58,6 +43,18 @@ export async function executeCard(ctx: ExecCtx, body: ActBody): Promise<ExecOutc
 
   const used = await usedResult(ctx.admin, { cardId, tenantId: ctx.tenantId, userId: ctx.userId });
   if (used) return refuse(409, "already_done", "This card has already been used.", { result: used.result });
+
+  const gate = { features: ctx.features, perms: ctx.perms };
+  const change = updateByKey(payload.act);
+  if (change) {
+    if (!availableUpdates(gate).some((a) => a.key === change.key)) return refuse(403, "not_allowed", "You are not allowed to do that here.");
+    return executeUpdate(ctx, body, payload, change, cardId);
+  }
+  const step = verbByKey(payload.act);
+  if (step) {
+    if (!availableVerbs(gate).some((a) => a.key === step.key)) return refuse(403, "not_allowed", "You are not allowed to do that here.");
+    return executeVerb(ctx, body, payload, step, cardId);
+  }
 
   const def = actionByKey(payload.act);
   const allowed = def && availableActions({ features: ctx.features, perms: ctx.perms }).some((a) => a.key === def.key);
@@ -144,7 +141,7 @@ export async function executeCard(ctx: ExecCtx, body: ActBody): Promise<ExecOutc
     if (!res.ok || !json.id) {
       const message = json.error ?? "The record could not be created.";
       await finishCard(ctx.admin, handle, { status: "failed", result: { error: message, status: res.status } });
-      return refuse(res.status === 404 ? 422 : res.status >= 500 ? 502 : res.status, "route_refused", message);
+      return refuse(routeStatus(res.status), "route_refused", message);
     }
     const record = { id: json.id, href: def.hrefFor(json.id), label: json.name ?? label };
     await finishCard(ctx.admin, handle, { status: "done", result: record });

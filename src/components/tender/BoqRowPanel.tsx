@@ -16,7 +16,7 @@ import { RowChips, money, sourceHref, type BoqRow } from "./BoqRows";
 import { call as wbsCall } from "./wbs/api";
 import { leafItems, wbsCell } from "@/lib/wbs/screen";
 import { WBS_PENDING } from "@/lib/wbs/tips";
-import { LineEstimates } from "./BoqEstimates";
+import { LineEstimates, PanelLinkActions, SharedLineNote } from "./BoqEstimates";
 
 // One row of the Bill of quantities, opened (GCC tender deals): a side panel on a desktop, a bottom sheet on a phone. Quantity, rate and
 // description are edited here. Where the cost came from (the estimate line, the RFQ it was awarded under) is shown and cannot be changed
@@ -92,6 +92,7 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
   const [error, setError] = useState("");
   const [cands, setCands] = useState<Cand[] | null>(initialCandidates ?? null);
   const [listOpen, setListOpen] = useState(!!initialCandidates);
+  const [pick, setPick] = useState<string | null>(null);
 
   const mine = links.filter((l) => l.boq_id === row.id);
   const src = sourceView(row);
@@ -276,8 +277,15 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
               {l.stale && !l.waiting && <div style={{ color: "var(--amberink)", fontWeight: 600 }}>The estimate changed, re-price it in Costing</div>}
               {l.quantity?.note && !l.broken && <div role="alert" data-guide="boq.row.quantity" style={{ color: "var(--amberink)", fontWeight: 600 }}>{l.quantity.note}</div>}
               {l.needs_review && <div style={{ color: "var(--amberink)", fontWeight: 600 }}>{l.review_note ?? "Re-priced from a supplier award, check it"}</div>}
+              {canEdit && opportunityId && estimates && (
+                <PanelLinkActions
+                  l={l} base={`/api/opportunities/${opportunityId}/tender/estimates`} canEdit bidLocked={estimates.bid_locked}
+                  onPick={setPick} onChanged={onChanged} onError={onError} onNotice={onNotice}
+                />
+              )}
             </div>
           ))}
+          <SharedLineNote links={mine} />
           {rfq && <div data-guide="boq.row.rfq" style={small}>Awarded under <b style={{ color: c.ink }}>{rfq}</b></div>}
           {!row.price_source && mine.length === 0 && <div style={small}>No cost yet.</div>}
           {onOpenCosting && (
@@ -303,6 +311,7 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
         {canEdit && estimates && opportunityId && row.linked && (
           <div data-guide="boq.row.estimate_actions">
             <LineEstimates
+              key={pick ?? "none"} initialOpen={pick ? "price" : null} initialEstimateId={pick ?? undefined}
               actionsOnly opportunityId={opportunityId} base={`/api/opportunities/${opportunityId}/tender/estimates`}
               line={{ id: row.id, item_no: row.item_no, description: row.description, qty: row.qty, uom: row.uom, priced: row.priced }}
               state={estimates} canEdit markup={markup} onChanged={onChanged} onError={onError} onNotice={onNotice}

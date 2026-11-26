@@ -18,6 +18,8 @@ export type InputDraft = {
   quote_alternatives: boolean;
   /** select only: the model part this input repaints ("" = nothing). */
   paints: string;
+  /** number only: the BOQ units this input takes a tender line's quantity for; kept as read, not edited here. */
+  boq_units?: string[];
   options: OptionDraft[];
 };
 
@@ -69,6 +71,7 @@ export function toDraft(t: {
       min: str(i.min), max: str(i.max), unit: str(i.unit), help: str(i.help), section: str(i.section),
       quote_alternatives: i.quote_alternatives === true,
       paints: str(i.paints),
+      ...(i.boq_units && i.boq_units.length > 0 ? { boq_units: [...i.boq_units] } : {}),
       options: (i.options ?? []).map((o) => ({ key: o.key, label: o.label, value: str(o.value), ...(o.attrs ? { attrs: o.attrs } : {}), ...(o.visual ? { visual: o.visual } : {}) })),
     })),
     rates: (t.rates ?? []).map((r) => ({ key: r.key, label: r.label, unit: r.unit, value: str(r.value), low: r.low === undefined ? "" : str(r.low), high: r.high === undefined ? "" : str(r.high) })),
@@ -96,6 +99,7 @@ export function toBody(d: TemplateDraft): EstimateTemplateBody & { geometry?: st
       const min = optNum(i.min); const max = optNum(i.max);
       if (min !== undefined) base.min = min;
       if (max !== undefined) base.max = max;
+      if (i.boq_units && i.boq_units.length > 0) base.boq_units = [...i.boq_units];
     }
     if (i.type === "select") {
       base.options = i.options.map((o) => ({ key: o.key.trim(), label: o.label.trim(), value: Number(o.value), ...(o.attrs ? { attrs: o.attrs } : {}), ...(o.visual ? { visual: o.visual } : {}) }));

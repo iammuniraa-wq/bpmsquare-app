@@ -49,17 +49,17 @@ export default function BidDecisionMarker({ opportunityId, tender, approval, onE
   const t = toneTokens(m.tone);
   return (
     <>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, maxWidth: "100%" }}>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, maxWidth: "100%", minWidth: 0 }}>
         <button
           type="button" data-guide="tender.decision.marker" data-tone={m.tone} data-state={m.key} aria-haspopup="dialog" aria-expanded={open}
           onClick={() => setOpen(true)}
           style={{
-            display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 1, minHeight: 44, minWidth: 44, padding: "4px 12px", borderRadius: 10,
-            background: t.bg, color: t.ink, border: `1px solid ${t.edge}`, cursor: "pointer", font: "inherit", textAlign: "left", maxWidth: "100%",
+            display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 1, minHeight: 44, padding: "4px 12px", borderRadius: 10,
+            background: t.bg, color: t.ink, border: `1px solid ${t.edge}`, cursor: "pointer", font: "inherit", textAlign: "left", maxWidth: "100%", minWidth: 150, overflow: "hidden",
           }}
         >
-          <span style={{ fontSize: 13, fontWeight: 700, overflowWrap: "anywhere" }}>Bid decision: {m.label}</span>
-          <span style={{ fontSize: 11, fontWeight: 500, color: t.quiet, opacity: 0.9, overflowWrap: "anywhere" }}>{m.sub}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Bid decision: {m.label}</span>
+          <span style={{ fontSize: 11, fontWeight: 500, color: t.quiet, opacity: 0.9, maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.sub}</span>
         </button>
         <InfoTip label="Bid decision">{TENDER_TIPS.decisionMarker}</InfoTip>
       </span>

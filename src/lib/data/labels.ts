@@ -127,6 +127,8 @@ export type AnalyticsData = {
   assetsByKind: Array<{ kind: string; label: string; count: number; loanerCount: number }>;
   loanerStock: { available: number; onLoan: number; total: number };
   quotesByStatus: Array<{ status: string; label: string; count: number; value: number }>;
+  /** Standard Quotes (their own tables, not the Quotations ones above). Open = draft + sent. */
+  standardQuotes: { open: number; openValue: number; acceptedValue: number; byStatus: Array<{ status: string; label: string; count: number; value: number }> };
   quoteTrend: Array<{ dateLabel: string; value: number; cumulative: number }>;
   quoteOutcomeTotals: { open: number; won: number; lost: number; dropped: number };
   quoteOutcomeCounts: { open: number; won: number; lost: number; dropped: number };

@@ -121,7 +121,8 @@ function validateInputs(raw: unknown, issues: TemplateIssue[]): TemplateInput[] 
       if (min !== undefined && max !== undefined && min > max) { issues.push({ path: `${path}.min`, message: "min cannot be greater than max." }); return; }
       if (min !== undefined && r.default < min) { issues.push({ path: `${path}.default`, message: `Default ${r.default} is below the minimum ${min}.` }); return; }
       if (max !== undefined && r.default > max) { issues.push({ path: `${path}.default`, message: `Default ${r.default} is above the maximum ${max}.` }); return; }
-      out.push({ key, label, type, default: r.default, ...(min !== undefined ? { min: min as number } : {}), ...(max !== undefined ? { max: max as number } : {}), ...stripUndef(base) });
+      const boqUnits = Array.isArray(r.boq_units) ? r.boq_units.filter((u): u is string => isStr(u) && u.trim().length > 0 && u.trim().length <= 12).map((u) => u.trim()).slice(0, 6) : [];
+      out.push({ key, label, type, default: r.default, ...(min !== undefined ? { min: min as number } : {}), ...(max !== undefined ? { max: max as number } : {}), ...(boqUnits.length > 0 ? { boq_units: boqUnits } : {}), ...stripUndef(base) });
     } else if (type === "boolean") {
       if (typeof r.default !== "boolean") { issues.push({ path: `${path}.default`, message: "A yes/no input needs a true or false default." }); return; }
       out.push({ key, label, type, default: r.default, ...stripUndef(base) });

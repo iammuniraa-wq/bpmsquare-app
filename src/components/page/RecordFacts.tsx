@@ -7,7 +7,7 @@ export type RecordFact = { label: string; value: React.ReactNode };
 export default function RecordFacts({ facts }: { facts: RecordFact[] }) {
   if (facts.length === 0) return null;
   return (
-    <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 14 }}>
+    <div className="kpi-grid bpm-record-facts" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 14 }}>
       {facts.map((f) => (
         <div key={f.label} style={{ ...CARD_SURFACE, padding: "10px 14px", minWidth: 0 }}>
           <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hint, textTransform: "uppercase", letterSpacing: 0.5 }}>{f.label}</div>

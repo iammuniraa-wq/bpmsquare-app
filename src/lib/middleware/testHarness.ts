@@ -45,7 +45,7 @@ function cond(p: string): (r: Row) => boolean {
   };
 }
 
-export function fakeAdmin(seed: Record<string, Row[]> = {}, opts: { missing?: string[]; failInsert?: (table: string, row: Row) => DbError; failUpdate?: (table: string, patch: Row) => DbError } = {}) {
+export function fakeAdmin(seed: Record<string, Row[]> = {}, opts: { missing?: string[]; failInsert?: (table: string, row: Row) => DbError; failUpdate?: (table: string, patch: Row) => DbError; cloneReads?: boolean } = {}) {
   const tables: Record<string, Row[]> = {};
   for (const [k, v] of Object.entries(seed)) tables[k] = v.map((r) => ({ ...r }));
   const missing = new Set(opts.missing ?? []);
@@ -164,6 +164,8 @@ export function fakeAdmin(seed: Record<string, Row[]> = {}, opts: { missing?: st
       if (this.rng) out = out.slice(this.rng[0], this.rng[1] + 1);
       if (this.lim !== null) out = out.slice(0, this.lim);
       if (this.head) return { data: null, error: null, count: total };
+      // The real client hands back copies; a test that reads a row, writes it and then diffs against the read needs the same.
+      if (opts.cloneReads) out = out.map((r) => structuredClone(r));
       if (this.one) return { data: out[0] ?? null, error: null };
       return { data: out, error: null, ...(this.countMode ? { count: total } : {}) };
     }

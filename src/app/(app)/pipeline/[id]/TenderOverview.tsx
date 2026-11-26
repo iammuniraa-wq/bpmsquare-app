@@ -13,6 +13,7 @@ import SettingsSection from "@/components/settings/SettingsSection";
 import BondChip from "@/components/tender/BondChip";
 import BondRelease from "@/components/tender/BondRelease";
 import OutcomeSection from "@/components/tender/OutcomeSection";
+import { amountText } from "@/lib/tender/amountText";
 import TenderStatStrip from "@/components/tender/TenderStatStrip";
 import { toneTokens } from "@/lib/ui/tone";
 import { BOND_STATUS_LABEL, BOND_STEPS, guaranteeRecorded } from "@/lib/tender/bond";
@@ -38,7 +39,7 @@ function toLocalInput(iso: string | null): string {
 }
 
 const money = (amount: number | null, currency: string | null) =>
-  amount == null ? "" : `${currency ?? ""} ${amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}`.trim();
+  amount == null ? "" : `${currency ?? ""} ${amountText(amount)}`.trim();
 
 /**
  * The Overview of a tender deal (redesign step 1, docs/design/gcc-tender-deals.md section 21): what the client asked for, the

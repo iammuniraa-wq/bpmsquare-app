@@ -167,10 +167,14 @@ export const coverageText = (cov: Pick<MarginCoverage, "allocated" | "of">, noun
  * The part of the budget whose resource type nobody has chosen. A line copied from a tender starts as Material (DEFAULT_RESOURCE_CODE)
  * and the tender does not record whether a cost is material or subcontract: its BOQ row carries a price source and a free-text
  * reference, never the supplier or its kind. So while EVERY tender line still carries that default, their cost is "Not classified"
- * rather than Material; once a person sets another resource type on any of them the breakdown is taken as theirs.
+ * rather than Material; once a person sets another resource type on any of them the breakdown is taken as theirs. A line the fill split by
+ * resource from an estimate carries its category in its source ("... · Labour"): it is classified, whatever its code, and is left out of both.
  */
-export function unclassifiedAmount(lines: readonly TotalsLine[]): number {
-  const fromTender = lines.filter((l) => !!l.source_line_id);
+const SPLIT_SOURCE = / · (Materials|Moulds|Labour|Erection|Transport and other|Other)$/;
+export const isSplitSource = (ref: string | null | undefined): boolean => !!ref && SPLIT_SOURCE.test(ref);
+
+export function unclassifiedAmount(lines: readonly (TotalsLine & { source_ref?: string | null })[]): number {
+  const fromTender = lines.filter((l) => !!l.source_line_id && !isSplitSource(l.source_ref));
   if (fromTender.length === 0 || fromTender.some((l) => l.resource_code !== DEFAULT_RESOURCE_CODE)) return 0;
   return round2(fromTender.reduce((s, l) => s + (l.allocated === false ? 0 : Number(l.amount) || 0), 0));
 }

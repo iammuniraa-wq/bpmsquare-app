@@ -143,7 +143,7 @@ describe("Fill from tender costs", () => {
 
   it("a cost from an estimate counts, and says so", () => {
     const found = costsFromSnapshot([line(1)], snapshot([{ ...priced("1.1", 750), from_estimate: true }]), 1);
-    expect(found.get(K(1))).toEqual({ amount: 750, ref: "Cost from bid v1 (estimate)" });
+    expect(found.get(K(1))).toEqual({ amount: 750, ref: "Cost from bid v1 (estimate)", buckets: [{ code: "11", label: "Materials", amount: 750 }] });
   });
 
   it("an item number that is not unique is skipped, not guessed", () => {

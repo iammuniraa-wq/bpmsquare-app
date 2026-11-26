@@ -9,7 +9,8 @@ import { applyLinks, buildEstimatesState, openEstimatesRequest, previewOutputs }
 //
 // GET  ?estimate=<id>&boq=<id>    the estimate's outputs with the cost per unit each gives that BOQ line
 // GET                              the deal's estimates and links (the Prices tab's state)
-// POST { items: [{ boq_id, estimate_id, output, basis, share_pct }], markup_pct? }   link and price (all or nothing)
+// POST { items: [{ boq_id, estimate_id, output, basis, share_pct }], markup_pct? }   link and price (all or nothing); a part picked for a line
+//      REPLACES what the same estimate already gave that line, another estimate adds to it
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -38,5 +39,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!body || !Array.isArray(body.items)) return NextResponse.json({ error: "items are required" }, { status: 422 });
   const out = await applyLinks(gate.req, body.items, { markup: body.markup_pct });
   if (!out.ok) return NextResponse.json({ error: out.error, ...(out.extra ?? {}) }, { status: out.status });
-  return NextResponse.json({ ok: true, linked: out.linked, repriced: out.repriced, failed: out.failed });
+  return NextResponse.json({ ok: true, linked: out.linked, replaced: out.replaced, repriced: out.repriced, failed: out.failed });
 }

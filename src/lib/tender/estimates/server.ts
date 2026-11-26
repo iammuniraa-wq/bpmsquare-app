@@ -12,11 +12,13 @@ import { rfqConfig } from "@/lib/rfq/types";
 import { openTenderDealRequest, type TenderDealRequest } from "@/lib/tender/dealAccess";
 import { readAllPages } from "@/lib/pagedRead";
 import { isMissingSchema } from "@/lib/tender/server";
+import { defaultMarkupPct } from "@/lib/tender/boq/price";
 import { bundles, type BoqRequest } from "@/lib/tender/boq/server";
 import { proposeByMatch, proposeSpread, type BoqInput, type Proposal, type ProposalBy } from "./allocate";
 import {
   bidIsLocked, cleanShare, costPerUnit, isBasis, isLinkStale, isUuid, listOutputs, missingCosts, outputCost, overAllocated, parseOutput,
   prefillParams, quantityFieldLabel, rateFromCost, round2, sumPerUnit, buildUpName, buildUpNote, isRateBuildUp, quantityCheck, quantityView,
+  gradeParams, paramsEdited, pricesSeveralParts, SEVERAL_PARTS_TEXT,
   type AllocationLink, type Basis, type EstLine, type MissingCost, type OutputCost, type QtyInputDef, type QuantityView,
 } from "./rules";
 
@@ -207,7 +209,8 @@ export async function quantityChecks(admin: SupabaseClient, tenantId: string, op
     if (!b || !line || !(line.qty > 0)) continue;
     const est = estimates.get(l.estimate_id);
     const check = quantityCheck({ inputs: est?.template_id ? templates.get(est.template_id) : null, params: est?.params, boqUnit: b.uom ?? line.uom, boqQty: line.qty });
-    out.set(l.id, quantityView(check, !!l.applied_at, b.label, quantityFieldLabel(est?.template_id ? templates.get(est.template_id) : null, b.uom ?? line.uom)));
+    const inputs = est?.template_id ? templates.get(est.template_id) : null;
+    out.set(l.id, quantityView(check, !!l.applied_at, b.label, quantityFieldLabel(inputs, b.uom ?? line.uom), paramsEdited(inputs, est?.params)));
   }
   return out;
 }
@@ -220,6 +223,8 @@ export type LinkView = {
   applied_cost: number | null; waiting: boolean; stale: boolean; broken: boolean; needs_review: boolean; review_note: string | null;
   /** Only for a rate build-up: is the estimate made for the quantity of the line? Absent = nothing to say. */
   quantity?: QuantityView | null;
+  /** The estimate prices several parts and nothing says which quantity one line divides it by: pick a part, do not apply the whole. */
+  several_parts?: boolean;
 };
 export type EstimatesState = {
   pending: boolean;
@@ -259,6 +264,7 @@ export async function buildEstimatesState(r: Pick<EstimatesRequest, "admin" | "t
       output: l.output, output_label: out?.label ?? (parsed ? l.output : "Unknown output"), basis: l.basis, share_pct: l.share_pct, applied_cost: l.applied_cost,
       waiting: !l.applied_at, stale: (!!e && isLinkStale(l, e.updated_at)) || moved, broken: !e || !out, needs_review: l.needs_review, review_note: l.review_note,
       quantity: quantities.get(l.id) ?? null,
+      several_parts: pricesSeveralParts(lines.get(l.estimate_id) ?? [], quantities.get(l.id)?.status),
     };
   });
   const estimates: EstimateListItem[] = heads.rows.map((e) => {
@@ -380,7 +386,7 @@ export async function repriceBoqLines(r: PricingCtx, boqIds: readonly string[], 
     if (problem || parts.length === 0) { result.failed.push({ boq_id: boq.id, item: label, reason: problem ?? "No cost found" }); continue; }
 
     const cost = sumPerUnit(parts.map((p) => p.perUnit));
-    const markup = opts.markup ?? boq.markup_pct ?? 0;
+    const markup = opts.markup ?? boq.markup_pct ?? defaultMarkupPct(config as Parameters<typeof defaultMarkupPct>[0]);
     const rate = rateFromCost(cost, markup);
     if (rate > MAX_RATE) { result.failed.push({ boq_id: boq.id, item: label, reason: "The rate is too large" }); continue; }
     const amount = round2(qty * rate * (1 - Number(line.discount_pct ?? 0) / 100));
@@ -417,7 +423,7 @@ export async function repriceBoqLines(r: PricingCtx, boqIds: readonly string[], 
 
 export type LinkRequest = { boq_id: string; estimate_id: string; output: string; basis: Basis; share_pct: number };
 
-export type ApplyResult = ({ ok: true } & RepriceResult & { linked: number }) | ({ ok: false } & Failure);
+export type ApplyResult = ({ ok: true } & RepriceResult & { linked: number; replaced: number }) | ({ ok: false } & Failure);
 
 /**
  * Link BOQ lines to estimate outputs and price them, all or nothing: every id is checked against THIS workspace and deal, every output
@@ -465,8 +471,11 @@ export async function applyLinks(r: EstimatesRequest, items: readonly unknown[],
 
   const existing = await loadLinks(admin, tenantId, opp.id);
   if (existing.pending) return { ok: false, status: 503, error: PENDING_ESTIMATES };
-  const replaced = new Set(clean.map((c) => `${c.boq_id}|${c.estimate_id}|${c.output}`));
-  const stays: AllocationLink[] = existing.rows.filter((l) => estimateIds.includes(l.estimate_id) && !replaced.has(`${l.boq_line_id}|${l.estimate_id}|${l.output}`)).map((l) => ({ boq_line_id: l.boq_line_id, output: `${l.estimate_id}:${l.output}`, basis: l.basis, share_pct: l.share_pct }));
+  // Picking a part for a line REPLACES what that same estimate already gave the line; only another estimate adds to it.
+  const pairs = new Set(clean.map((c) => `${c.boq_id}|${c.estimate_id}`));
+  const asked = new Set(clean.map((c) => `${c.boq_id}|${c.estimate_id}|${c.output}`));
+  const dropped = existing.rows.filter((l) => pairs.has(`${l.boq_line_id}|${l.estimate_id}`) && !asked.has(`${l.boq_line_id}|${l.estimate_id}|${l.output}`));
+  const stays: AllocationLink[] = existing.rows.filter((l) => estimateIds.includes(l.estimate_id) && !pairs.has(`${l.boq_line_id}|${l.estimate_id}`)).map((l) => ({ boq_line_id: l.boq_line_id, output: `${l.estimate_id}:${l.output}`, basis: l.basis, share_pct: l.share_pct }));
   const proposed: AllocationLink[] = clean.map((c) => ({ boq_line_id: c.boq_id, output: `${c.estimate_id}:${c.output}`, basis: c.basis, share_pct: c.share_pct }));
   const over = overAllocated(stays, proposed);
   if (over.length > 0) return { ok: false, status: 409, error: "That would give out more than 100 percent of an estimate part. Lower the shares.", extra: { code: "over_allocated", outputs: over.map((o) => o.split(":").slice(1).join(":")) } };
@@ -491,8 +500,22 @@ export async function applyLinks(r: EstimatesRequest, items: readonly unknown[],
       return { ok: false, status: isMissingSchema(error) ? 503 : 500, error: isMissingSchema(error) ? PENDING_ESTIMATES : error.message };
     }
   }
+  if (dropped.length > 0) {
+    const del = await admin.from("tender_boq_estimate_links").delete().in("id", dropped.map((l) => l.id)).eq("tenant_id", tenantId).eq("opportunity_id", opp.id);
+    if (del.error) return { ok: false, status: 500, error: del.error.message };
+    const user = await getAuthUser();
+    await logChange(admin, {
+      tenantId, objectType: "opportunity_tenders", objectId: opp.id, objectLabel: `${opp.ref ?? ""} ${opp.title}`.trim(), action: "update",
+      actorId: user?.id ?? userId, actorEmail: user?.email ?? null,
+      changes: dropped.slice(0, 40).map((l) => {
+        const it = byBoq.get(l.boq_line_id);
+        const est = heads.get(l.estimate_id);
+        return { field: `BOQ estimate link ${it ? itemLabel(it.boq, it.line.description) : ""}`.trim(), from: `${est?.ref ?? est?.name ?? "estimate"} · ${l.output === "total" ? "whole estimate" : l.output}`, to: "replaced by the part picked" };
+      }),
+    });
+  }
   const priced = await repriceBoqLines(r, [...boqIds], { markup: cleanMarkup(opts.markup), skipQuantityGuard: true });
-  return { ok: true, linked: clean.length, ...priced };
+  return { ok: true, linked: clean.length, replaced: dropped.length, ...priced };
 }
 
 /** Remove one link. The line keeps its rate; with other links left it is priced from them, with none left it becomes a manual rate. */
@@ -542,11 +565,23 @@ export async function repriceRequest(
   // A build-up not yet used is divided by the line's quantity, so a person must say the estimate is made for that quantity unless its
   // own inputs already show it. The screen asks first; this is the rule, so a call that skips the screen meets it too.
   const quantities = await quantityChecks(r.admin, r.tenantId, r.opp.id, links.rows);
+
+  // An estimate for a whole scope is never applied to one line: its total over one line's quantity is not a rate. Pick a part instead.
+  const mineLinks = links.rows.filter((l) => boq.has(l.boq_line_id) && !l.applied_at);
+  const estLines = await loadLinesFor(r.admin, r.tenantId, [...new Set(mineLinks.map((l) => l.estimate_id))]);
+  const several = mineLinks.filter((l) => pricesSeveralParts(estLines.get(l.estimate_id) ?? [], quantities.get(l.id)?.status));
+  const skipped: RepriceResult["failed"] = [];
+  if (several.length > 0) {
+    if (body.all_stale !== true) return { ok: false, status: 409, error: SEVERAL_PARTS_TEXT, extra: { code: "several_parts", lines: several.map((l) => quantities.get(l.id)?.item ?? "BOQ line") } };
+    for (const l of several) { boq.delete(l.boq_line_id); skipped.push({ boq_id: l.boq_line_id, item: quantities.get(l.id)?.item ?? "BOQ line", reason: SEVERAL_PARTS_TEXT }); }
+    if (boq.size === 0) return { ok: false, status: 409, error: SEVERAL_PARTS_TEXT, extra: { code: "several_parts", lines: skipped.map((x) => x.item) } };
+  }
   const needs = links.rows.filter((l) => boq.has(l.boq_line_id)).flatMap((l) => { const q = quantities.get(l.id); return q?.needs_confirm ? [{ boq_id: l.boq_line_id, q }] : []; });
   if (needs.length > 0 && body.confirm_quantity !== true) {
     return { ok: false, status: 409, error: needs[0].q.note ?? "Confirm the quantity this estimate is made for", extra: { code: "quantity_unconfirmed", lines: needs.map((n) => n.q) } };
   }
   const out = await repriceBoqLines(r, [...boq], { markup: cleanMarkup(body.markup_pct), skipQuantityGuard: true });
+  out.failed.push(...skipped);
   const done = new Set(out.repriced.map((x) => x.boq_id));
   const confirmed = needs.filter((n) => done.has(n.boq_id));
   if (confirmed.length > 0) {
@@ -584,7 +619,8 @@ export async function buildUpRate(r: EstimatesRequest, input: { boq_id?: unknown
   if (!t.data) return { ok: false, status: 404, error: "Template not found" };
   const inputs = ((t.data as { inputs?: unknown }).inputs ?? []) as Parameters<typeof prefillParams>[0];
   const uom = item.boq.file_uom ?? item.line.uom ?? null;
-  const params = prefillParams(Array.isArray(inputs) ? inputs : [], uom, qty);
+  const inputList = Array.isArray(inputs) ? inputs : [];
+  const params: Record<string, number | string> = { ...prefillParams(inputList, uom, qty), ...gradeParams(inputList, item.line.description) };
 
   const margin = cleanShare(input.margin_pct ?? 0);
   const { POST } = await import("@/app/api/estimates/route");

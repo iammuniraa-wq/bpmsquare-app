@@ -84,11 +84,11 @@ const ask = (q: string) => [{ role: "user" as const, text: q }];
 beforeEach(() => { vi.clearAllMocks(); });
 
 describe("tool list", () => {
-  it("existing tools, then the web proposal, then the guide, then create_record", async () => {
+  it("existing tools, then the web proposal, then the guide, then the tools that write", async () => {
     const s = setup([text("ok")], { consent: null });
     await askAssistant(ask("how do I send this quote?"), s.ctx);
     const n = names(s.params[0]);
-    expect(n.slice(-3)).toEqual(["propose_web_search", "guide", "create_record"]);
+    expect(n.slice(-4)).toEqual(["propose_web_search", "guide", "create_record", "change_record"]);
     expect(n.indexOf("open_record")).toBeLessThan(n.indexOf("propose_web_search"));
     expect((s.params[0].tools as { cache_control?: unknown }[]).at(-1)?.cache_control).toEqual({ type: "ephemeral", ttl: "1h" });
   });

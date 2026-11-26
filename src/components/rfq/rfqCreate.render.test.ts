@@ -8,6 +8,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {}, replace:
 vi.mock("next/link", () => ({ default: (p: { href: string; children: unknown; style?: unknown }) => createElement("a", { href: p.href }, p.children as never) }));
 
 import RfqComposer, { type ComposerLine } from "./RfqComposer";
+import SupplierPicker from "./SupplierPicker";
 import { RfqSendBlocker, RfqSendOutcome } from "./RfqSendNotices";
 import { mailboxNotConnected, sendOutcome } from "@/lib/rfq/sendOutcome";
 
@@ -98,5 +99,42 @@ describe("RFQ send notices", () => {
     expect(dialog).toContain("if (sendOutcome(r.ref, r.sent, r.sendRequested === true)) setUnsent(r);");
     const page = readFileSync(resolve(process.cwd(), "src/app/(app)/rfqs/new/NewRfqForm.tsx"), "utf8");
     expect(page).toContain("if (sendOutcome(r.ref, r.sent, r.sendRequested === true)) setUnsent(r);");
+  });
+});
+
+describe("the RFQ dialog says who cannot be reached, before sending, and shows a failure where the person looks", () => {
+  const sup = (id: string, name: string, email: string | null, phone: string | null) => ({ id, name, email, phone, city: null, status: "active" });
+  const picker = (chosen: string[]) => renderToString(createElement(SupplierPicker, {
+    suppliers: [sup("a", "Al Noor", null, null), sup("b", "Delta", "d@x.co", null), sup("c", "Gulf Steel", null, null), sup("d", "Phone Only", null, "+966500000000")],
+    chosen, onToggle: () => {}, suggested: [], current: [],
+  })).replace(/<!-- -->/g, "");
+
+  it("names the suppliers with no email and no phone and what to do, as soon as they are ticked", () => {
+    const out = picker(["a", "b", "c"]);
+    expect(out).toContain('data-guide="rfq.suppliers.no_contact"');
+    expect(out).toContain("2 of 3 suppliers have no email or phone (Al Noor, Gulf Steel): they will not receive it. Add a contact, or enter their reply by hand.");
+  });
+
+  it("says nothing while every ticked supplier can be reached, and a phone alone is enough to share the link", () => {
+    expect(picker(["b"])).not.toContain("rfq.suppliers.no_contact");
+    const out = picker(["d"]);
+    expect(out).not.toContain("rfq.suppliers.no_contact");
+    expect(out).toContain('data-guide="rfq.suppliers.whatsapp_only"');
+    expect(out).toContain("send the reply link on WhatsApp from the RFQ");
+  });
+
+  it("both forms put an id on the error, scroll it into view and focus it whenever a new one appears", () => {
+    for (const f of ["RfqComposer.tsx", "RfqSingleForm.tsx"]) {
+      const code = readFileSync(resolve(__dirname, f), "utf8");
+      expect(code, f).toContain('id="rfq-error"');
+      expect(code, f).toMatch(/document\.getElementById\("rfq-error"\)/);
+      expect(code, f).toMatch(/scrollIntoView\(\{ block: "center"/);
+      expect(code, f).toMatch(/\.focus\(\{ preventScroll: true \}\)/);
+      expect(code, f).toMatch(/\}, \[error\]\)/);
+    }
+  });
+
+  it("the outcome of a send that did not go out is scrolled to and focused too", () => {
+    expect(readFileSync(resolve(__dirname, "RfqSendNotices.tsx"), "utf8")).toMatch(/scrollIntoView[\s\S]*focus\(\{ preventScroll: true \}\)/);
   });
 });

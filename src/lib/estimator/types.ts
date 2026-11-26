@@ -55,6 +55,8 @@ export type TemplateInput = {
   quote_alternatives?: boolean;
   /** select only: the geometry design slot (GeometryModule.slots) this input repaints; its options carry `visual`. */
   paints?: string;
+  /** number only: the BOQ units for which this input takes a tender line's quantity ("m3" on an excavation volume), so "Build up this rate" fills it in. */
+  boq_units?: string[];
 };
 
 /** A named constant: usable as an identifier in any formula AND as the unit
