@@ -7,7 +7,7 @@ vi.hoisted(() => {
 });
 
 // The assistant's loop with create_record, the model and the database replaced. What is checked: the tool exists only
-// when the flag, Nova, the module and the Business Role all allow it; it can only ever produce a card (no row is
+// when the flags, the module and the Business Role all allow it (Nova is not one of them); it can only ever produce a card (no row is
 // written, no route is run); and a card is never shown with a value the person did not give.
 
 vi.mock("@/lib/supabase-server", () => ({
@@ -88,10 +88,10 @@ describe("create_record is offered only when everything allows it", () => {
     expect(stable(s.params[0])).toContain("open the New ... screen");
   });
 
-  it("not without Nova, and not without a signed-in person to bind the card to", async () => {
-    const noNova = setup({ features: { ...ON, next_experience: false } });
-    await askAssistant(ask("create an account Tesla Germany"), noNova.ctx);
-    expect(toolNames(noNova.params[0])).not.toContain("create_record");
+  it("Nova is not needed, but a signed-in person to bind the card to is", async () => {
+    const classic = setup({ features: { ...ON, next_experience: false } });
+    await askAssistant(ask("create an account Tesla Germany"), classic.ctx);
+    expect(toolNames(classic.params[0])).toContain("create_record");
     const anon = setup({ userId: undefined });
     await askAssistant(ask("create an account Tesla Germany"), anon.ctx);
     expect(toolNames(anon.params[0])).not.toContain("create_record");

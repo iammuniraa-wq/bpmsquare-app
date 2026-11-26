@@ -5,8 +5,9 @@ import { actionsEnabled } from "@/lib/actions/registry";
 import { executeCard } from "@/lib/actions/execute";
 
 // POST /api/ai/act { card_id, token, values, confirm_duplicates? } -- the press of a confirm card. This is the only
-// place the assistant writes, and it writes by running the object's own create route on the caller's own session
-// (src/lib/actions/execute.ts has the order of checks). Tenant, user and permissions come from the session; the
+// place the assistant writes, and it writes by running the object's own route (create, change or tender step) on the
+// caller's own session (src/lib/actions/execute.ts has the order of checks). The assistant flags are all it needs: a
+// workspace on the classic layout presses the same card as one on Nova. Tenant, user and permissions come from the session; the
 // token only proves which card this was.
 export async function POST(request: NextRequest) {
   let supabase, tenantId, userId, role;
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
   if (!body || typeof body !== "object") return NextResponse.json({ error: "Nothing to confirm." }, { status: 400 });
 
   const out = await executeCard(
-    { supabase, admin: createAdminSupabase(), tenantId, userId, perms, features, baseUrl: request.url },
+    { supabase, admin: createAdminSupabase(), tenantId, userId, role: role === "admin" ? "admin" : "member", perms, features, baseUrl: request.url },
     body,
   );
   return NextResponse.json(out.body, { status: out.status });

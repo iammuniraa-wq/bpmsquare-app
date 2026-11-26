@@ -28,6 +28,13 @@ export type TokenPayload = {
    * of the fields it filled. Signed, so the press cannot claim a web origin it did not have, or hide one it did.
    */
   wb?: { c: string | null; f: string[] };
+  /**
+   * The record a change or a step acts on, and anything else the server resolved when it showed the card (supplier ids, a
+   * template id, the lines fingerprint). Signed, so a press cannot name another record than the one the person saw.
+   */
+  tg?: Record<string, string | string[]>;
+  /** A change card: a hash of what the changed fields held when the card was shown; a different value at press time is a stale card. */
+  bf?: string;
   exp: number;
 };
 
