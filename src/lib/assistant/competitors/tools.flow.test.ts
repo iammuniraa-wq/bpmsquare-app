@@ -122,7 +122,7 @@ describe("the tools exist only when every gate holds", () => {
     ["the tender edition is off", { features: { ...FEATURES, gcc_tender: false } }, false, false],
     ["the Pipeline is off", { features: { ...FEATURES, pipeline: false } }, false, false],
     ["the assistant's actions are off", { features: { ...FEATURES, ai_assistant_actions: false } }, true, false],
-    ["Nova is off", { features: { ...FEATURES, next_experience: false } }, true, false],
+    ["Nova is off (it is no longer required)", { features: { ...FEATURES, next_experience: false } }, true, true],
     ["the person may view the Pipeline but not edit it", { perms: PIPELINE_VIEW_ONLY }, true, false],
     ["the person may not view the Pipeline", { perms: { unrestricted: false, grants: new Map([grant("accounts")]) } as unknown as PermissionSet }, false, false],
   ])("%s", async (_n, o, analyse, propose) => {

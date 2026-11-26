@@ -43,12 +43,12 @@ describe("what a person has", () => {
     expect(priceAccess({ features: { pipeline: true }, perms: ALL }).check).toBe(false);
     expect(priceAccess({ features: { gcc_tender: true, pipeline: true }, perms: grant("rfqs") }).check).toBe(false);
   });
-  it("award: also the assistant's actions flag with Nova on, a signed-in person and the right to edit RFQs", () => {
+  it("award: also the assistant's actions flag (Nova is no longer required), a signed-in person and the right to edit RFQs", () => {
     const actions = { ...on, ai_assistant_actions: true, next_experience: true };
     expect(priceAccess({ features: actions, perms: ALL, userId: "u" }).award).toBe(true);
     expect(priceAccess({ features: actions, perms: ALL }).award).toBe(false);
     expect(priceAccess({ features: on, perms: ALL, userId: "u" }).award).toBe(false);
-    expect(priceAccess({ features: { ...actions, next_experience: false }, perms: ALL, userId: "u" }).award).toBe(false);
+    expect(priceAccess({ features: { ...actions, next_experience: false }, perms: ALL, userId: "u" }).award).toBe(true);
     expect(priceAccess({ features: actions, perms: grant("rfqs"), userId: "u" }).award).toBe(false);
     const edit: PermissionSet = { unrestricted: false, grants: new Map([["rfqs", { workcenter: "rfqs", canView: true, canCreate: false, canEdit: true, canDelete: false }]]) as never };
     expect(priceAccess({ features: actions, perms: edit, userId: "u" }).award).toBe(true);
