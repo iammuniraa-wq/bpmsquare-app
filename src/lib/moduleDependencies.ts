@@ -87,11 +87,7 @@ export const FEATURE_DEPENDENCIES: FeatureDependency[] = [
   },
   {
     key: "ai_assistant_actions", needs: "ai_assistant", strength: "hard",
-    why: "The cards are shown by the assistant's chat and the create tool is part of its loop.",
-  },
-  {
-    key: "ai_assistant_actions", needs: "next_experience", strength: "hard",
-    why: "Writing from the assistant is an experimental surface: it is gated on Nova like the rest of it (bpmsquarecore.md section 10, rule 1).",
+    why: "The cards are shown by the assistant's chat and the create, change and tender-step tools are part of its loop.",
   },
   {
     key: "sales_orders", needs: "accounts", strength: "hard",

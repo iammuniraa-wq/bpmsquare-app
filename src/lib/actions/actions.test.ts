@@ -468,14 +468,22 @@ describe("who may press", () => {
     expect(rows("accounts")).toHaveLength(ACCOUNTS_AT_START);
   });
 
-  it("the flag, Nova and the module are checked again at the press", async () => {
+  it("the flag, the assistant and the module are checked again at the press", async () => {
     world();
     const { card } = await propose({ name: "Tesla Germany", type: "direct" });
-    for (const features of [{ ...ON, ai_assistant_actions: false }, { ...ON, next_experience: false }, { ...ON, ai_assistant: false }, { ...ON, accounts: false }, {}]) {
+    for (const features of [{ ...ON, ai_assistant_actions: false }, { ...ON, ai_assistant: false }, { ...ON, accounts: false }, {}]) {
       expect(await press(card, undefined, {}, { features }), JSON.stringify(features)).toMatchObject({ status: 403 });
     }
     expect(rows("accounts")).toHaveLength(ACCOUNTS_AT_START);
     expect(rows("assistant_actions")).toHaveLength(0);
+  });
+
+  it("Nova is not needed: a workspace on the classic layout presses the same card (owner decision 2026-11-26)", async () => {
+    world();
+    const { card } = await propose({ name: "Tesla Germany", type: "direct" });
+    const classic = { ai_assistant: true, ai_assistant_actions: true, accounts: true, contacts: true };
+    expect((await press(card, undefined, {}, { features: classic })).status).toBe(200);
+    expect(rows("accounts")).toHaveLength(ACCOUNTS_AT_START + 1);
   });
 });
 

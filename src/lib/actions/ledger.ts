@@ -14,7 +14,7 @@ export type AssistantActionRow = {
   tenant_id: string;
   user_id: string;
   conversation_id: string | null;
-  kind: "create" | "update" | "web_search" | "guide";
+  kind: "create" | "update" | "verb" | "web_search" | "guide";
   /** The card as the person saw it (PII redacted). */
   card: unknown;
   action_key: string | null;
@@ -33,7 +33,7 @@ export type ClaimInput = {
   cardId: string;
   tenantId: string;
   userId: string;
-  kind: "create" | "update";
+  kind: "create" | "update" | "verb";
   actionKey: string;
   route: string;
   card: unknown;
