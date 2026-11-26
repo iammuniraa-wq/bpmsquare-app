@@ -11,14 +11,20 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const gate = await openEstimatesRequest(id, "view");
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
   const r = gate.req;
-  const [state, tpl, rfqOn] = await Promise.all([
+  const [state, rich, rfqOn] = await Promise.all([
     buildEstimatesState(r),
-    r.admin.from("estimate_templates").select("id, name, description").eq("tenant_id", r.tenantId).eq("is_active", true).order("name").limit(200),
+    r.admin.from("estimate_templates").select("id, name, description, trade, keywords, inputs").eq("tenant_id", r.tenantId).eq("is_active", true).order("name").limit(200),
     tenantHasFeature(r.admin, r.tenantId, "rfq"),
   ]);
+  // keywords come with migration 0213; without it the picker still lists the templates, it just cannot suggest one.
+  const tpl = rich.error ? await r.admin.from("estimate_templates").select("id, name, description, trade, inputs").eq("tenant_id", r.tenantId).eq("is_active", true).order("name").limit(200) : rich;
+  type Row = { id: string; name: string; description: string | null; trade?: string | null; keywords?: string[] | null; inputs?: unknown };
   return NextResponse.json({
     ...state,
-    templates: ((tpl.error ? [] : tpl.data ?? []) as { id: string; name: string; description: string | null }[]).map((t) => ({ id: t.id, name: t.name, description: t.description })),
+    templates: ((tpl.error ? [] : tpl.data ?? []) as Row[]).map((t) => ({
+      id: t.id, name: t.name, description: t.description, trade: t.trade ?? null, keywords: Array.isArray(t.keywords) ? t.keywords : [],
+      inputs: Array.isArray(t.inputs) ? (t.inputs as { key: string; label?: string; type: string; unit?: string; boq_units?: string[] }[]).map((i) => ({ key: i.key, label: i.label, type: i.type, unit: i.unit, boq_units: i.boq_units })) : [],
+    })),
     can_create: r.canCreateEstimates, rfq_enabled: rfqOn,
   });
 }

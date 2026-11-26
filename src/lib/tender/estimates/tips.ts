@@ -22,7 +22,8 @@ export const ESTIMATE_TIPS = {
   missingRfq: "Opens the RFQ form with these lines. When you award a line, the supplier's price goes into the estimate and the BOQ lines priced from it.",
   costForBoq: "The saved estimate's cost lines, overhead included, before margin and VAT. A BOQ line takes its share divided by its quantity, plus its own markup.",
   cost: "The estimate cost behind this rate. It is internal and never in the priced Excel, the answer sheet or a bid version.",
-  unlink: "Removes the link. The line keeps its rate and counts as a manual rate until you price it again.",
+  unlink: "Removes the link. With no other link the line keeps its rate as a manual rate; with others it is re-priced from them.",
+  replaces: "Picking a part replaces what this estimate already gives the line. A second estimate adds its cost to the first.",
   tenderStrip: "This estimate belongs to a tender. Its totals can price the tender's BOQ lines.",
 } as const;
 

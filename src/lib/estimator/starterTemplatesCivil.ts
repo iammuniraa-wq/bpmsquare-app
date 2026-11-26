@@ -77,7 +77,7 @@ export const EXCAVATION_STARTER: CatalogueStarter = {
   catalogue: [FILL],
 
   inputs: [
-    { key: "exc_m3", label: "Volume to excavate", type: "number", default: 500, min: 0.1, max: 1000000, unit: "m³", section: "Excavation" },
+    { key: "exc_m3", label: "Volume to excavate", type: "number", default: 500, min: 0.1, max: 1000000, unit: "m³", boq_units: ["m3"], section: "Excavation" },
     { key: "soil_type", label: "Soil", type: "select", default: "sand", section: "Excavation",
       help: "Clay digs slower than sand, and rock needs a breaker as well as the excavator.", options: SOIL_OPTIONS },
     { key: "backfill_m3", label: "Volume put back (compacted)", type: "number", default: 350, min: 0, max: 1000000, unit: "m³", section: "Backfill and disposal",
@@ -134,7 +134,7 @@ export const CONCRETE_WORKS_STARTER: CatalogueStarter = {
   catalogue: [REBAR, FORMWORK, ...READY_MIX],
 
   inputs: [
-    { key: "concrete_m3", label: "Concrete", type: "number", default: 100, min: 0.1, max: 1000000, unit: "m³", section: "Concrete" },
+    { key: "concrete_m3", label: "Concrete", type: "number", default: 100, min: 0.1, max: 1000000, unit: "m³", boq_units: ["m3"], section: "Concrete" },
     { key: "concrete_grade", label: "Grade", type: "select", default: "c30", section: "Concrete",
       options: READY_MIX_GRADES.map((g) => ({ key: g.key, label: g.label, value: g.value, attrs: { concrete_grade: g.key } })) },
     { key: "pumped", label: "Placed by pump", type: "boolean", default: true, section: "Concrete" },
@@ -193,7 +193,7 @@ export const BLOCKWORK_PLASTER_STARTER: CatalogueStarter = {
   catalogue: [MORTAR, PLASTER, ...BLOCKS],
 
   inputs: [
-    { key: "wall_area_m2", label: "Wall area", type: "number", default: 300, min: 1, max: 1000000, unit: "m²", section: "Wall" },
+    { key: "wall_area_m2", label: "Wall area", type: "number", default: 300, min: 1, max: 1000000, unit: "m²", boq_units: ["m2"], section: "Wall" },
     { key: "openings_m2", label: "Openings (doors and windows)", type: "number", default: 20, min: 0, max: 100000, unit: "m²", section: "Wall" },
     { key: "block_mm", label: "Block thickness", type: "select", default: "b200", section: "Wall", unit: "mm",
       options: BLOCK_THICKNESSES.map((b) => ({ key: b.key, label: `${b.mm} mm`, value: b.mm, attrs: { block_mm: String(b.mm) } })) },
