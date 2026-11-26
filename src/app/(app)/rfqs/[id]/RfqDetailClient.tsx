@@ -8,10 +8,11 @@ import { cardStyle } from "@/components/Shell";
 import PageHeader from "@/components/PageHeader";
 import Pill from "@/components/Pill";
 import {
-  RFQ_STATUS_LABEL, RFQ_SUPPLIER_STATUS_LABEL,
+  RFQ_STATUS_LABEL,
   type Rfq, type RfqLine, type RfqResponse, type RfqMessage, type RfqSupplier,
 } from "@/lib/rfq/types";
 import { quoteLabel, isDocumentOrigin } from "@/lib/rfq/linking";
+import { supplierDelivery } from "@/lib/rfq/delivery";
 import ObjectSections from "@/components/fields/ObjectSections";
 import Button from "@/components/ui/Button";
 import MoreMenu from "@/components/ui/MoreMenu";
@@ -22,7 +23,7 @@ import RfqModal from "@/components/rfq/RfqModal";
 import RfqCompare from "@/components/rfq/RfqCompare";
 import RfqStatStrip, { rfqProgress } from "@/components/rfq/RfqStatStrip";
 import type { AwardView } from "@/lib/rfq/comparison";
-import { RFQ_STATUS_TONE, SUPPLIER_STATUS_TONE, inp, lbl, btnPrimary, btnGhost, fmtDate, fmtDateTime, fmtMoney } from "@/components/rfq/rfqUi";
+import { RFQ_STATUS_TONE, inp, lbl, btnPrimary, btnGhost, fmtDate, fmtDateTime, fmtMoney } from "@/components/rfq/rfqUi";
 
 type SupplierRow = RfqSupplier & {
   suppliers: { id: string; ref: string | null; name: string; email: string | null; phone: string | null } | null;
@@ -236,6 +237,7 @@ function SuppliersTab({ b, canEdit, onKeyIn, run, id, onAddSupplier }: {
       {canEdit && <div><button type="button" style={btnGhost} onClick={onAddSupplier}>+ Add suppliers</button></div>}
       {b.suppliers.map((s) => {
         const phone = (s.suppliers?.phone ?? "").replace(/[^\d]/g, "");
+        const delivery = supplierDelivery({ status: s.status, sent_at: s.sent_at, reply_source: s.reply_source, email_to: s.email_to, supplier_email: s.suppliers?.email, supplier_phone: s.suppliers?.phone });
         return (
           <div key={s.id} style={{ ...cardStyle, opacity: s.status === "cancelled" ? 0.55 : 1 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
@@ -245,12 +247,12 @@ function SuppliersTab({ b, canEdit, onKeyIn, run, id, onAddSupplier }: {
                 </div>
                 <div style={{ fontSize: 12.5, color: c.muted, marginTop: 2 }}>{s.email_to || "No email — share the link on WhatsApp"}{s.contact_name ? ` · ${s.contact_name}` : ""}</div>
               </div>
-              <Pill label={RFQ_SUPPLIER_STATUS_LABEL[s.status]} tone={SUPPLIER_STATUS_TONE[s.status]} />
+              <span data-guide="rfq.supplier.delivery" data-state={delivery.key}><Pill label={delivery.label} tone={delivery.tone} /></span>
             </div>
             <div style={{ fontSize: 12, color: c.hint, marginTop: 8, display: "flex", gap: 14, flexWrap: "wrap" }}>
               <span>Sent {fmtDateTime(s.sent_at)}</span>
               <span>Opened {fmtDateTime(s.viewed_at)}</span>
-              <span>Replied {fmtDateTime(s.replied_at)}{s.reply_source ? ` (${s.reply_source})` : ""}</span>
+              <span>Replied {fmtDateTime(s.replied_at)}</span>
               {s.reminder_count > 0 && <span>{s.reminder_count} reminder{s.reminder_count === 1 ? "" : "s"}</span>}
               {s.supplier_quote_ref && <span>Their ref {s.supplier_quote_ref}</span>}
               {s.valid_until && <span>Valid until {fmtDate(s.valid_until)}</span>}

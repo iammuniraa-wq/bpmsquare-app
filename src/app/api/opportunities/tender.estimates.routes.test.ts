@@ -251,10 +251,12 @@ describe("price from estimate", () => {
   it("a share takes part of the cost, and a per-unit basis takes the estimate line's own cost per unit", async () => {
     await price([link("1.3", { share_pct: 50 })]);
     expect(boqRow("1.3").unit_cost).toBe(20.8583);
-    await price([link("1.3", { output: `line:${LN_PIPE}`, basis: "per_unit", share_pct: 100 })]);
-    // Two links now on the line: their costs add up.
-    expect(links()).toHaveLength(2);
-    expect(boqRow("1.3").unit_cost).toBe(53.4083);
+    // Picking a part from the same estimate replaces the earlier link: the costs do not add up (rehearsal 2026-11-26, 326 + 78 per m3).
+    const r = await price([link("1.3", { output: `line:${LN_PIPE}`, basis: "per_unit", share_pct: 100 })]);
+    expect(r.body.replaced).toBe(1);
+    expect(links()).toHaveLength(1);
+    expect(links()[0]).toMatchObject({ output: `line:${LN_PIPE}`, basis: "per_unit" });
+    expect(boqRow("1.3").unit_cost).toBe(32.55);
   });
 
   it("the same line, estimate and part again updates the share instead of making a second link", async () => {
@@ -429,9 +431,9 @@ describe("estimate changed, re-price", () => {
     edit(1500);
     const r = await (await repricePost(json("POST", { all_stale: true }), ctx())).json();
     expect(r.repriced).toHaveLength(1);
-    // 6,006 over 120 = 50.05.
+    // 6,006 over 120 = 50.05 at cost; the markup rule of the BOQ price sources (15 percent unless the workspace sets another) is on top.
     expect(boqRow("1.3").unit_cost).toBe(50.05);
-    expect(dealLine("1.3").rate).toBe(50.05);
+    expect(dealLine("1.3").rate).toBe(57.56);
     expect((await (await estGet(get(), ctx())).json()).links[0].stale).toBe(false);
     expect((await repricePost(json("POST", { all_stale: true }), ctx())).status).toBe(422);
   });
@@ -552,8 +554,8 @@ describe("build up this rate", () => {
     estRow(j.estimate_id).updated_at = "2026-10-26T09:00:00.000Z";
     const r = await (await repricePost(json("POST", { link_ids: [links()[0].id] }), ctx())).json();
     expect(r.repriced).toHaveLength(1);
-    expect(boqRow("1.3")).toMatchObject({ price_source: "estimate", unit_cost: 50 });
-    expect(dealLine("1.3").rate).toBe(50);
+    expect(boqRow("1.3")).toMatchObject({ price_source: "estimate", unit_cost: 50, markup_pct: 15 });
+    expect(dealLine("1.3").rate).toBe(57.5);
   });
 
   it("a build-up whose quantity was filled in automatically is priced without a confirmation, and says nothing", async () => {
@@ -772,5 +774,219 @@ describe("missing costs", () => {
     expect((await (await missingGet(get(), ctx())).json()).estimates).toHaveLength(1);
     estRow(EST_SMALL).standard_quote_id = "99999999-9999-4999-8999-999999999999";
     expect((await (await missingGet(get(), ctx())).json()).estimates).toHaveLength(0);
+  });
+});
+
+// Rehearsal of the tender flow on a 43-line BOQ, 2026-11-26.
+describe("rehearsal fixes", () => {
+  const TPL_PLANT = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb21";
+  const EST_PLANT = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee21";
+  const plantLine = (n: number, wbs: string, group: string, cost: number) => ({
+    id: `7777777${n}-7777-4777-8777-777777777777`, tenant_id: T1, estimate_id: EST_PLANT, sort_order: n, code: `p${n}`, description: `Plant part ${n}`, uom: "m3", qty: 10, waste_pct: 0,
+    unit_cost: cost / 10, cost_total: cost, component: "materials", product_id: null, source: "rule", wbs_code: wbs, custom_data: { group }, updated_at: "2026-10-20T08:00:00.000Z",
+  });
+  const plantWaiting = () => {
+    state.db.rows("estimate_templates").push({ id: TPL_PLANT, tenant_id: T1, name: "Plant civil package", description: null, is_active: true, inputs: [{ key: "excavation_m3", label: "Excavation", type: "number", unit: "m³", min: 1, max: 1000000, default: 500 }] });
+    state.db.rows("estimates").push({ id: EST_PLANT, tenant_id: T1, opportunity_id: OPP, ref: "EST-0021", name: "Plant", status: "draft", template_id: TPL_PLANT, params: {}, margin_pct: 0, totals: { cost_total: 6000, price: 6000 }, standard_quote_id: null, created_at: "2026-10-20T08:00:00.000Z", updated_at: "2026-10-20T08:00:00.000Z" });
+    state.db.rows("estimate_lines").push(plantLine(1, "1.1", "Earthworks", 1000), plantLine(2, "2.1", "Concrete", 4000), plantLine(3, "3.1", "Testing", 1000));
+    links().push({ id: "99999999-9999-4999-8999-999999999931", tenant_id: T1, opportunity_id: OPP, boq_line_id: boqRow("1.3").id, estimate_id: EST_PLANT, output: "total", basis: "total", share_pct: 100, applied_cost: null, applied_at: null, estimate_updated_at: null, needs_review: false, review_note: null });
+  };
+
+  describe("defect 1: an estimate that prices several parts is not applied whole to one line", () => {
+    it("the state says so, and a re-price of the waiting link is a 409 that changes nothing", async () => {
+      plantWaiting();
+      const s = await (await estGet(get(), ctx())).json();
+      expect(s.links[0]).toMatchObject({ estimate_id: EST_PLANT, waiting: true, several_parts: true });
+      const before = snapshot();
+      const res = await repricePost(json("POST", { link_ids: ["99999999-9999-4999-8999-999999999931"], confirm_quantity: true }), ctx());
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({ code: "several_parts", error: "This estimate prices several parts: pick the part that prices this line." });
+      expect(snapshot()).toBe(before);
+    });
+
+    it("the bulk re-price skips it and says why, and prices the rest", async () => {
+      plantWaiting();
+      const only = await repricePost(json("POST", { all_stale: true, confirm_quantity: true }), ctx());
+      expect(only.status).toBe(409);
+      expect(dealLine("1.3").rate).toBe(0);
+      await price([link("1.2", { estimate_id: EST_SMALL })]);
+      edit(EST_SMALL, 600);
+      const mixed = await (await repricePost(json("POST", { all_stale: true, confirm_quantity: true }), ctx())).json();
+      expect(mixed.repriced).toHaveLength(1);
+      expect(mixed.failed.some((f: { reason: string }) => f.reason.includes("several parts"))).toBe(true);
+      expect(dealLine("1.3").rate).toBe(0);
+    });
+
+    it("picking a part prices the line from that part and removes the waiting link of the same estimate", async () => {
+      plantWaiting();
+      const r = await price([link("1.3", { estimate_id: EST_PLANT, output: "wbs:2" })], { markup_pct: 0 });
+      expect(r.status).toBe(200);
+      expect(r.body.replaced).toBe(1);
+      expect(links()).toHaveLength(1);
+      expect(links()[0]).toMatchObject({ output: "wbs:2", estimate_id: EST_PLANT });
+      expect(boqRow("1.3").unit_cost).toBe(33.3333);
+    });
+
+    it("a build-up whose template names the quantity input still offers Apply: the state does not call it several parts", async () => {
+      const j = await (await buildPost(json("POST", { boq_id: boqRow("1.3").id, template_id: TPL }), ctx())).json();
+      state.db.rows("estimate_lines").push({ ...plantLine(1, "1.1", "A", 1000), estimate_id: j.estimate_id, id: "88888888-8888-4888-8888-888888888881" }, { ...plantLine(2, "2.1", "B", 2000), estimate_id: j.estimate_id, id: "88888888-8888-4888-8888-888888888882" });
+      const s = await (await estGet(get(), ctx())).json();
+      expect(s.links.find((l: { estimate_id: string }) => l.estimate_id === j.estimate_id)).toMatchObject({ waiting: true, several_parts: false });
+    });
+  });
+
+  const edit = (estimateId: string, cost: number) => {
+    const row = state.db.rows("estimate_lines").find((l) => l.estimate_id === estimateId)!;
+    row.cost_total = cost; row.unit_cost = cost / Number(row.qty || 1);
+    estRow(estimateId).updated_at = "2026-10-26T09:00:00.000Z";
+  };
+
+  describe("defect 2: a part picked for a line replaces what the same estimate gave it", () => {
+    it("whole estimate, then a part: one link, the part's cost, nothing added on top", async () => {
+      await price([link("1.3")], { markup_pct: 0 });
+      expect(boqRow("1.3").unit_cost).toBe(41.7167);
+      const r = await price([link("1.3", { output: "wbs:2" })], { markup_pct: 0 });
+      expect(r.body.replaced).toBe(1);
+      expect(links()).toHaveLength(1);
+      expect(links()[0].output).toBe("wbs:2");
+      expect(boqRow("1.3").unit_cost).toBe(9.1667);
+      expect(dealLine("1.3").rate).toBe(9.17);
+    });
+
+    it("the replacement is written to the change history, once, with the line and what was replaced", async () => {
+      await price([link("1.3")]);
+      state.changes = [];
+      await price([link("1.3", { output: "wbs:2" })]);
+      const entry = state.changes.flatMap((c) => c.changes ?? []).find((x) => String(x.field).startsWith("BOQ estimate link"));
+      expect(entry).toMatchObject({ from: "EST-0007 · whole estimate", to: "replaced by the part picked" });
+      expect(String(entry!.field)).toContain("1.3");
+    });
+
+    it("another estimate adds to the line, and the share of each is its own", async () => {
+      await price([link("1.3", { share_pct: 50 })], { markup_pct: 0 });
+      await price([link("1.3", { estimate_id: EST_SMALL })], { markup_pct: 0 });
+      expect(links()).toHaveLength(2);
+      expect(boqRow("1.3").unit_cost).toBe(23.3583);
+      const s = await (await estGet(get(), ctx())).json();
+      expect(new Set(s.links.map((l: { estimate_id: string }) => l.estimate_id)).size).toBe(2);
+    });
+
+    it("replacing frees the share: the old link no longer counts against the 100 percent of its part", async () => {
+      await price([link("1.3", { share_pct: 80 })]);
+      expect((await price([link("1.4", { share_pct: 40 })])).status).toBe(409);
+      expect((await price([link("1.3", { share_pct: 50 })])).status).toBe(200);
+      expect((await price([link("1.4", { share_pct: 40 })])).status).toBe(200);
+    });
+
+    it("a replacement that cannot be priced changes nothing, the old link stays", async () => {
+      await price([link("1.3")]);
+      const before = snapshot();
+      const bad = await price([link("1.3", { output: "wbs:9" })]);
+      expect(bad.status).toBe(422);
+      expect(snapshot()).toBe(before);
+    });
+
+    it("another line's link to the same estimate is not touched", async () => {
+      await price([link("1.3", { share_pct: 30 }), link("1.4", { share_pct: 30 })]);
+      await price([link("1.3", { output: "wbs:2" })]);
+      expect(links().filter((l) => l.boq_line_id === boqRow("1.4").id)).toHaveLength(1);
+    });
+
+    it("unlinking an estimate that was replaced or added removes only that link, re-prices from the others, and is written to the history", async () => {
+      await price([link("1.3", { share_pct: 50 })], { markup_pct: 0 });
+      await price([link("1.3", { estimate_id: EST_SMALL })], { markup_pct: 0 });
+      const small = links().find((l) => l.estimate_id === EST_SMALL)!;
+      state.changes = [];
+      const res = await linkDelete(json("DELETE", {}), ctx(OPP, { linkId: small.id as string }));
+      expect(res.status).toBe(200);
+      expect(links()).toHaveLength(1);
+      expect(boqRow("1.3").unit_cost).toBe(20.8583);
+      expect(state.changes.some((c) => c.objectType === "opportunity_tenders" && c.changes?.some((x) => x.field === "BOQ estimate link"))).toBe(true);
+    });
+
+    it("a foreign estimate's link is a 404 and nothing is removed", async () => {
+      await price([link("1.3")]);
+      state.tenantId = T2; state.features = { pipeline: true, gcc_tender: true };
+      const res = await linkDelete(json("DELETE", {}), ctx(OPP_OTHER, { linkId: links()[0].id as string }));
+      expect(res.status).toBe(404);
+      expect(links()).toHaveLength(1);
+    });
+  });
+
+  describe("defect 3: Apply and Price from estimate use the same markup", () => {
+    it("the workspace default (15 percent) when nothing else is set, for a re-price as for a pick", async () => {
+      const a = await price([link("1.3")]);
+      expect(a.status).toBe(200);
+      expect(boqRow("1.3").markup_pct).toBe(15);
+      expect(dealLine("1.3").rate).toBe(47.97);
+    });
+
+    it("the workspace's own default when it set one, and a row's own markup wins over it", async () => {
+      state.db.rows("tenants").find((t) => t.id === T1)!.config = { tender: { default_markup_pct: 22 } };
+      await price([link("1.3")]);
+      expect(boqRow("1.3").markup_pct).toBe(22);
+      boqRow("1.3").markup_pct = 8;
+      edit(EST, 7000);
+      await repricePost(json("POST", { all_stale: true }), ctx());
+      expect(boqRow("1.3").markup_pct).toBe(8);
+    });
+  });
+
+  describe("defect 4: the quantity is declared by the template, and the banner goes once the person has set it", () => {
+    it("a template that declares the BOQ unit gets the line's quantity in the declared input, even beside other inputs in that unit", async () => {
+      const id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb22";
+      state.db.rows("estimate_templates").push({ id, tenant_id: T1, name: "Excavation", description: null, is_active: true, inputs: [
+        { key: "exc_m3", label: "Volume to excavate", type: "number", unit: "m³", min: 0.1, max: 1000000, default: 500, boq_units: ["m3"] },
+        { key: "backfill_m3", label: "Volume put back", type: "number", unit: "m³", min: 0, max: 1000000, default: 350 },
+      ] });
+      boqRow("1.3").file_uom = "m3";
+      dealLine("1.3").qty = 62400; dealLine("1.3").uom = "m3";
+      const j = await (await buildPost(json("POST", { boq_id: boqRow("1.3").id, template_id: id }), ctx())).json();
+      expect(state.created[0].params).toEqual({ exc_m3: 62400 });
+      const s = await (await estGet(get(), ctx())).json();
+      expect(s.links.find((l: { estimate_id: string }) => l.estimate_id === j.estimate_id).quantity).toMatchObject({ status: "matches", measured: 62400, needs_confirm: false, note: null });
+    });
+
+    it("with nothing to read the banner shows, and goes once a number was changed from its default; the confirmation is still asked", async () => {
+      plantWaiting();
+      const q = async () => (await (await estGet(get(), ctx())).json()).links[0].quantity;
+      expect(await q()).toMatchObject({ status: "unknown", needs_confirm: true });
+      expect((await q()).note).toContain("not filled in automatically");
+      estRow(EST_PLANT).params = { excavation_m3: 62400 };
+      const after = await q();
+      expect(after).toMatchObject({ status: "unknown", needs_confirm: true, note: null });
+    });
+  });
+
+  describe("defect 5: the template offered and the concrete grade", () => {
+    it("the Estimates tab hands the picker each template's trade, keywords and inputs so the line can pick one", async () => {
+      state.db.rows("estimate_templates").find((t) => t.id === TPL)!.keywords = ["pipe", "hdpe"];
+      state.db.rows("estimate_templates").find((t) => t.id === TPL)!.trade = "pipework";
+      const j = await (await tabGet(get(), ctx())).json();
+      const t = j.templates.find((x: { id: string }) => x.id === TPL);
+      expect(t).toMatchObject({ name: "Pipe run", trade: "pipework", keywords: ["pipe", "hdpe"] });
+      expect(t.inputs[0]).toMatchObject({ key: "length_m", unit: "m" });
+    });
+
+    it("a grade named in the line is chosen in the estimate's grade choice", async () => {
+      const id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb23";
+      state.db.rows("estimate_templates").push({ id, tenant_id: T1, name: "Reinforced concrete", description: null, is_active: true, inputs: [
+        { key: "concrete_m3", label: "Concrete", type: "number", unit: "m³", min: 0.1, max: 1000000, default: 100, boq_units: ["m3"] },
+        { key: "concrete_grade", label: "Grade", type: "select", default: "c30", options: [{ key: "c25", label: "C25", value: 25 }, { key: "c30", label: "C30", value: 30 }, { key: "c35", label: "C35", value: 35 }] },
+      ] });
+      dealLine("1.3").description = "Reinforced concrete C35 in raft foundations";
+      boqRow("1.3").file_uom = "m3"; dealLine("1.3").uom = "m3";
+      await buildPost(json("POST", { boq_id: boqRow("1.3").id, template_id: id }), ctx());
+      expect(state.created[0].params).toEqual({ concrete_m3: 120, concrete_grade: "c35" });
+    });
+  });
+
+  describe("defect 6: the state carries what the BOQ list needs to say Re-price", () => {
+    it("a link whose estimate changed is stale and not waiting, so the row shows the chip", async () => {
+      await price([link("1.3")]);
+      edit(EST, 7000);
+      const s = await (await estGet(get(), ctx())).json();
+      expect(s.links[0]).toMatchObject({ boq_id: boqRow("1.3").id, stale: true, waiting: false, broken: false });
+    });
   });
 });

@@ -27,6 +27,7 @@ const NOW = Date.parse("2026-11-05T10:00:00Z");
 const day = (n: number) => new Date(NOW - n * 86_400_000).toISOString();
 
 const analytics = (over: Partial<AnalyticsData> = {}): AnalyticsData => ({
+  standardQuotes: { open: 0, openValue: 0, acceptedValue: 0, byStatus: [] },
   totals: { accounts: 4, contacts: 0, customerAssets: 0, openCases: 16, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 3, openDealValue: 900_000, weightedDealValue: 0, openRfqs: 0, rfqsToAward: 0, draftEstimates: 0, quotedEstimates: 0, abmTargets: 0, abmEngaged: 0, draftOrders: 0, openOrders: 0, openOrderValue: 0 },
   casesByStatus: [], quoteTrend: [], topAccountsByRevenue: [], invoiceTotals: { invoiced: 500_000, paid: 260_000, outstanding: 240_960 }, tender: null,
   quotesByStatus: [

@@ -124,6 +124,15 @@ export default function StandardQuoteForm({
   // Editing an existing quote lands on its lines (the details are already
   // filled in); a new quote starts with the details.
   const [step, setStep] = useState<"details" | "lines" | "attachments">(editQuote ? "lines" : "details");
+  // A message can be set by a button far below the fold: bring it, or the field it is about, into view.
+  useEffect(() => {
+    if (!error) return;
+    const onAccount = !accountId && step === "details";
+    const el = document.getElementById(onAccount ? "sq-account" : "sq-error");
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (onAccount) el?.focus();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
   // The pinned bar on page 2. `position: sticky` can't be used: Shell's
   // <main> has overflow-x auto, which makes it a (non-scrolling) scroll
   // container that captures sticky while the window is what scrolls. So
@@ -336,7 +345,7 @@ export default function StandardQuoteForm({
                       {accounts.find((a) => a.id === accountId)?.name ?? "—"}
                     </div>
                   ) : (
-                    <Select value={accountId} onChange={(e) => { setAccountId(e.target.value); setContactId(""); }} required>
+                    <Select id="sq-account" invalid={!!error && !accountId} value={accountId} onChange={(e) => { setAccountId(e.target.value); setContactId(""); setError(""); }} required>
                       <option value="">— Select account —</option>
                       {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                     </Select>
@@ -400,7 +409,7 @@ export default function StandardQuoteForm({
               <Textarea id="sq-intro" style={{ minHeight: 70 }} value={introText} onChange={(e) => setIntroText(e.target.value)} placeholder="A short, personalized cover note for this quote…" />
             </Card>
           </div>
-          {error && <div role="alert" style={errorStyle}>{error}</div>}
+          {error && <div id="sq-error" role="alert" style={errorStyle}>{error}</div>}
           {stepFooter("Next: line items →", goToLines)}
         </div>
         )}
@@ -442,7 +451,7 @@ export default function StandardQuoteForm({
             </div>
           </div>
           </div>
-          {error && <div role="alert" style={errorStyle}>{error}</div>}
+          {error && <div id="sq-error" role="alert" style={errorStyle}>{error}</div>}
             <Card padding={16}>
               <DocumentLinesEditor
                 lines={lines} onChange={setLines} products={products} pricingEnabled={pricingEngineQuotesEnabled}
@@ -486,7 +495,7 @@ export default function StandardQuoteForm({
             />
             <p style={{ fontSize: 11.5, color: c.hint, margin: "10px 0 0" }}>Creating line items from a file saves them to the quote straight away and reloads this form — save any other edits first.</p>
           </Card>
-          {error && <div role="alert" style={{ ...errorStyle, marginTop: 14 }}>{error}</div>}
+          {error && <div id="sq-error" role="alert" style={{ ...errorStyle, marginTop: 14 }}>{error}</div>}
           {stepFooter("Back to line items →", goToLines)}
         </div>
         )}

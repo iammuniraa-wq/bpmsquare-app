@@ -141,6 +141,9 @@ export const BUNDLES: { id: string; label: string; feature?: keyof TenantFeature
     { id: "quote_trend" }, { id: "revenue_card" }, { id: "quote_outcomes" },
     { id: "quote_overdue", size: "compact" }, { id: "quote_source", size: "half" },
   ] },
+  { id: "standard_quotes", label: "Standard quotes", feature: "standard_quotes", blocks: [
+    { id: "sq_pipeline" }, { id: "sq_by_status", size: "half" },
+  ] },
   { id: "cases",        label: "Cases",         feature: "cases", blocks: [{ id: "open_cases" }, { id: "case_status" }] },
   { id: "work_orders",  label: "Work orders",   feature: "work_orders", blocks: [
     { id: "work_orders" }, { id: "work_order_status" }, { id: "tech_workload" },

@@ -6,14 +6,16 @@ import { c } from "@/lib/theme";
 import { cardStyle } from "@/components/Shell";
 import Pill from "@/components/Pill";
 import InfoTip from "@/components/ui/InfoTip";
-import { RFQ_SUPPLIER_STATUS_LABEL, type Rfq, type RfqLine, type RfqResponse, type RfqSupplier } from "@/lib/rfq/types";
+import type { Rfq, RfqLine, RfqResponse, RfqSupplier } from "@/lib/rfq/types";
 import {
   awardDecision, buildComparison, type AwardView, type CompareCell, type CompareResponse, DEFAULT_STALE_DAYS, MIN_REASON_CHARS,
 } from "@/lib/rfq/comparison";
 import { RFQ_TIPS } from "@/lib/rfq/tips";
+import { supplierDelivery } from "@/lib/rfq/delivery";
 import { quoteLabel, QUOTE_ORIGIN_TYPES } from "@/lib/rfq/linking";
-import { SUPPLIER_STATUS_TONE, inp, lbl, btnPrimary, btnGhost, fmtDate, fmtMoney } from "./rfqUi";
+import { inp, lbl, btnPrimary, btnGhost, fmtDate, fmtMoney } from "./rfqUi";
 import RfqModal from "./RfqModal";
+import { SupplierCheckChip, useSupplierChecks } from "@/components/suppliers/supplierCheckUi";
 
 // "Compare & award" (GCC tender deals, slice 3b): one row per RFQ line, one column per supplier, the lowest VALID price marked,
 // expired or stale answers in amber, each supplier's total and "covers N of M lines", unanswered suppliers as waiting with the
@@ -69,6 +71,7 @@ export default function RfqCompare<S extends CompareSupplierRow>({ b, canEdit, i
   const today = b.today ?? new Date().toISOString().slice(0, 10);
   const stale = b.stale_days ?? DEFAULT_STALE_DAYS;
   const sups = b.suppliers.filter((s) => s.status !== "cancelled");
+  const checks = useSupplierChecks(sups.map((s) => s.supplier_id));
   const lines = b.lines;
   const liveLines = lines.filter((l) => l.status !== "cancelled");
   const responses = b.responses as unknown as CompareResponse[];
@@ -121,11 +124,13 @@ export default function RfqCompare<S extends CompareSupplierRow>({ b, canEdit, i
                 {sups.map((s, i) => {
                   const col = cmp.columns[i];
                   const hasQuote = col.cover.quoted > 0;
+                  const delivery = supplierDelivery({ status: s.status, sent_at: s.sent_at, reply_source: s.reply_source, email_to: s.email_to, supplier_email: s.suppliers?.email, supplier_phone: s.suppliers?.phone });
                   return (
                     <th key={s.id} style={cellTh} data-guide={`rfq.compare.supplier.${i + 1}`}>
                       <div style={{ color: c.ink, fontSize: 13, textTransform: "none" }}>{s.suppliers?.name}</div>
+                      {checks[s.supplier_id] && <div style={{ marginTop: 4, textTransform: "none", fontWeight: 500 }}><SupplierCheckChip summary={checks[s.supplier_id]} /></div>}
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4, flexWrap: "wrap", fontWeight: 500 }}>
-                        <Pill label={col.waiting ? "Waiting" : col.notSent ? "Not sent" : RFQ_SUPPLIER_STATUS_LABEL[s.status]} tone={col.waiting ? "amber" : SUPPLIER_STATUS_TONE[s.status]} />
+                        <Pill label={col.waiting ? "Waiting" : delivery.label} tone={col.waiting ? "amber" : delivery.tone} />
                         {s.currency && <span style={{ color: c.hint }}>{s.currency}</span>}
                         {s.incoterm && <span style={{ color: c.hint }}>{s.incoterm}</span>}
                       </div>

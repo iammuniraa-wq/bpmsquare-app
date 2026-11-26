@@ -1,5 +1,9 @@
 import { round2 } from "./budget";
+import type { Bucket } from "./fillEstimate";
+import { bucketsFromParts, splitByShares, type EstimateShares } from "./fillSplit";
 import type { CostSnapshot } from "@/lib/tender/bids/costSnapshot";
+import type { EstimateBudgetInput } from "./fromTender";
+import { budgetPartsForBoqLine } from "@/lib/tender/estimates/budgetParts";
 import type { BudgetLine } from "./types";
 
 // "Fill from tender costs" (KAMCO feedback, 2026-10-29), pure: copy the costs RECORDED on the tender into the allocation, never an estimated
@@ -7,7 +11,8 @@ import type { BudgetLine } from "./types";
 // frozen with the winning bid version (matched on the item number the bid line and the budget line both carry), else the tender's BOQ rows
 // (matched on the deal line the budget line came from).
 
-export type Found = { amount: number; ref: string } | { skip: string };
+/** `buckets` is set when the cost came from an estimate: the same amount split by resource, which the fill then writes as one budget line per resource. */
+export type Found = { amount: number; ref: string; buckets?: Bucket[] } | { skip: string };
 export type FillSkip = { item: string; reason: string };
 
 const itemOf = (l: Pick<BudgetLine, "wbs" | "description">): string => l.wbs ?? l.description;
@@ -28,22 +33,42 @@ export function costsFromSnapshot(lines: readonly BudgetLine[], snapshot: CostSn
     // A snapshot stored before costs stopped being guessed may hold "the rate less a margin" under the estimated flag: that is not a recorded cost.
     const guessed = (cl.estimated && !cl.from_estimate) || cl.lines.every((b) => b.cost_known === false);
     if (cl.lines.length === 0 || cl.cost_total <= 0 || guessed) { out.set(l.line_key, { skip: `no recorded cost in bid v${versionNo}` }); continue; }
-    out.set(l.line_key, { amount: round2(cl.cost_total), ref: `Cost from bid v${versionNo}${cl.from_estimate ? " (estimate)" : cl.lines[0]?.source_ref ? ` (${cl.lines[0].source_ref.replace(/^Cost from /, "")})` : ""}`.slice(0, 300) });
+    const amount = round2(cl.cost_total);
+    const buckets = cl.from_estimate ? bucketsFromParts(cl.lines, amount) : [];
+    out.set(l.line_key, { amount, ref: `Cost from bid v${versionNo}${cl.from_estimate ? " (estimate)" : cl.lines[0]?.source_ref ? ` (${cl.lines[0].source_ref.replace(/^Cost from /, "")})` : ""}`.slice(0, 300), ...(buckets.length > 0 ? { buckets } : {}) });
   }
   return out;
 }
 
 export type BoqCostRow = { line_id: string | null; unit_cost: number | null; price_source: string | null; price_source_ref: string | null };
 
-/** The cost recorded on the tender's BOQ rows for each budget line, by the deal line it came from. Only a cost above zero counts. */
-export function costsFromBoq(lines: readonly BudgetLine[], rows: readonly BoqCostRow[]): Map<string, Found> {
+/**
+ * The cost recorded on the tender's BOQ rows for each budget line, by the deal line it came from. Only a cost above zero counts. A line linked to
+ * an estimate takes the estimate's own cost lines, split by resource; a line that names an estimate as its price source but has no link takes its
+ * recorded cost divided by the estimate's shares; any other line keeps the one recorded cost.
+ */
+export function costsFromBoq(lines: readonly BudgetLine[], rows: readonly BoqCostRow[], estimates?: EstimateBudgetInput, shares?: ReadonlyMap<string, EstimateShares>): Map<string, Found> {
   const out = new Map<string, Found>();
   const byLine = new Map(rows.filter((r) => r.line_id).map((r) => [r.line_id as string, r]));
   for (const l of lines) {
     const r = l.source_line_id ? byLine.get(l.source_line_id) : undefined;
+    const linked = l.source_line_id ? estimates?.get(l.source_line_id) : undefined;
+    if (linked && linked.links.length > 0) {
+      const parts = budgetPartsForBoqLine({ boqQty: l.qty, links: linked.links, boq: { item_no: l.wbs, description: l.description, unit: l.unit, cost_code: l.cost_code } });
+      const buckets = bucketsFromParts(parts.lines);
+      const amount = round2(buckets.reduce((s, b) => s + b.amount, 0));
+      if (amount > 0) {
+        const refs = [...new Set(linked.links.map((x) => x.link.estimate_ref))].join(", ");
+        out.set(l.line_key, { amount, ref: `Cost from estimate ${refs}`.slice(0, 300), buckets });
+        continue;
+      }
+    }
     const unit = r?.unit_cost != null ? Number(r.unit_cost) : 0;
     if (!r || !(unit > 0)) { out.set(l.line_key, { skip: "no recorded cost on the tender" }); continue; }
-    out.set(l.line_key, { amount: round2(l.qty * unit), ref: `Cost from ${r.price_source_ref || r.price_source || "the tender"}`.slice(0, 300) });
+    const amount = round2(l.qty * unit);
+    const sh = l.source_line_id ? shares?.get(l.source_line_id) : undefined;
+    const buckets = r.price_source === "estimate" && sh ? splitByShares(amount, sh.shares) : [];
+    out.set(l.line_key, { amount, ref: `Cost from ${r.price_source_ref || r.price_source || "the tender"}`.slice(0, 300), ...(buckets.length > 0 ? { buckets } : {}) });
   }
   return out;
 }

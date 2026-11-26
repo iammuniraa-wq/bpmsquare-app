@@ -119,6 +119,21 @@ export function detectColumns(headerCells: readonly Cell[]): ColumnMatch {
   return { map, score };
 }
 
+const MAP_PRIORITY: BoqField[] = ["description", "qty", "uom", "item_no", "narration", "cost_code", "rate", "amount"];
+
+/** A remembered layout can be stale or wrong: a column belongs to one field, and a field cannot point past the sheet's last column. The first claimant by priority keeps the column. */
+export function dropConflictingColumns(map: ColumnMap, colCount: number): ColumnMap {
+  const out: ColumnMap = {};
+  const used = new Set<number>();
+  for (const f of MAP_PRIORITY) {
+    const col = map[f];
+    if (col == null || !Number.isInteger(col) || col < 1 || col > colCount || used.has(col)) continue;
+    out[f] = col;
+    used.add(col);
+  }
+  return out;
+}
+
 export type Layout = {
   /** 1-based spreadsheet row number, or null when no row looked like a header. */
   headerRow: number | null;

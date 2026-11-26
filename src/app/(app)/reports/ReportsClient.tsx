@@ -418,6 +418,8 @@ const METRIC_META: Record<AnalyticsMetricId, { label: string; feature?: keyof Te
   inbox_open:             { label: "Inbox KPI",            feature: "inbox", workcenter: "inbox" },
   sales_orders_open:      { label: "Sales Orders KPI",     feature: "sales_orders", workcenter: "sales_orders" },
   drawings_waiting:       { label: "Drawings KPI",         feature: "drawing_register", workcenter: "drawing_register" },
+  sq_pipeline:            { label: "Standard quotes: open and accepted", feature: "standard_quotes", workcenter: "standard_quotes" },
+  sq_by_status:           { label: "Standard quotes by status", feature: "standard_quotes", workcenter: "standard_quotes" },
   abm_targets_engaged:    { label: "ABM targets engaged KPI", feature: "abm", workcenter: "abm" },
   open_cases:             { label: "Open Cases KPI",       feature: "cases", workcenter: "cases" },
   work_orders:            { label: "Work Orders KPI",      feature: "work_orders", workcenter: "work_orders" },
@@ -741,6 +743,33 @@ export default function ReportsClient({
       )}
 
       {/* ── Row 2.5: Quote won/lost value · Overdue · Source ── */}
+      {(isVisible("sq_pipeline") || isVisible("sq_by_status")) && (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 14 }}>
+
+        {isVisible("sq_pipeline") && <ChartCard title="Standard quotes" href={ROUTES.standardQuotes}>
+          <div style={{ display: "flex", gap: 20 }}>
+            <div style={{ flex: 1, textAlign: "center" }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: c.ink }}>{a.standardQuotes.open}</div>
+              <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>Open</div>
+              <div style={{ fontSize: 11, color: c.muted, marginTop: 2 }}>{inr(a.standardQuotes.openValue)}</div>
+            </div>
+            <div style={{ flex: 1, textAlign: "center" }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: c.ink }}>{inr(a.standardQuotes.acceptedValue)}</div>
+              <div style={{ fontSize: 11, color: c.hint, marginTop: 2 }}>Accepted</div>
+            </div>
+          </div>
+        </ChartCard>}
+
+        {isVisible("sq_by_status") && <ChartCard title="Standard quotes by status" href={ROUTES.standardQuotes}>
+          <HBarChartNav
+            rows={a.standardQuotes.byStatus.map((x) => ({ label: x.label, value: x.value, sub: `${x.count} · ${inr(x.value)}` }))}
+            colorFn={(i) => [pillar.blue.base, pillar.amber.base, pillar.green.base, pillar.red.base, pillar.purple.base][i % 5]}
+          />
+        </ChartCard>}
+
+      </div>
+      )}
+
       {(isVisible("quote_outcomes") || isVisible("quote_overdue") || isVisible("quote_source")) && (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 14 }}>
 

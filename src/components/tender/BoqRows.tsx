@@ -6,7 +6,8 @@ import Button from "@/components/ui/Button";
 import InfoTip from "@/components/ui/InfoTip";
 import { BOQ_TABLE_TIPS, type BoqTableTipKey } from "@/lib/tender/boq/tips";
 import type { PillarKey } from "@/lib/theme";
-import { itemLabel, rowChips, sourceView, type Chip, type EstimateLinkLike } from "@/lib/tender/boq/table";
+import { itemLabel, needsRepriceRow, rowChips, sourceView, type Chip, type EstimateLinkLike } from "@/lib/tender/boq/table";
+import { ESTIMATE_TIPS } from "@/lib/tender/estimates/tips";
 import type { PriceSource } from "@/lib/tender/boq/price";
 import { SourceChip, type SourceLink } from "./boq/SourceChip";
 import { partText, partViews, trimPct, wbsCell } from "@/lib/wbs/screen";
@@ -63,6 +64,16 @@ export function RowChips({ row, links, tips = true }: { row: BoqRow; links: read
           {tips && k.kind === "stale" && <span onClick={(e) => e.stopPropagation()}><InfoTip label="Stale">{BOQ_TABLE_TIPS.stale}</InfoTip></span>}
         </span>
       ))}
+    </span>
+  );
+}
+
+/** Beside the Rate: the estimate that priced this row was saved after it did. `tips` is off inside a card (the card is one button). */
+function RepriceChip({ tips }: { tips: boolean }) {
+  return (
+    <span data-chip="reprice" data-guide="boq.reprice_chip" style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+      <Pill label="Re-price" tone="amber" />
+      {tips && <span onClick={(e) => e.stopPropagation()}><InfoTip label="Re-price">{ESTIMATE_TIPS.stale}</InfoTip></span>}
     </span>
   );
 }
@@ -158,7 +169,12 @@ export function BoqTable({ rows, links, openId, onOpen, wbs, base }: { rows: rea
               <td className={s.source}><SourceCell row={l} links={links} base={base} onChoose={() => onOpen(l.id)} /></td>
               <td className={s.num}>{l.unit_cost != null ? money(l.unit_cost) : "–"}</td>
               <td className={s.num}>{l.unit_cost != null && l.markup_pct != null ? `${l.markup_pct}%` : "–"}</td>
-              <td className={s.num}><b>{l.priced ? money(l.rate) : "–"}</b></td>
+              <td className={s.num}>
+                <span style={{ display: "inline-flex", flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center", gap: 6 }}>
+                  <b>{l.priced ? money(l.rate) : "–"}</b>
+                  {needsRepriceRow(l.id, links) && <RepriceChip tips />}
+                </span>
+              </td>
               <td className={s.num}>{l.priced ? money(l.amount) : "–"}</td>
               <td><RowChips row={l} links={links} /></td>
               {wbs && (
@@ -196,7 +212,7 @@ export function BoqCards({ rows, links, openId, onOpen, wbs }: { rows: readonly 
             </span>
             <RowChips row={l} links={links} tips={false} />
             <span className={s.cardEnd}>
-              <span>Rate {l.priced ? money(l.rate) : "–"}</span>
+              <span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>Rate {l.priced ? money(l.rate) : "–"}{needsRepriceRow(l.id, links) && <RepriceChip tips={false} />}</span>
               <b>{l.priced ? money(l.amount) : "–"}</b>
             </span>
           </button>

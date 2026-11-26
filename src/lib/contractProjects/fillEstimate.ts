@@ -82,7 +82,8 @@ export function unchosenOptionLineIds(rows: readonly { id: string; group_type: s
   return new Set(rows.filter((q) => q.group_type === "alternative" && q.is_selected === false).map((q) => q.id));
 }
 
-export type FillItem = { base: BudgetLine; buckets: Bucket[] };
+/** `ref` is what a tender fill says the cost came from ("Cost from estimate EST-0004"); an estimate fill leaves it out and the line says "Estimate EST-0004 · Labour · cost 123.00". */
+export type FillItem = { base: BudgetLine; buckets: Bucket[]; ref?: string };
 export type EstimateFillPlan = { fills: FillItem[]; skipped: FillSkip[] };
 
 const itemOf = (l: Pick<BudgetLine, "wbs" | "description">): string => l.wbs ?? l.description;
@@ -137,14 +138,15 @@ export function applyEstimateFill(lines: readonly BudgetLine[], fills: readonly 
     const f = byBase.get(l.line_key);
     if (!f) { out.push(draftOf(l)); continue; }
     const [first, ...rest] = f.buckets;
-    out.push({ ...draftOf(l), resource_code: first.code, amount: first.amount, unit_cost: unitCostOf(l.qty, first.amount), allocated: true, source_ref: fillRef(estimateRef, first.label, first.amount) });
+    const refOf = (b: Bucket): string => (f.ref ? `${f.ref} · ${b.label}`.slice(0, 300) : fillRef(estimateRef, b.label, b.amount));
+    out.push({ ...draftOf(l), resource_code: first.code, amount: first.amount, unit_cost: unitCostOf(l.qty, first.amount), allocated: true, source_ref: refOf(first) });
     for (const b of rest) {
       const earlier = (replaced.get(l.source_line_id as string) ?? []).find((x) => x.resource_code === b.code && !kept.has(x.line_key));
       const key = earlier?.line_key ?? newKey();
       if (earlier) kept.add(earlier.line_key); else made.push({ line_key: key, of: l.line_key });
       out.push({
         line_key: key, resource_code: b.code, cost_code: l.cost_code, wbs: l.wbs, description: `${l.description} · ${b.label}`.slice(0, 500), qty: l.qty, unit: l.unit,
-        unit_cost: unitCostOf(l.qty, b.amount), cost_known: true, source_ref: fillRef(estimateRef, b.label, b.amount), reserve: false, amount: b.amount, allocated: true,
+        unit_cost: unitCostOf(l.qty, b.amount), cost_known: true, source_ref: refOf(b), reserve: false, amount: b.amount, allocated: true,
         client_rate: null, client_amount: 0, source_line_id: l.source_line_id,
       });
     }

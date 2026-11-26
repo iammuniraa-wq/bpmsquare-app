@@ -1213,6 +1213,7 @@ export type AnalyticsMetricId =
   | "inbox_open"
   | "sales_orders_open"
   | "drawings_waiting"
+  | "sq_pipeline" | "sq_by_status"
   | "abm_targets_engaged"
   | "wfm_attendance_today" | "wfm_night_shift_cost"
   | "wfm_corrections_queue" | "wfm_leave_requests_queue" | "wfm_recheck_queue"

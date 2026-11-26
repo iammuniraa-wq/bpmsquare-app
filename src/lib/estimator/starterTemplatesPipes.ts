@@ -106,7 +106,7 @@ export const PIPES_FITTINGS_STARTER: CatalogueStarter = {
       options: PIPE_MATERIALS.map((m) => ({ key: m.key, label: m.label, value: m.value, attrs: { pipe_material: m.key } })) },
     { key: "pipe_dn", label: "Nominal diameter", type: "select", default: "dn300", section: "Pipeline", unit: "mm",
       options: PIPE_DIAMETERS.map((dn) => ({ key: `dn${dn}`, label: `DN ${dn}`, value: dn, attrs: { pipe_dn: String(dn) } })) },
-    { key: "length_m", label: "Pipeline length", type: "number", default: 1000, min: 1, max: 100000, unit: "m", section: "Pipeline" },
+    { key: "length_m", label: "Pipeline length", type: "number", default: 1000, min: 1, max: 100000, unit: "m", boq_units: ["m"], section: "Pipeline" },
     { key: "fittings_n", label: "Fittings (bends, tees, reducers)", type: "number", default: 10, min: 0, max: 5000, unit: "nr", section: "Fittings and valves" },
     { key: "valves_n", label: "Valves", type: "number", default: 2, min: 0, max: 1000, unit: "nr", section: "Fittings and valves" },
     { key: "depth_m", label: "Trench depth", type: "number", default: 1.8, min: 1, max: 8, unit: "m", section: "Trench",

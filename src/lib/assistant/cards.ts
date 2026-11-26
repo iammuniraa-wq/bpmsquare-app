@@ -19,7 +19,12 @@ export type CardField = {
   origin?: "web";
   /** Only on a web lookup: how sure the lookup was, or that it found nothing for this field. */
   confidence?: "found" | "likely" | "not_found";
+  /** Only on a change card: what the record holds now, as the screen shows it ("" = empty). `value` is what it will hold. */
+  before?: string;
 };
+
+/** A read-only line on a card: what the press will act on ("Lines without a price", "Suppliers"). */
+export type CardFact = { label: string; value: string };
 
 export type CardDuplicate = { id: string; label: string; href: string };
 
@@ -36,7 +41,7 @@ export type ConfirmCard = {
   id: string;
   /** Signed proof the server issued this card to this person; sent back unchanged with the press. */
   token: string;
-  action: "create" | "update";
+  action: "create" | "update" | "verb";
   object: string;
   noun: string;
   title: string;
@@ -47,14 +52,26 @@ export type ConfirmCard = {
   duplicates: CardDuplicate[];
   /** Blockers worth reading before pressing (an account that was not found, for one). */
   notices: string[];
+  /** A step on an existing record: the facts it acts on, shown above the fields. */
+  facts?: CardFact[];
+  /** The checks of that step that are not a pass, the same lines the screen's own button lists. Warnings: the person can still press. */
+  checks?: string[];
+  /** One or two short sentences behind the card's "i": what pressing does. */
+  info?: string;
   primaryLabel: string;
   risk: "write";
+  /** Where the press goes when it is not POST /api/ai/act (the competitor card has its own, src/app/api/ai/act/competitor). */
+  press?: string;
 };
 
 export type ActResult = {
   ok: true;
   record: { id: string; href: string; label: string };
   next: NextStep[];
+  /** What was done, when "Created <label>" would be wrong (a change, a step on a deal). */
+  message?: string;
+  /** Short lines under the message: the figures the route answered with. */
+  details?: string[];
 };
 
 /** Required fields that are still empty, by key. */

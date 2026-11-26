@@ -38,7 +38,7 @@ describe("the steps of a tender", () => {
   });
 
   it("an awarded tender has every step done", () => {
-    expect(states({ stage: "awarded", outcome: "won" })).toBe("received:done decision:done boq:done costing:done bid:done submitted:done outcome:done");
+    expect(states({ stage: "awarded", outcome: "won", bids: 1 })).toBe("received:done decision:done boq:done costing:done bid:done submitted:done outcome:done");
   });
 });
 
@@ -119,5 +119,39 @@ describe("the explanations", () => {
       const tip = TENDER_TIPS[out({ stage, hasBoq, unpriced: hasBoq ? 2 : 0 }).next.tipKey];
       expect(tipTextProblems(tip), stage).toEqual([]);
     }
+  });
+});
+
+describe("the path does not claim work that is not done", () => {
+  const rows = (over: Partial<StepFacts>) => Object.fromEntries(out(over).steps.map((s) => [s.id, s]));
+
+  it("a submitted tender with unpriced lines shows Costing as partial and Bid as done with the count", () => {
+    const r = rows({ stage: "submitted", bids: 1, boqLines: 43, unpriced: 36 });
+    expect(r.costing).toMatchObject({ state: "partial", note: "7 of 43 priced" });
+    expect(r.bid).toMatchObject({ state: "done", note: "36 lines unpriced" });
+  });
+
+  it("one unpriced line reads in the singular", () => {
+    expect(rows({ stage: "submitted", bids: 1, boqLines: 5, unpriced: 1 }).bid.note).toBe("1 line unpriced");
+  });
+
+  it("Costing while it is the current step carries the same count, and stays current", () => {
+    expect(rows({ boqLines: 43, unpriced: 36 }).costing).toMatchObject({ state: "current", note: "7 of 43 priced" });
+  });
+
+  it("a fully priced, submitted tender has both steps done and no note", () => {
+    const r = rows({ stage: "submitted", bids: 1, boqLines: 10, unpriced: 0 });
+    expect(r.costing).toEqual({ id: "costing", state: "done" });
+    expect(r.bid).toEqual({ id: "bid", state: "done" });
+  });
+
+  it("Bid is done only once a bid version exists", () => {
+    expect(rows({ stage: "submitted", bids: 0 }).bid.state).toBe("todo");
+    expect(rows({ stage: "bid_lost", outcome: "lost", bids: 0 }).bid.state).toBe("todo");
+    expect(rows({ stage: "bid_lost", outcome: "lost", bids: 2 }).bid.state).toBe("done");
+  });
+
+  it("a no-bid carries no notes", () => {
+    expect(out({ stage: "no_bid", outcome: "dropped", boqLines: 10, unpriced: 4 }).steps.every((s) => s.note === undefined)).toBe(true);
   });
 });

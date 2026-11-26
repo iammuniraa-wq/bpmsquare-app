@@ -329,7 +329,19 @@ const dimensionOf = (canon: string): Dimension | null => (canon === "m2" ? "area
 const clashes = (a: string, b: string): boolean => { const x = dimensionOf(a); const y = dimensionOf(b); return !!x && !!y && x !== y; };
 
 /** The part of a template input the quantity rules read. */
-export type QtyInputDef = { key: string; label?: string; type: string; unit?: string; min?: number; max?: number; default?: unknown };
+export type QtyInputDef = {
+  key: string; label?: string; type: string; unit?: string; min?: number; max?: number; default?: unknown;
+  options?: readonly { key: string; label: string }[];
+  /** The BOQ units for which this input takes the line's quantity ("m3" on an excavation volume). Declared by the template, never guessed from its name. */
+  boq_units?: readonly string[];
+};
+
+/** The one number input a template declares for this unit (`boq_units`). Two inputs declaring the same unit declare nothing: it falls back to the rules below. */
+function declaredInput(numbers: readonly QtyInputDef[], unit: string): QtyInputDef | null {
+  if (!unit) return null;
+  const hit = numbers.filter((i) => Array.isArray(i.boq_units) && i.boq_units.some((u) => canonUnit(u) === unit));
+  return hit.length === 1 ? hit[0] : null;
+}
 
 // Inputs that describe a room, a slab or a panel in plan: a length and a width in metres. Anything about a corner cut-out, a door, a
 // border, a tile or a thickness is another measure and is never the plan size.
@@ -370,7 +382,7 @@ export function quantityFieldLabel(inputs: readonly QtyInputDef[] | null | undef
   const numbers = inputs.filter((i) => i.type === "number");
   const unit = canonUnit(boqUnit);
   const byUnit = unit ? numbers.filter((i) => canonUnit(i.unit) === unit) : [];
-  const one = quantityInput(byUnit) ?? (byUnit.length === 0 ? quantityInput(numbers.filter((i) => QTY_KEYS.has(i.key) && !(unit && i.unit && clashes(canonUnit(i.unit), unit)))) : null);
+  const one = declaredInput(numbers, unit) ?? quantityInput(byUnit) ?? (byUnit.length === 0 ? quantityInput(numbers.filter((i) => QTY_KEYS.has(i.key) && !(unit && i.unit && clashes(canonUnit(i.unit), unit)))) : null);
   if (!one) return null;
   const name = (one.label ?? one.key).trim();
   return one.unit && !name.includes(`(${one.unit})`) ? `${name} (${one.unit})` : name;
@@ -389,6 +401,8 @@ export function prefillParams(inputs: readonly QtyInputDef[], boqUnit: string | 
   const numbers = inputs.filter((i) => i.type === "number");
   const inRange = (i: { min?: number; max?: number }, v: number = qty) => (i.min == null || v >= i.min) && (i.max == null || v <= i.max);
   const unit = canonUnit(boqUnit);
+  const declared = declaredInput(numbers, unit);
+  if (declared) return inRange(declared) ? { [declared.key]: qty } : {};
   const byUnit = unit ? numbers.filter((i) => canonUnit(i.unit) === unit && inRange(i)) : [];
   const sole = quantityInput(byUnit);
   if (sole) return { [sole.key]: qty };
@@ -420,6 +434,8 @@ export function measuredQuantity(inputs: readonly QtyInputDef[], params: Record<
   const numbers = inputs.filter((i) => i.type === "number");
   const unit = canonUnit(boqUnit);
   const good = (n: number | null): number | null => (n != null && n > 0 ? n : null);
+  const declared = declaredInput(numbers, unit);
+  if (declared) return good(valueOf(declared, params));
   const byUnit = unit ? numbers.filter((i) => canonUnit(i.unit) === unit) : [];
   if (byUnit.length > 0) { const sole = quantityInput(byUnit); return sole ? good(valueOf(sole, params)) : null; }
   const byName = numbers.filter((i) => QTY_KEYS.has(i.key) && !(unit && i.unit && clashes(canonUnit(i.unit), unit)));
@@ -466,18 +482,44 @@ const qtyText = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits
 const withUnit = (n: number, uom: string | null) => `${qtyText(n)}${uom ? ` ${uom}` : ""}`;
 
 /** What the banner and the BOQ line say. Null when there is nothing to say (the quantities match, or a rate already in use cannot be judged). */
-export function quantityNote(check: QuantityCheck, applied: boolean, field?: string | null): string | null {
+export function quantityNote(check: QuantityCheck, applied: boolean, field?: string | null, edited = false): string | null {
   const boq = withUnit(check.boq_qty, check.uom);
   if (check.status === "matches") return null;
   const todo = field ? `Set ${field} to ${qtyText(check.boq_qty)}, then confirm.` : `Make this estimate for ${boq}, then confirm.`;
-  if (check.status === "unknown") return applied ? null : `The quantity was not filled in automatically. ${todo}`;
+  if (check.status === "unknown") return applied || edited ? null : `The quantity was not filled in automatically. ${todo}`;
   const own = withUnit(check.measured ?? 0, check.uom);
   return applied ? `This estimate is for ${own}, the BOQ line is ${boq}.` : `This estimate is for ${own}, the BOQ line is ${boq}. ${todo}`;
 }
 
-export function quantityView(check: QuantityCheck, applied: boolean, item: string, field?: string | null): QuantityView {
-  return { ...check, item, needs_confirm: needsQuantityConfirm(check, applied), note: quantityNote(check, applied, field), field: field ?? null };
+export function quantityView(check: QuantityCheck, applied: boolean, item: string, field?: string | null, edited = false): QuantityView {
+  return { ...check, item, needs_confirm: needsQuantityConfirm(check, applied), note: quantityNote(check, applied, field, edited), field: field ?? null };
 }
+
+/** The person has changed a number of the estimate away from the template's default: a banner about "not filled in" has done its job. */
+export function paramsEdited(inputs: readonly QtyInputDef[] | null | undefined, params: Record<string, unknown> | null | undefined): boolean {
+  if (!Array.isArray(inputs) || !params) return false;
+  return inputs.some((i) => {
+    if (i.type !== "number") return false;
+    const set = valueOf(i, params);
+    const def = typeof i.default === "number" ? i.default : null;
+    return params[i.key] !== undefined && set != null && def != null && set !== def;
+  });
+}
+
+/** Distinct top-level WBS groups that carry cost; with no WBS codes at all, the number of cost lines. What a BOQ line could be priced from, apart from the whole. */
+export function priceableParts(lines: readonly EstLine[]): number {
+  const costed = lines.filter((l) => lineCost(l) > 0);
+  const groups = new Set(costed.map((l) => (l.wbs_code ? l.wbs_code.split(".")[0] : "")).filter(Boolean));
+  return groups.size > 0 ? groups.size : costed.length;
+}
+
+/**
+ * An estimate for a whole scope: several parts, and nothing in its own inputs says which quantity one BOQ line would divide it by. Its
+ * whole cost over one line's quantity is then not a rate, so "Apply" is not offered and the part picker is.
+ */
+export const pricesSeveralParts = (lines: readonly EstLine[], status: QuantityStatus | null | undefined): boolean => status === "unknown" && priceableParts(lines) >= 2;
+
+export const SEVERAL_PARTS_TEXT = "This estimate prices several parts: pick the part that prices this line.";
 
 /** The words of the confirmation a person gives before a build-up is priced (one line, or several). */
 export function quantityConfirmCopy(views: readonly QuantityView[]): { title: string; body: string; confirmLabel: string } {
@@ -501,6 +543,55 @@ export function buildUpName(item: { item_no: string | null; description: string 
 
 export const buildUpNote = (item: { item_no: string | null; qty: number; uom: string | null }): string =>
   `Rate build-up for BOQ item ${item.item_no ?? "(no number)"}: ${item.qty}${item.uom ? ` ${item.uom}` : ""}. The cost per unit is the estimate's total cost divided by this quantity.`;
+
+// ── Which template fits a BOQ line ───────────────────────────────────────────────────────────────────────────────────
+
+export type TemplateHint = { id: string; name: string; trade?: string | null; keywords?: readonly string[] | null; inputs?: readonly QtyInputDef[] | null };
+
+const stem = (w: string) => (w.length > 3 && w.endsWith("s") && !w.endsWith("ss") ? w.slice(0, -1) : w);
+const wordsOf = (s: string | null | undefined): string[] => norm(s).split(" ").filter(Boolean).map(stem);
+const NAME_NOISE = new Set(["illustrative", "with", "and", "package", "the", "for", "from", "work", "works"]);
+const hasPhrase = (hay: readonly string[], phrase: readonly string[]): boolean => {
+  if (phrase.length === 0) return false;
+  for (let i = 0; i + phrase.length <= hay.length; i++) if (phrase.every((w, k) => hay[i + k] === w)) return true;
+  return false;
+};
+
+/**
+ * The template a BOQ line most likely belongs to, from the template's own keywords, name and trade against the line's words, and a
+ * small lift for a template that declares the line's unit. Null when nothing fits well enough or two fit equally: nothing is preselected.
+ */
+export function suggestTemplate(templates: readonly TemplateHint[], text: string | null | undefined, boqUnit: string | null | undefined): string | null {
+  const hay = wordsOf(text);
+  if (hay.length === 0) return null;
+  const unit = canonUnit(boqUnit);
+  const scored = templates.map((t) => {
+    let score = 0;
+    for (const k of new Set((t.keywords ?? []).map((x) => wordsOf(x).join(" ")).filter(Boolean))) if (hasPhrase(hay, k.split(" "))) score += k.split(" ").length * 2;
+    for (const w of new Set(wordsOf(t.name))) if (w.length >= 4 && !NAME_NOISE.has(w) && hay.includes(w)) score += 1;
+    for (const w of new Set(wordsOf(t.trade))) if (w.length >= 4 && !NAME_NOISE.has(w) && hay.includes(w)) score += 1;
+    if (score > 0 && declaredInput((t.inputs ?? []).filter((i) => i.type === "number"), unit)) score += 2;
+    return { id: t.id, score };
+  }).filter((x) => x.score >= 2).sort((a, b) => b.score - a.score);
+  if (scored.length === 0) return null;
+  if (scored.length > 1 && scored[1].score === scored[0].score) return null;
+  return scored[0].id;
+}
+
+/** A concrete grade named in the line ("C35", "C 40/50") for a template choice called a grade: { concrete_grade: "c35" }. Only a choice that has that grade is set. */
+export function gradeParams(inputs: readonly QtyInputDef[], text: string | null | undefined): Record<string, string> {
+  const found = [...String(text ?? "").matchAll(/\bC\s?(\d{2,3})\b/gi)].map((m) => `c${m[1]}`);
+  if (found.length === 0) return {};
+  const out: Record<string, string> = {};
+  for (const i of inputs) {
+    if (i.type !== "select" || !/grade/i.test(`${i.key} ${i.label ?? ""}`)) continue;
+    for (const g of found) {
+      const hit = (i.options ?? []).find((o) => o.key.toLowerCase() === g || o.label.toLowerCase().replace(/\s+/g, "") === g);
+      if (hit) { out[i.key] = hit.key; break; }
+    }
+  }
+  return out;
+}
 
 // ── The outputs an estimate offers ───────────────────────────────────────────────────────────────────────────────────
 

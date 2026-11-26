@@ -7,8 +7,11 @@ import { Input } from "@/components/ui/Input";
 import InfoTip from "@/components/ui/InfoTip";
 import { RFQ_TIPS } from "@/lib/rfq/tips";
 import { currentDescription } from "@/lib/rfq/currentSupplierRank";
+import { noContactNotice } from "@/lib/rfq/delivery";
+import { hasValidEmail } from "@/lib/rfq/reach";
 import type { CurrentForProduct, PickerSupplier, SuggestedSupplier } from "./useRfqSuppliers";
 import { fmtDate } from "./rfqUi";
+import { SupplierCheckChip, useSupplierChecks } from "@/components/suppliers/supplierCheckUi";
 
 // The supplier part of both RFQ forms: the current supplier (when there is
 // one), the tenant's own history as one-tap chips, then a searchable list of
@@ -32,6 +35,7 @@ export default function SupplierPicker({
   scope?: { restricted: boolean; group: string | null } | null;
 }) {
   const [filter, setFilter] = useState("");
+  const checks = useSupplierChecks(suppliers.map((s) => s.id));
   const [kind, setKind] = useState<"all" | "vendor" | "subcontractor">("all");
   const currentIds = useMemo(() => new Set(current.map((x) => x.supplier_id)), [current]);
 
@@ -44,7 +48,9 @@ export default function SupplierPicker({
       .slice(0, 60);
   }, [suppliers, filter, currentIds, typeFilter, kind]);
 
-  const noEmail = chosen.filter((id) => !suppliers.find((s) => s.id === id)?.email);
+  const chosenRows = chosen.map((id) => suppliers.find((s) => s.id === id)).filter((s): s is PickerSupplier => !!s);
+  const noContact = noContactNotice(chosenRows.map((s) => ({ name: s.name, email: s.email, phone: s.phone ?? null })));
+  const whatsappOnly = chosenRows.filter((s) => !hasValidEmail(s.email) && !!(s.phone ?? "").trim()).length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -114,15 +120,19 @@ export default function SupplierPicker({
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ fontWeight: 600 }}>{s.name}</span>
               {currentIds.has(s.id) && <span style={{ marginLeft: 8 }}><StatusPill label="Current supplier" tone="green" /></span>}
+              {checks[s.id] && <span style={{ marginLeft: 8 }}><SupplierCheckChip summary={checks[s.id]} /></span>}
               <span style={{ color: c.hint, marginLeft: 6, fontSize: 12 }}>{[s.city, s.email ?? "no email"].filter(Boolean).join(" · ")}</span>
             </span>
           </label>
         ))}
         {!shown.length && <div style={{ padding: 12, fontSize: 12.5, color: c.hint }}>No suppliers match.</div>}
       </div>
-      {noEmail.length > 0 && (
-        <div style={{ fontSize: 12, color: "var(--amberink)" }}>
-          {noEmail.length} chosen supplier{noEmail.length === 1 ? " has" : "s have"} no email — they can be sent the reply link on WhatsApp from the RFQ.
+      {noContact && (
+        <div role="status" data-guide="rfq.suppliers.no_contact" style={{ fontSize: 12.5, color: "var(--amberink)", background: "var(--amberbg)", padding: "8px 10px", borderRadius: 7, lineHeight: 1.45 }}>{noContact}</div>
+      )}
+      {whatsappOnly > 0 && (
+        <div data-guide="rfq.suppliers.whatsapp_only" style={{ fontSize: 12, color: "var(--amberink)" }}>
+          {whatsappOnly} chosen supplier{whatsappOnly === 1 ? " has" : "s have"} no email: send the reply link on WhatsApp from the RFQ.
         </div>
       )}
     </div>

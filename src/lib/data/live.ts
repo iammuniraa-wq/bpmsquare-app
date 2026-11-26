@@ -1551,6 +1551,8 @@ export type AnalyticsData = {
   assetsByKind: Array<{ kind: string; label: string; count: number; loanerCount: number }>;
   loanerStock: { available: number; onLoan: number; total: number };
   quotesByStatus: Array<{ status: string; label: string; count: number; value: number }>;
+  /** Standard Quotes (their own tables, not the Quotations ones above). Open = draft + sent. */
+  standardQuotes: { open: number; openValue: number; acceptedValue: number; byStatus: Array<{ status: string; label: string; count: number; value: number }> };
   quoteTrend: Array<{ dateLabel: string; value: number; cumulative: number }>;
   quoteOutcomeTotals: { open: number; won: number; lost: number; dropped: number };
   // Counts, beside the VALUE totals above. quoteOutcomeTotals sums q.total --
@@ -1606,7 +1608,7 @@ export async function getAnalyticsDataLive(opts: { tender?: boolean; closedProje
       totals: { accounts: 0, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0, openRfqs: 0, rfqsToAward: 0, draftEstimates: 0, quotedEstimates: 0, abmTargets: 0, abmEngaged: 0, draftOrders: 0, openOrders: 0, openOrderValue: 0, drawingsWaiting: 0 },
       accountsByType: [], leadFunnel: [], assetsByKind: [],
       loanerStock: { available: 0, onLoan: 0, total: 0 },
-      quotesByStatus: [], quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
+      quotesByStatus: [], standardQuotes: { open: 0, openValue: 0, acceptedValue: 0, byStatus: [] }, quoteTrend: [], casesByStatus: [], workOrdersByStatus: [],
       quoteOutcomeTotals: { open: 0, won: 0, lost: 0, dropped: 0 },
       quoteOutcomeCounts: { open: 0, won: 0, lost: 0, dropped: 0 },
       quoteOverdueCount: 0,
@@ -1640,7 +1642,7 @@ export async function getAnalyticsDataLive(opts: { tender?: boolean; closedProje
     { data: accounts }, { count: contactCount }, { data: assets },
     { data: cases }, { data: workOrders }, { data: contracts },
     { data: leads }, { data: technicians }, { data: quotes },
-    { data: invoices }, { data: activities }, { count: productCount }, { data: openDealsRaw }, { data: rfqRaw }, { data: estimateRaw }, { data: abmRaw }, { data: orderRaw },
+    { data: invoices }, { data: activities }, { count: productCount }, { data: openDealsRaw }, { data: rfqRaw }, { data: estimateRaw }, { data: abmRaw }, { data: orderRaw }, { data: sqRaw },
   ] = await Promise.all([
     getTenant(),
     readAllPages((lo, hi) => supabase.from("accounts").select("id, type").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
@@ -1665,11 +1667,25 @@ export async function getAnalyticsDataLive(opts: { tender?: boolean; closedProje
     readAllPages((lo, hi) => supabase.from("abm_target_accounts").select("progress, abm_programs!inner(status)").eq("tenant_id", tenantId).eq("abm_programs.status", "active").order("id", { ascending: true }).range(lo, hi)),
     // 0212 may be pending: an error reads as no orders.
     readAllPages((lo, hi) => supabase.from("sales_orders").select("status, total").eq("tenant_id", tenantId).in("status", ["draft", "confirmed"]).order("id", { ascending: true }).range(lo, hi)),
+    // Standard Quotes are their own table family (0053). An error reads as none.
+    readAllPages((lo, hi) => supabase.from("standard_quotes").select("status, total").eq("tenant_id", tenantId).order("id", { ascending: true }).range(lo, hi)),
   ]);
   // Drawings waiting for release (0255): asked only of a workspace that owns the register; a pending migration reads as none.
   const drawingsWaiting = tenant?.features?.drawing_register === true
     ? (await supabase.from("drawing_revisions").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("status", "in_review")).count ?? 0
     : 0;
+  const sqRows = (sqRaw ?? []) as Array<{ status: string; total: number | null }>;
+  const sqLabels: Record<string, string> = { draft: "Draft", sent: "Sent", accepted: "Accepted", rejected: "Rejected", expired: "Expired" };
+  const sqStatuses = [...new Set([...Object.keys(sqLabels), ...sqRows.map((q) => q.status)])];
+  const standardQuotes = {
+    open: sqRows.filter((q) => q.status === "draft" || q.status === "sent").length,
+    openValue: sqRows.filter((q) => q.status === "draft" || q.status === "sent").reduce((s, q) => s + Number(q.total ?? 0), 0),
+    acceptedValue: sqRows.filter((q) => q.status === "accepted").reduce((s, q) => s + Number(q.total ?? 0), 0),
+    byStatus: sqStatuses.map((status) => {
+      const rows = sqRows.filter((q) => q.status === status);
+      return { status, label: sqLabels[status] ?? status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " "), count: rows.length, value: rows.reduce((s, q) => s + Number(q.total ?? 0), 0) };
+    }).filter((x) => x.count > 0 || sqLabels[x.status] !== undefined),
+  };
   const orderRows = (orderRaw ?? []) as Array<{ status: string; total: number | null }>;
   const abmRows = (abmRaw ?? []) as unknown as Array<{ progress: string }>;
   const estimateRows = (estimateRaw ?? []) as Array<{ status: string }>;
@@ -2096,7 +2112,7 @@ export async function getAnalyticsDataLive(opts: { tender?: boolean; closedProje
 
   return {
     totals, accountsByType, leadFunnel, assetsByKind, loanerStock,
-    quotesByStatus, quoteTrend, quoteOutcomeTotals, quoteOutcomeCounts, quoteOverdueCount, quoteSource,
+    quotesByStatus, standardQuotes, quoteTrend, quoteOutcomeTotals, quoteOutcomeCounts, quoteOverdueCount, quoteSource,
     casesByStatus, workOrdersByStatus,
     techniciansByStatus, invoicesByStatus, invoiceTotals, topAccountsByRevenue,
     contractStats, recentActivity, accountNews, businessNews,

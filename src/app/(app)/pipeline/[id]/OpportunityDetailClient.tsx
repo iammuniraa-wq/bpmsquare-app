@@ -32,6 +32,7 @@ import ClosingChip from "@/components/tender/ClosingChip";
 import { tenderIsLive } from "@/lib/tender/rules";
 import { tenderPrimary, type TenderPrimaryKey } from "@/lib/tender/headerAction";
 import { tenderSteps } from "@/lib/tender/steps";
+import { amountText, amountValue } from "@/lib/tender/amountText";
 import TenderStepper from "@/components/tender/TenderStepper";
 import { resolveTenderTab, type TenderTabId } from "@/lib/tender/tabs";
 import { TENDER_TIPS } from "@/lib/tender/tips";
@@ -297,7 +298,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const lastBidTotal = tender?.bids?.versions[0]?.total ?? null;
   function closePrice(cl: { outcome: string; price?: string }): string | undefined {
     if (cl.price !== undefined) return cl.price.trim();
-    return cl.outcome === "won" && lastBidTotal != null ? String(lastBidTotal) : undefined;
+    return cl.outcome === "won" && lastBidTotal != null ? amountValue(lastBidTotal) : undefined;
   }
   // Dropped closes on the Lost stage with the outcome "dropped" (a tender's No-bid stage is reached only through an approved no-go).
   const closedStageFor = (o: "won" | "lost" | "dropped", fallback: string) =>
@@ -490,7 +491,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   );
 
   return (
-    <div>
+    <div className={tender ? "bpm-tender-page" : undefined}>
       <TabTitle title={opp.title} />
       <div style={{ marginBottom: 8 }}>
         <Link href={tender ? `${ROUTES.pipeline}?tab=tenders` : ROUTES.pipeline} style={{ fontSize: 11.5, color: c.muted, textDecoration: "none" }}>← Pipeline</Link>
@@ -758,7 +759,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
 function GroupedNumberInput({ value, onChange }: { value: string; onChange: (plain: string) => void }) {
   const [focused, setFocused] = useState(false);
   const n = Number(value);
-  const shown = focused || value.trim() === "" || !Number.isFinite(n) ? value : n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const shown = focused || value.trim() === "" || !Number.isFinite(n) ? value : amountText(n);
   return (
     <Input
       type="text" inputMode="decimal" value={shown} style={{ minHeight: 44 }}

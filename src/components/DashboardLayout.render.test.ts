@@ -24,6 +24,7 @@ import { dashLook } from "@/lib/theme";
 // ordinary dashboard blocks, the look switch, and the dark look scoped to the page that asked for it).
 
 const analytics = (tender: AnalyticsData["tender"]): AnalyticsData => ({
+  standardQuotes: { open: 0, openValue: 0, acceptedValue: 0, byStatus: [] },
   totals: { accounts: 4, contacts: 0, customerAssets: 0, openCases: 0, workOrders: 0, activeContracts: 0, leads: 0, technicians: 0, products: 0, openDeals: 0, openDealValue: 0, weightedDealValue: 0, openRfqs: 0, rfqsToAward: 0, draftEstimates: 0, quotedEstimates: 0, abmTargets: 0, abmEngaged: 0, draftOrders: 0, openOrders: 0, openOrderValue: 0 },
   casesByStatus: [], quoteTrend: [], topAccountsByRevenue: [], invoiceTotals: { invoiced: 0, paid: 0, outstanding: 0 }, tender,
 } as unknown as AnalyticsData);

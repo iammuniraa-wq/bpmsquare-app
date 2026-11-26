@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import Button from "@/components/ui/Button";
 import InfoTip from "@/components/ui/InfoTip";
-import { STEP_LABEL, type Checklist, type NextStep, type StepId, type StepState, type TabJump } from "@/lib/tender/steps";
+import { STEP_LABEL, type Checklist, type NextStep, type StepId, type StepRow, type TabJump } from "@/lib/tender/steps";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 import s from "./TenderStepper.module.css";
 
@@ -13,7 +13,7 @@ import s from "./TenderStepper.module.css";
  * and sizes stay what they were; a jump to a tab is drawn here.
  */
 export default function TenderStepper({ steps, current, next, checklist, onJump, primaryButton }: {
-  steps: { id: StepId; state: StepState }[];
+  steps: StepRow[];
   current?: StepId;
   next: NextStep;
   checklist: Checklist;
@@ -37,8 +37,9 @@ export default function TenderStepper({ steps, current, next, checklist, onJump,
         <ol ref={listRef} className={s.steps} data-guide="tender.steps" aria-label="Tender steps">
           {steps.map((st, i) => (
             <li key={st.id} className={s.step} data-step={st.id} data-state={st.state} aria-current={st.id === current && st.state !== "skipped" ? "step" : undefined}>
-              <span className={s.dot} aria-hidden="true">{st.state === "done" ? "✓" : i + 1}</span>
+              <span className={s.dot} aria-hidden="true">{st.state === "done" ? "✓" : st.state === "partial" ? "!" : i + 1}</span>
               <span className={s.label}>{STEP_LABEL[st.id]}</span>
+              {st.note && <span className={s.note} data-guide={`tender.step.${st.id}.note`}>{st.id === "bid" ? `(${st.note})` : st.note}</span>}
             </li>
           ))}
         </ol>

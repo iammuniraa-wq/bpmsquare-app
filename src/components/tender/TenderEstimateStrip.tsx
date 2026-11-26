@@ -11,6 +11,7 @@ import InfoTip from "@/components/ui/InfoTip";
 import StatTile, { StatStrip } from "@/components/ui/StatTile";
 import { useFeel } from "@/components/FeelProvider";
 import { ESTIMATE_TIPS } from "@/lib/tender/estimates/tips";
+import { SEVERAL_PARTS_TEXT } from "@/lib/tender/estimates/rules";
 import type { EstimateTenderContext } from "@/lib/tender/estimates/context";
 import MissingRfqButton from "./MissingRfqButton";
 import { postReprice, unconfirmed } from "./quantityGuard";
@@ -89,9 +90,11 @@ export default function TenderEstimateStrip({ ctx, estimateId, canEdit }: { ctx:
         <div key={l.link_id} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div data-guide="tender.estimate.waiting" style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px", alignItems: "center", fontSize: 12.5, color: c.ink }}>
             <span style={{ flex: "1 1 240px", overflowWrap: "anywhere" }}>Built for BOQ item {l.item} · {l.qty} {l.uom ?? ""}</span>
-            {canEdit && <Button size="sm" variant="primary" loading={busy === l.link_id} onClick={() => void price([l.link_id], l.link_id)} style={{ minHeight: 44 }} data-guide="tender.estimate.use_total">Apply to BOQ line {itemNo(l)}</Button>}
+            {canEdit && !l.several_parts && <Button size="sm" variant="primary" loading={busy === l.link_id} onClick={() => void price([l.link_id], l.link_id)} style={{ minHeight: 44 }} data-guide="tender.estimate.use_total">Apply to BOQ line {itemNo(l)}</Button>}
+            {canEdit && l.several_parts && <Button size="sm" variant="primary" href={`${dealHref}?tab=boq&row=${l.boq_id}`} style={{ minHeight: 44 }} data-guide="tender.estimate.pick_part">Pick the part for line {itemNo(l)}</Button>}
           </div>
-          {l.quantity?.note && <div role="alert" data-guide="tender.estimate.quantity" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--amberink)", background: "var(--amberbg)", borderRadius: 6, padding: "6px 8px", overflowWrap: "anywhere" }}>{l.quantity.note}</div>}
+          {l.several_parts && <div role="alert" data-guide="tender.estimate.several" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--amberink)", background: "var(--amberbg)", borderRadius: 6, padding: "6px 8px", overflowWrap: "anywhere" }}>{SEVERAL_PARTS_TEXT}</div>}
+          {!l.several_parts && l.quantity?.note && <div role="alert" data-guide="tender.estimate.quantity" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--amberink)", background: "var(--amberbg)", borderRadius: 6, padding: "6px 8px", overflowWrap: "anywhere" }}>{l.quantity.note}</div>}
         </div>
       ))}
       {ctx.links.filter((l) => !l.waiting && l.quantity?.status === "mismatch" && l.quantity.note).map((l) => (

@@ -12,7 +12,7 @@ import { linesVersion } from "@/lib/sales/dealLines";
 import { safeFileName, sniffAttachment } from "@/lib/inbox/rules";
 import type { OpportunityLine } from "@/lib/types";
 import { isMissingSchema, loadTender, type TenderRow } from "../server";
-import { BOQ_LIMITS, DETAILS_MAX, detectColumns, detectLayout, extractLines, multilineText, planColumns, sameLayout, type BoqLine, type ClientData, type ColumnMap, type ColumnPlan, type HeaderInfo, type ParsedBoq, type SkippedRow } from "./parse";
+import { BOQ_LIMITS, DETAILS_MAX, detectColumns, dropConflictingColumns, detectLayout, extractLines, multilineText, planColumns, sameLayout, type BoqLine, type ClientData, type ColumnMap, type ColumnPlan, type HeaderInfo, type ParsedBoq, type SkippedRow } from "./parse";
 import { diffBoq, relinkPlan, type BoqDiff, type ExistingLine } from "./diff";
 import { defaultMarkupPct, isStale, pickAuto, priceValidityDays, rateFor, refuseCandidate, staleText, type Candidate, type PriceSource } from "./price";
 import { manualCostPlan, manualSourceRef } from "./table";
@@ -315,16 +315,17 @@ export async function analyseUpload(r: BoqRequest, input: UploadInput): Promise<
     sheet = best.name;
   }
   const grid = gridOf(sheet);
+  const gridWidth = Math.min(BOQ_LIMITS.maxColumns, Math.max(1, ...grid.slice(0, 40).map((row) => row.length)));
 
   let headerRow: number | null = null;
   let map: ColumnMap = {};
   let reused = false;
   if (input.headerRow && input.headerRow >= 1 && input.headerRow <= Math.max(grid.length, 1)) {
     headerRow = input.headerRow;
-    map = input.map ?? (saved && saved.sheet_name === sheet && saved.header_row === headerRow && sameLayout(grid, headerRow, saved.header_labels) ? saved.column_map : detectColumns(grid[headerRow - 1] ?? []).map);
+    map = input.map ?? (saved && saved.sheet_name === sheet && saved.header_row === headerRow && sameLayout(grid, headerRow, saved.header_labels) ? dropConflictingColumns(saved.column_map, gridWidth) : detectColumns(grid[headerRow - 1] ?? []).map);
     reused = !input.map && !!saved && saved.sheet_name === sheet && saved.header_row === headerRow && sameLayout(grid, headerRow, saved.header_labels);
   } else if (saved && saved.sheet_name === sheet && sameLayout(grid, saved.header_row, saved.header_labels)) {
-    headerRow = saved.header_row; map = input.map ?? saved.column_map; reused = !input.map;
+    headerRow = saved.header_row; map = input.map ?? dropConflictingColumns(saved.column_map, gridWidth); reused = !input.map;
   } else {
     const lay = detectLayout(grid);
     headerRow = lay.headerRow; map = input.map ?? lay.map;

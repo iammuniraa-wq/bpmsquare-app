@@ -1,8 +1,8 @@
 # Assistant actions: from read-only to create, change and delete (roadmap)
 
 > Owner 2026-10-28, after the KAMCO assistant answered "I cannot edit, create or delete records": "add more AI capabilities, not that we need
-> today for KAMCO, but to have it in the pipeline." This is the design and the build order. Nothing here is built yet; KAMCO stays
-> read-only until the people setup is done and the owner says go. Builds on `assistant-smarter.md` (section 3 "Create from chat" and
+> today for KAMCO, but to have it in the pipeline." This is the design and the build order. Create cards, change cards and the tender steps are built (see
+> "What is already there"); delete and bulk are not. The platform flag decides which workspace has any of it. Builds on `assistant-smarter.md` (section 3 "Create from chat" and
 > WP6 as built) and `src/lib/actions/registry.ts`.
 
 ## What is already there (rule 6c)
@@ -12,8 +12,13 @@
 - `create_record` (`src/lib/assistant/createTool.ts`): a confirm card; nothing exists until the person presses it. Registry `ACTIONS` holds
   **account** and **contact** only; `DEFERRED` names every other collection route with the reason; `DEFERRED_VERBS` names the two ERP
   verbs on sales orders. `registry.test.ts` fails when a route is in neither list (a new object is a decision, not an oversight).
-- The gate `actionsEnabled()`: `ai_assistant` + `ai_assistant_actions` + `next_experience` (Nova), all platform-admin flags; then the
-  object's module flag and the Business Role's create grant on its workcenter (`availableActions`).
+- The gate `actionsEnabled()`: `ai_assistant` + `ai_assistant_actions`, both platform-admin flags (Nova is no longer needed, step 1 built
+  2026-11-26); then the object's module flag and the Business Role's grant on its workcenter: create for `availableActions`, edit for
+  `availableUpdates` (step 3) and `availableVerbs` (step 4, the tender steps).
+- Built 2026-11-26 (steps 1, 3 and the tender part of 4): `change_record` for account, contact, supplier, product and tender deal
+  (`UPDATE_ACTIONS`, `src/lib/actions/update.ts`), and `tender_action` for the bid decision, submit bid, RFQ from the unpriced lines, an
+  estimate from a named template, match to products and price all (`VERB_ACTIONS`, `src/lib/actions/verbs.ts`). Both tools are in
+  `WEB_LOCKED_TOOLS`. Still deferred: revising a submitted bid (`DEFERRED_VERBS.revise_bid`) and the ERP verbs; delete (step 5) and bulk (step 6).
 - Change log marks "via assistant" (audit 2026-10-22, `src/lib/changeLog.ts`); every write goes through the same API routes as the screens.
 
 ## Principles (unchanged from assistant-smarter.md section 6)

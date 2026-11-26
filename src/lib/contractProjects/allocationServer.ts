@@ -10,6 +10,8 @@ import { WBS_LIMITS, addProblem, autoCodes, cleanText, codeChanges, holdersOf, i
 import { WBS_PENDING } from "@/lib/wbs/tips";
 import { costsFromBoq, costsFromSnapshot, planFill, type BoqCostRow, type FillSkip, type Found } from "./fill";
 import { applyEstimateFill, estimateGroups, planEstimateFill, unchosenOptionLineIds, type EstimateLineIn } from "./fillEstimate";
+import { splitItems } from "./fillSplit";
+import { loadFillEstimates } from "./fillSplitServer";
 import { templateGroupNames } from "@/lib/estimator/lines";
 import {
   ALLOCATION_BUNDLE, allocationSchemaReady, currentRevision, isMissingSchema, loadLines, loadProject, loadRevision, loadRevisions, needsAllocationUpdate, needsUpdate, openProjectRequest,
@@ -17,7 +19,7 @@ import {
 } from "./server";
 import { checkOwner, loadPackages } from "./workPackagesServer";
 import { elementSplitProblem } from "@/lib/elements/buildings";
-import { isTenderProject, type AllocationBasis, type BudgetLine, type ProjectRow, type RevisionRow, type WorkPackageRow } from "./types";
+import { isCategoryLine, isTenderProject, type AllocationBasis, type BudgetLine, type ProjectRow, type RevisionRow, type WorkPackageRow } from "./types";
 
 import { readAllPages } from "@/lib/pagedRead";
 // The writes of the budget allocation and the WBS (migrations 0240 and 0243). Every route opens with openAllocation (the contract-projects
@@ -187,16 +189,41 @@ async function recordedCosts(ctx: AllocationCtx, lines: readonly BudgetLine[]): 
   const winning = await loadWinningBid(admin, tenantId, source);
   if (winning?.cost) return costsFromSnapshot(lines, winning.cost, winning.version_no);
   const res = await readAllPages((lo, hi) => admin.from("tender_boq_lines").select("line_id, unit_cost, price_source, price_source_ref").eq("tenant_id", tenantId).eq("opportunity_id", source).order("id", { ascending: true }).range(lo, hi));
-  return costsFromBoq(lines, (res.error ? [] : res.data ?? []) as BoqCostRow[]);
+  const split = await loadFillEstimates(admin, tenantId, source);
+  return costsFromBoq(lines, (res.error ? [] : res.data ?? []) as BoqCostRow[], split.estimates, split.shares);
+}
+
+/** The WBS follows a split: a category line sits in the item of its contract line, and a category that went takes its place out of the WBS. */
+async function followSplitInWbs(ctx: AllocationCtx, applied: { made: { line_key: string; of: string }[]; dropped: string[] }): Promise<void> {
+  const { admin, tenantId } = ctx.req;
+  const have = await loadPackages(admin, tenantId, ctx.project.id);
+  if (have.pending || have.packages.length === 0) return;
+  const memberships = lineMemberships(have.packages);
+  if (applied.dropped.length > 0) {
+    await admin.from("project_work_package_lines").delete().eq("tenant_id", tenantId).eq("project_id", ctx.project.id).in("line_key", applied.dropped);
+    await admin.from("project_work_package_line_parts").delete().eq("tenant_id", tenantId).eq("project_id", ctx.project.id).in("line_key", applied.dropped);
+  }
+  const whole: Record<string, unknown>[] = [];
+  const parts: Record<string, unknown>[] = [];
+  for (const m of applied.made) {
+    const home = memberships.get(m.of);
+    if (!home) continue;
+    if (home.wbs_item_id) whole.push({ tenant_id: tenantId, project_id: ctx.project.id, package_id: home.wbs_item_id, line_key: m.line_key, sort_order: 0 });
+    home.parts.forEach((p, i) => parts.push({ tenant_id: tenantId, project_id: ctx.project.id, package_id: p.wbs_item_id, line_key: m.line_key, share_pct: p.share_pct, sort_order: i }));
+  }
+  if (whole.length > 0) await admin.from("project_work_package_lines").insert(whole);
+  if (parts.length > 0) await admin.from("project_work_package_line_parts").insert(parts);
 }
 
 /** Copies the costs recorded on the tender, once. Lines that already have an allocation are overwritten only with `replace`. */
 export async function fillFromTender(ctx: AllocationCtx, revision: RevisionRow, replace: boolean): Promise<Result<{ filled: number; skipped: FillSkip[]; total: number }>> {
   const { admin, tenantId } = ctx.req;
   if (!(await allocationSchemaReady(admin))) return { ok: false, ...needsAllocationUpdate() };
-  const lines = await loadLines(admin, tenantId, revision.id);
-  if (!fillAvailable(ctx.project, lines)) return { ok: false, status: 409, error: "There is no tender to copy costs from" };
-  const before = budgetTotals(lines).total;
+  const all = await loadLines(admin, tenantId, revision.id);
+  if (!fillAvailable(ctx.project, all)) return { ok: false, status: 409, error: "There is no tender to copy costs from" };
+  const before = budgetTotals(all).total;
+  // The cost-only lines a split made are never matched to the tender themselves: they share their contract line's item number and deal line.
+  const lines = all.filter((l) => !isCategoryLine(l));
   const found = await recordedCosts(ctx, lines);
   const byKey = new Map(lines.map((l) => [l.line_key, l]));
   const skipped: FillSkip[] = [];
@@ -205,9 +232,21 @@ export async function fillFromTender(ctx: AllocationCtx, revision: RevisionRow, 
   if (ctx.project.allocation_basis === "line") {
     const plan = planFill(lines, found, replace);
     skipped.push(...plan.skipped);
-    const targets = new Map<string, LineTarget>(plan.fills.map((f) => [f.line_key, given(f.amount, (byKey.get(f.line_key) as BudgetLine).qty, f.ref)]));
-    const problem = await writeTargets(admin, tenantId, revision.id, lines, targets);
-    if (problem) return { ok: false, status: 500, error: problem };
+    const split = splitItems(plan, found, byKey);
+    const splitKeys = new Set(split.map((s) => s.base.line_key));
+    if (split.length > 0) {
+      const applied = applyEstimateFill(all, split, "tender", randomUUID);
+      const written = await replaceLines(admin, tenantId, ctx.project.id, revision.id, applied.lines);
+      if (!written.ok) return { ok: false, status: 500, error: written.error };
+      await followSplitInWbs(ctx, applied);
+    }
+    const rest = plan.fills.filter((f) => !splitKeys.has(f.line_key));
+    if (rest.length > 0) {
+      const current = split.length > 0 ? await loadLines(admin, tenantId, revision.id) : all;
+      const targets = new Map<string, LineTarget>(rest.map((f) => [f.line_key, given(f.amount, (byKey.get(f.line_key) as BudgetLine).qty, f.ref)]));
+      const problem = await writeTargets(admin, tenantId, revision.id, current, targets);
+      if (problem) return { ok: false, status: 500, error: problem };
+    }
     filled = plan.fills.length;
   } else {
     const have = await loadPackages(admin, tenantId, ctx.project.id);
@@ -288,27 +327,7 @@ export async function fillFromEstimate(ctx: AllocationCtx, revision: RevisionRow
   const applied = applyEstimateFill(lines, plan.fills, estimate.ref ?? "estimate", randomUUID);
   const written = await replaceLines(admin, tenantId, project.id, revision.id, applied.lines);
   if (!written.ok) return { ok: false, status: 500, error: written.error };
-
-  // The WBS follows: a category line sits in the item of its contract line, and a category that went takes its place out of the WBS.
-  const have = await loadPackages(admin, tenantId, project.id);
-  if (!have.pending && have.packages.length > 0) {
-    const memberships = lineMemberships(have.packages);
-    const gone = applied.dropped;
-    if (gone.length > 0) {
-      await admin.from("project_work_package_lines").delete().eq("tenant_id", tenantId).eq("project_id", project.id).in("line_key", gone);
-      await admin.from("project_work_package_line_parts").delete().eq("tenant_id", tenantId).eq("project_id", project.id).in("line_key", gone);
-    }
-    const whole: Record<string, unknown>[] = [];
-    const parts: Record<string, unknown>[] = [];
-    for (const m of applied.made) {
-      const home = memberships.get(m.of);
-      if (!home) continue;
-      if (home.wbs_item_id) whole.push({ tenant_id: tenantId, project_id: project.id, package_id: home.wbs_item_id, line_key: m.line_key, sort_order: 0 });
-      home.parts.forEach((p, i) => parts.push({ tenant_id: tenantId, project_id: project.id, package_id: p.wbs_item_id, line_key: m.line_key, share_pct: p.share_pct, sort_order: i }));
-    }
-    if (whole.length > 0) await admin.from("project_work_package_lines").insert(whole);
-    if (parts.length > 0) await admin.from("project_work_package_line_parts").insert(parts);
-  }
+  await followSplitInWbs(ctx, applied);
 
   const total = await finish(ctx, revision, before, "Fill from estimate costs");
   await logProject(ctx, [{ field: "Costs copied from estimate", from: null, to: `${estimate.ref ?? "estimate"}: ${plan.fills.length} line${plan.fills.length === 1 ? "" : "s"}, ${plan.skipped.length} not matched` }]);

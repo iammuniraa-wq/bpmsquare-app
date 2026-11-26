@@ -49,7 +49,11 @@ function optionsOf(f: EffectiveField): { value: string; label: string }[] | unde
   return undefined;
 }
 
-export async function loadSpec(supabase: SupabaseClient, tenantId: string, def: CreateActionDef): Promise<Spec> {
+/** What a spec is read from: a create entry, or a change entry (which has no references and requires nothing). */
+export type SpecSource = Pick<CreateActionDef, "registryType" | "fieldKeys" | "extraFields"> & Partial<Pick<CreateActionDef, "refs" | "requiredKeys">>;
+
+export async function loadSpec(supabase: SupabaseClient, tenantId: string, source: SpecSource): Promise<Spec> {
+  const def = { ...source, refs: source.refs ?? [], requiredKeys: source.requiredKeys ?? [] };
   const cfg = await getEffectiveFieldConfig(supabase, tenantId, def.registryType);
   const refFields: SpecField[] = def.refs.map((r) => ({ key: r.key, label: r.label, widget: "ref", kind: "ref", baseRequired: r.required, ref: r }));
   const refKeys = new Set(def.refs.map((r) => r.key));
@@ -91,7 +95,7 @@ export async function loadSpec(supabase: SupabaseClient, tenantId: string, def: 
 }
 
 /** Hash of what a card offers, not what it holds: the action, the route and every field with its type and options. */
-export function structureHash(def: CreateActionDef, spec: Spec): string {
+export function structureHash(def: { key: string; route: string }, spec: Spec): string {
   return hashOf({
     a: def.key, r: def.route,
     f: spec.fields.map((f) => [f.key, f.widget, f.baseRequired, (f.options ?? []).map((o) => o.value)]),
@@ -325,6 +329,6 @@ export async function buildCard(
 }
 
 /** A card or its values as the audit row keeps them: encrypted-at-rest fields are never written in the clear. */
-export function auditValues(def: CreateActionDef, values: Record<string, string>): Record<string, unknown> {
+export function auditValues(def: { table: string }, values: Record<string, unknown>): Record<string, unknown> {
   return redactPii(def.table, values);
 }

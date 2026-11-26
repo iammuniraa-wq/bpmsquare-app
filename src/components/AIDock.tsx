@@ -24,7 +24,13 @@ import { postBriefSave } from "@/lib/analysis/report/clientSave";
 import { parseBriefLine, splitBriefChunk, STREAM_ENDED_EARLY } from "@/lib/analysis/report/stream";
 import { REPORT_PARTS, type ReportPartId } from "@/lib/analysis/report/types";
 import type { DockAnalysis } from "@/lib/assistant/analysisTool";
+import type { DockCompetitors } from "@/lib/assistant/competitors/types";
+import CompetitorCardView from "@/components/assistant/CompetitorCardView";
 import type { DockReport, ReportSaveTarget } from "@/lib/assistant/reportTool";
+import PriceCardView from "@/components/assistant/PriceCards";
+import { priceDigest, type PriceCard } from "@/lib/assistant/priceCompare/types";
+import type { DockSupplierCheck } from "@/lib/assistant/supplierCheck/tool";
+import SupplierCheckPanel from "@/components/suppliers/SupplierCheckPanel";
 import { WEB_TAINT_WINDOW, applyChoice, settleOnNewAsk, type ConsentState, type WebAllow, type WebChoice } from "@/lib/assistant/webConsent";
 import { Markdown, InlineMarkdown } from "@/components/assistant/Markdown";
 import { plainText } from "@/lib/assistant/markdown";
@@ -56,6 +62,12 @@ type Msg = {
   analysis?: DockAnalysis;
   /** A company report, drawn as a card from its fields. */
   companyReport?: DockReport;
+  /** A price comparison, an award to confirm or a price check, drawn from its fields. */
+  price?: PriceCard;
+  /** A competitor analysis for a tender, drawn as a card from its fields. */
+  competitors?: DockCompetitors;
+  /** A supplier check, drawn as a card from its fields. */
+  supplierCheck?: DockSupplierCheck;
   /** The four research parts of a brief that is running. Never kept: a reload drops it. */
   progress?: { subject: string; parts: Record<ReportPartId, PartState> };
 };
@@ -311,7 +323,11 @@ export default function AIDock({ liftForTabBar = false }: {
       .slice(-12)
       .map((m) => ({
         role: m.from === "me" ? "user" : "assistant",
-        text: m.analysis ? `${m.text}\n${m.analysis.digest}` : m.companyReport ? `${m.text}\n${m.companyReport.digest}` : m.text,
+        text: m.price ? `${m.text}
+${priceDigest(m.price)}` : m.competitors ? `${m.text}
+${m.competitors.digest}` : m.analysis ? `${m.text}
+${m.analysis.digest}` : m.companyReport ? `${m.text}
+${m.companyReport.digest}` : m.text,
         ...(m.from === "bot" && (m.web || m.analysis?.webDerived || m.companyReport || m.fromWeb) ? { web: true } : {}),
       }));
     if (!resume) {
@@ -364,9 +380,12 @@ export default function AIDock({ liftForTabBar = false }: {
           ? { object: json.clarify.object as string, name: json.clarify.name as string, state: "pending" as const } : undefined;
         const analysis: DockAnalysis | undefined = json.analysis?.card && typeof json.analysis.digest === "string" ? json.analysis : undefined;
         const companyReport: DockReport | undefined = json.companyReport?.report && typeof json.companyReport.digest === "string" && Array.isArray(json.companyReport.targets) ? json.companyReport : undefined;
+        const price: PriceCard | undefined = (json.price?.kind === "compare" && json.price.comparison) || (json.price?.kind === "award" && Array.isArray(json.price.lines)) || (json.price?.kind === "check" && Array.isArray(json.price.rows)) ? json.price : undefined;
+        const competitors: DockCompetitors | undefined = json.competitors?.deal && typeof json.competitors.digest === "string" && Array.isArray(json.competitors.competitors) ? json.competitors : undefined;
+        const supplierCheck: DockSupplierCheck | undefined = json.supplierCheck?.result && typeof json.supplierCheck.supplierId === "string" ? json.supplierCheck : undefined;
         const web: WebSource[] | undefined = Array.isArray(json.web?.sources) && json.web.sources.length ? json.web.sources : undefined;
         const reply: GuideReply | undefined = json.guide && Array.isArray(json.guide.steps) ? json.guide : undefined;
-        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, guide: reply, consent, web, analysis, companyReport, clarify, fromWeb: json.fromWeb === true, confirm: json.card as ConfirmCard | undefined }]);
+        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, guide: reply, consent, web, analysis, companyReport, price, competitors, supplierCheck, clarify, fromWeb: json.fromWeb === true, confirm: json.card as ConfirmCard | undefined }]);
         if (reply) startGuide(reply);
         if (json.autoFollow && cards?.length === 1) go(cards[0].href);
       } else {
@@ -413,7 +432,7 @@ export default function AIDock({ liftForTabBar = false }: {
     const waiting = Object.fromEntries(REPORT_PARTS.map((p) => [p, "waiting"])) as Record<ReportPartId, PartState>;
     const history = base.slice(-12).map((m) => ({
       role: m.from === "me" ? "user" : "assistant",
-      text: m.analysis ? `${m.text}\n${m.analysis.digest}` : m.companyReport ? `${m.text}\n${m.companyReport.digest}` : m.text,
+      text: m.price ? `${m.text}\n${priceDigest(m.price)}` : m.analysis ? `${m.text}\n${m.analysis.digest}` : m.companyReport ? `${m.text}\n${m.companyReport.digest}` : m.text,
       ...(m.from === "bot" && (m.web || m.analysis?.webDerived || m.companyReport || m.fromWeb) ? { web: true } : {}),
     }));
     setBusy(true);
@@ -672,9 +691,12 @@ export default function AIDock({ liftForTabBar = false }: {
                 ))}
                 {m.clarify && <CreateDetailsRow state={m.clarify.state} disabled={busy} onChoice={(mode) => answerClarify(i, mode)} />}
                 {m.confirm && <ConfirmCardView card={m.confirm} onOpen={go} onAsk={ask} modelLocked={!!m.fromWeb && messages.length - 1 - i < WEB_TAINT_WINDOW} />}
+                {m.price && <PriceCardView card={m.price} onOpen={go} onAsk={(q) => ask(q)} busy={busy} />}
+                {m.competitors && <CompetitorCardView data={m.competitors} busy={busy} onOpen={go} onAsk={ask} />}
                 {m.analysis && (
                   <AnalysisCardView data={m.analysis} busy={busy} onOpen={go} onRefresh={() => refreshAnalysis(m.analysis!)} onAsk={(q) => ask(q)} />
                 )}
+                {m.supplierCheck && <SupplierCheckPanel supplierId={m.supplierCheck.supplierId} seed={m.supplierCheck} />}
                 {m.progress && <ReportProgressRows parts={m.progress.parts} subject={m.progress.subject} />}
                 {m.companyReport && (
                   <ReportCardView

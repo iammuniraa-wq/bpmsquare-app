@@ -11,11 +11,14 @@
 }
 .step[data-state="done"] .dot { background: var(--tealink); border-color: var(--tealink); color: var(--card-bg); }
 .step[data-state="current"] .dot { background: var(--blueink); border-color: var(--blueink); color: var(--card-bg); box-shadow: 0 0 0 3px var(--bluebg); }
+.step[data-state="partial"] .dot { background: var(--amberbg); border-color: var(--amberink); color: var(--amberink); }
 .step[data-state="skipped"] .dot { border-style: dashed; }
 .label { font-size: 12px; font-weight: 600; color: var(--hint); text-align: center; white-space: nowrap; }
 .step[data-state="done"] .label { color: var(--muted); }
 .step[data-state="current"] .label { color: var(--ink); font-weight: 700; }
 .step[data-state="skipped"] .label { text-decoration: line-through; }
+.step[data-state="partial"] .label { color: var(--amberink); }
+.note { font-size: 11px; font-weight: 600; color: var(--amberink); text-align: center; line-height: 1.25; }
 
 .next { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 12px 14px; border-radius: var(--card-radius); background: var(--bluebg); color: var(--blueink); min-width: 0; }
 .nextText { flex: 1 1 260px; min-width: 0; }

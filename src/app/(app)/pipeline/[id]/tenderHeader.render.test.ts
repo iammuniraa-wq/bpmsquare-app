@@ -214,7 +214,7 @@ describe("the close dialog on a tender", () => {
     // Won on a tender: the awarded value, starting at the last submitted bid total.
     expect(dialog).toMatch(/tender && closing\.outcome === "won" && \([\s\S]*label="Awarded value"[\s\S]*value=\{closePrice\(closing\) \?\? ""\}/);
     expect(src).toContain("const lastBidTotal = tender?.bids?.versions[0]?.total ?? null;");
-    expect(src).toMatch(/return cl\.outcome === "won" && lastBidTotal != null \? String\(lastBidTotal\) : undefined;/);
+    expect(src).toMatch(/return cl\.outcome === "won" && lastBidTotal != null \? amountValue\(lastBidTotal\) : undefined;/);
     // Lost on a tender: who won (the server requires it) and the winning price (optional).
     expect(dialog).toMatch(/closing\.outcome === "lost" && \(\s*<Field label="Won by" required[\s\S]*<WhoWonPicker/);
     expect(dialog).toMatch(/closing\.outcome === "lost" && \(\s*<Field label="Winning price"/);
@@ -353,5 +353,32 @@ describe("on a phone (under 780 px)", () => {
     for (const f of ["src/lib/tender/headerAction.ts", "src/lib/tender/tabs.ts", "src/components/tender/BidDocuments.tsx", "src/components/tender/DealLinesBoq.tsx"]) {
       expect(read(f).replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, ""), f).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
     }
+  });
+});
+
+describe("the tender page at 375 px", () => {
+  const css = read("src/app/globals.css");
+  const flat = (s: string) => s.replace(/\s+/g, " ");
+
+  it("a tender page leaves room under its last card for the bottom bar and the assistant button", () => {
+    expect(page({ stage: "estimating" })).toContain('class="bpm-tender-page"');
+    expect(flat(css)).toMatch(/@media \(max-width: 899px\) \{ \.bpm-tender-page \{ padding-bottom: calc\(120px \+ env\(safe-area-inset-bottom, 0px\)\); \}/);
+  });
+
+  it("the title wraps instead of being cut", () => {
+    expect(flat(css)).toMatch(/\.bpm-tender-page \.bpm-page-header-title \{ white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere;/);
+  });
+
+  it("the key facts stack one to a row on a phone, and a select in them keeps its width", () => {
+    expect(read("src/components/page/RecordFacts.tsx")).toContain('className="kpi-grid bpm-record-facts"');
+    expect(flat(css)).toMatch(/@media \(max-width: 520px\) \{ \.kpi-grid\.bpm-record-facts[^}]*grid-template-columns: minmax\(0, 1fr\) !important;/);
+    expect(flat(css)).toMatch(/\.bpm-record-facts select\.bpm-input \{ width: 100%; min-width: 0;/);
+  });
+
+  it("the bid decision chip keeps its words on one line, with an ellipsis when they do not fit, and never breaks inside a word", () => {
+    const code = read("src/app/(app)/pipeline/[id]/BidDecisionMarker.tsx");
+    expect(code).not.toContain('overflowWrap: "anywhere"');
+    expect(code).toMatch(/minWidth: 150/);
+    expect(code.match(/whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"/g)?.length).toBe(2);
   });
 });

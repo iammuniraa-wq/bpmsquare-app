@@ -69,3 +69,84 @@ describe("the confirm card", () => {
     expect(out).toContain("&lt;img");
   });
 });
+
+const draw = (c: ConfirmCard) => renderToStaticMarkup(createElement(ConfirmCardView, { card: c, onOpen: () => {}, onAsk: () => {} }));
+
+const change: ConfirmCard = {
+  id: "c2", token: "t", action: "update", object: "account", noun: "account", title: "Change account: Acme Industrial",
+  summary: "Change the city of Acme Industrial to Dammam.",
+  fields: [
+    { key: "city", label: "City", value: "Dammam", before: "Riyadh", required: false, widget: "text" },
+    { key: "website", label: "Website", value: "https://acme.example", before: "", required: false, widget: "text" },
+  ],
+  duplicates: [], notices: ["Already set, left out: Industry."], primaryLabel: "Save changes", risk: "write",
+  info: "Shows what the record holds now and what it will hold. Nothing changes until you press Save changes.",
+};
+
+describe("the change card", () => {
+  const out = draw(change);
+
+  it("shows each field with its new value and what it holds now, and one button named after the act", () => {
+    expect(out).toContain("Change account: Acme Industrial");
+    expect(out).toContain('value="Dammam"');
+    expect(out).toContain("Now: Riyadh");
+    expect(out).toContain("Now: empty");
+    expect(out).toContain("Save changes");
+    expect(out).toContain("Cancel");
+    expect(out).toContain("Already set, left out: Industry.");
+  });
+
+  it("has nothing hidden behind 'More fields', and does not say anything was created", () => {
+    expect(out).not.toContain("More fields");
+    expect(out).not.toContain("Create");
+  });
+
+  it("explains itself behind one i, and the controls carry data-guide ids", () => {
+    expect(out).toContain('aria-label="About Change account: Acme Industrial"');
+    expect(out).toContain('data-guide="assistant.card.primary"');
+    expect(out).toContain('data-guide="assistant.card.cancel"');
+  });
+
+  it("a create card has no before lines and no i", () => {
+    expect(html).not.toContain("Now:");
+    expect(html).not.toContain('aria-label="About');
+  });
+});
+
+const step: ConfirmCard = {
+  id: "c3", token: "t", action: "verb", object: "submit_bid", noun: "bid version", title: "Submit bid: OPP-0035 Valves for Plant 5",
+  summary: "Submit bid version 1 for OPP-0035.",
+  facts: [{ label: "Version", value: "1" }, { label: "Lines", value: "3" }, { label: "Total", value: "SAR 1,600" }],
+  checks: ["1 line has no price.", "No approved go decision."],
+  fields: [{ key: "note", label: "Note", value: "", required: false, widget: "textarea" }],
+  duplicates: [], notices: [], primaryLabel: "Submit bid", risk: "write", info: "Saves the deal's lines as the next bid version and moves the tender to Submitted.",
+};
+
+describe("the tender step card", () => {
+  const out = draw(step);
+
+  it("lists the facts it acts on and the checks that are not a pass, in plain visible text", () => {
+    expect(out).toContain("SAR 1,600");
+    expect(out).toContain('data-guide="assistant.card.facts"');
+    expect(out).toContain("Before you go on");
+    expect(out).toContain("1 line has no price.");
+    expect(out).toContain("No approved go decision.");
+    expect(out).toContain('data-guide="assistant.card.checks"');
+  });
+
+  it("the button is named after the step and stays enabled despite the warnings (they warn, never block)", () => {
+    expect(out).toMatch(/<button(?![^>]*disabled)[^>]*>Submit bid<\/button>/);
+  });
+
+  it("a step with nothing to fill in has no fields and no 'More fields'", () => {
+    const bare = draw({ ...step, fields: [], checks: [] });
+    expect(bare).not.toContain("More fields");
+    expect(bare).not.toContain("Before you go on");
+  });
+
+  it("a required field still blocks the press, as for a create", () => {
+    const needs = draw({ ...step, fields: [{ key: "revision_reason", label: "Why the bid is revised", value: "", required: true, widget: "textarea" }] });
+    expect(needs).toContain("Fill in: Why the bid is revised");
+    expect(needs).toMatch(/<button[^>]*disabled=""[^>]*>Submit bid<\/button>/);
+  });
+});

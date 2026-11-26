@@ -30,7 +30,8 @@ export type StepFacts = PrimaryFacts & {
   boqAmount?: number;
 };
 
-export type StepState = "done" | "current" | "todo" | "skipped";
+export type StepState = "done" | "partial" | "current" | "todo" | "skipped";
+export type StepRow = { id: StepId; state: StepState; note?: string };
 export type TabJump = { tab: TenderTabId; filter?: BoqFilter; label: string; guide: string };
 export type NextStep = {
   title: string;
@@ -57,17 +58,27 @@ export function currentStep(f: Pick<StepFacts, "stage" | "hasBoq" | "unpriced">)
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
-export function tenderSteps(f: StepFacts, fmt: (n: number) => string = (n) => String(n)): { steps: { id: StepId; state: StepState }[]; current: StepId; next: NextStep; checklist: Checklist } {
+export function tenderSteps(f: StepFacts, fmt: (n: number) => string = (n) => String(n)): { steps: StepRow[]; current: StepId; next: NextStep; checklist: Checklist } {
   const current = currentStep(f);
   const at = STEP_ORDER.indexOf(current);
   const noBid = f.stage === "no_bid";
-  const steps = STEP_ORDER.map((id, i) => {
+  const unpricedLines = f.hasBoq ? f.unpriced : 0;
+  const steps = STEP_ORDER.map((id, i): StepRow => {
     let state: StepState = i < at ? "done" : i === at ? "current" : "todo";
+    let note: string | undefined;
+    if (id === "costing" && unpricedLines > 0 && i <= at) {
+      note = `${Math.max(0, f.boqLines - unpricedLines)} of ${f.boqLines} priced`;
+      if (i < at) state = "partial";
+    }
+    if (id === "bid" && i < at && !noBid) {
+      if (f.bids > 0) { if (unpricedLines > 0) note = `${unpricedLines} ${unpricedLines === 1 ? "line" : "lines"} unpriced`; }
+      else state = "todo";
+    }
     // The outcome step is the end of the path: once it is reached it is done, it has no "next".
     if (id === "outcome" && current === "outcome") state = "done";
-    if (noBid && i > STEP_ORDER.indexOf("decision")) state = "skipped";
+    if (noBid && i > STEP_ORDER.indexOf("decision")) { state = "skipped"; note = undefined; }
     if (noBid && id === "decision") state = "done";
-    return { id, state };
+    return note ? { id, state, note } : { id, state };
   });
 
   const header = tenderPrimary(f);

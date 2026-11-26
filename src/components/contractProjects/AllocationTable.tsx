@@ -19,7 +19,7 @@ import { PROJECT_TIPS } from "@/lib/contractProjects/tips";
 const th: React.CSSProperties = { textAlign: "left", fontSize: 11, color: c.hint, textTransform: "uppercase", letterSpacing: 0.4, padding: "9px 12px", background: c.panel2, fontWeight: 600, whiteSpace: "nowrap" };
 const thR: React.CSSProperties = { ...th, textAlign: "right" };
 const num: React.CSSProperties = { padding: "6px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", fontSize: 13, whiteSpace: "nowrap" };
-const inputStyle: React.CSSProperties = { minHeight: 44, width: 132, textAlign: "right", fontVariantNumeric: "tabular-nums" };
+const inputStyle: React.CSSProperties = { minHeight: 44, width: 176, maxWidth: "100%", boxSizing: "border-box", textAlign: "right", fontVariantNumeric: "tabular-nums", textOverflow: "clip" };
 
 const leftInk = (left: number | null) => (left !== null && left < 0 ? pillar.red.fg : c.ink);
 const Head = ({ label, tip, right, guide }: { label: string; tip?: string; right?: boolean; guide?: string }) => (
