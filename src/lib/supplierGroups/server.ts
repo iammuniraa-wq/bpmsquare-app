@@ -183,7 +183,7 @@ export async function loadPickerSuppliers(admin: SupabaseClient, tenantId: strin
   const out: PickerSupplier[] = [];
   const ids = only ? [...only] : null;
   if (ids && ids.length === 0) return out;
-  const cols = "id, ref, name, email, city, status, type";
+  const cols = "id, ref, name, email, phone, city, status, type";
   if (ids) {
     for (let i = 0; i < ids.length; i += 100) {
       const { data } = await admin.from("suppliers").select(cols).eq("tenant_id", tenantId).in("id", ids.slice(i, i + 100));
@@ -196,7 +196,7 @@ export async function loadPickerSuppliers(admin: SupabaseClient, tenantId: strin
   return out.filter((s) => s.status !== "inactive").sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export type PickerSupplier = { id: string; ref: string | null; name: string; email: string | null; city: string | null; status: string; type: string | null };
+export type PickerSupplier = { id: string; ref: string | null; name: string; email: string | null; phone: string | null; city: string | null; status: string; type: string | null };
 
 // ── Writes ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 

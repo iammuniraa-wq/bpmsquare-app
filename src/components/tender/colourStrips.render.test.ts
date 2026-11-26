@@ -184,7 +184,7 @@ describe("the strip on an RFQ", () => {
   const b = { suppliers: [sup("pending"), sup("sent"), sup("replied"), sup("declined"), sup("cancelled")], lines, awards: [{ rfq_line_id: "a" }], responses: [] };
 
   it("works out invited, replies, awarded and open from the loaded bundle, ignoring cancelled suppliers", () => {
-    expect(rfqProgress(b)).toEqual({ invited: 4, unsent: 1, replied: 2, waiting: 1, lines: 3, awarded: 1, open: 2 });
+    expect(rfqProgress(b)).toEqual({ invited: 4, unsent: 1, replied: 2, waiting: 1, delivery: "1 sent, 1 not sent (1 with no contact), 2 replies entered by hand", lines: 3, awarded: 1, open: 2 });
   });
 
   it("falls back to awarded replies while the awards migration is pending", () => {
@@ -206,6 +206,12 @@ describe("the strip on an RFQ", () => {
     expect(out).toContain("every line has a winner");
     expect(tileOf(out, "Still open")).toContain('data-tone="neutral"');
     expect(tileOf(out, "Replies in")).toContain('data-tone="good"');
+  });
+
+  it("never says all sent for suppliers that were not sent a request, even when their replies are in", () => {
+    const out = clean(renderToString(createElement(RfqStatStrip, { progress: rfqProgress({ ...b, suppliers: [sup("replied"), sup("replied"), sup("replied")] }) })));
+    expect(out).not.toContain("all sent");
+    expect(out).toContain("3 replies entered by hand");
   });
 
   it("is drawn on the RFQ page", () => {

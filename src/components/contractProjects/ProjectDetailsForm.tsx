@@ -1,5 +1,6 @@
 "use client";
 
+import { amountValue } from "@/lib/tender/amountText";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
@@ -18,7 +19,7 @@ export default function ProjectDetailsForm({ projectId, initial, members }: {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
-  const [f, setF] = useState({ name: initial.name, contract_value: String(initial.contract_value), planned_start: initial.planned_start ?? "", planned_end: initial.planned_end ?? "", manager_id: initial.manager_id ?? "" });
+  const [f, setF] = useState({ name: initial.name, contract_value: amountValue(initial.contract_value), planned_start: initial.planned_start ?? "", planned_end: initial.planned_end ?? "", manager_id: initial.manager_id ?? "" });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => { setSaved(false); setF((x) => ({ ...x, [k]: e.target.value })); };
 
   function save() {

@@ -2293,6 +2293,18 @@ textarea.bpm-input { min-height: 72px; resize: vertical; }
   .bpm-ext-open { display: inline-flex; align-items: center; min-height: 44px; }
 }
 
+/* A tender deal on a phone (docs/design/gcc-tender-deals.md): the title wraps instead of being cut, the key facts stack one to a row so the
+   Stage select and the bid decision chip have room, and the last card can be scrolled clear of the bottom bar and the assistant button. */
+@media (max-width: 899px) {
+  .bpm-tender-page { padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)); }
+  .bpm-tender-page .bpm-page-header > div:first-child { min-width: 0; max-width: 100%; }
+  .bpm-tender-page .bpm-page-header-title { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; min-width: 0; max-width: 100%; }
+}
+@media (max-width: 520px) {
+  .kpi-grid.bpm-record-facts, [data-rich="true"] .kpi-grid.bpm-record-facts { grid-template-columns: minmax(0, 1fr) !important; }
+}
+.bpm-record-facts select.bpm-input { width: 100%; min-width: 0; text-overflow: ellipsis; }
+
 /* WFM day punches toggle (employee Attendance tab and month day pop-up): 44px tap target on touch screens. */
 @media (pointer: coarse) {
   .wfm-punch-toggle { min-height: 44px; min-width: 44px; }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { c } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
@@ -37,9 +37,14 @@ export function RfqSendBlocker({ reason }: { reason: string }) {
 
 /** Shown in place of the form once the RFQ exists but the send did not reach everyone. `onStay` is offered only where staying makes sense (a dialog over a record). */
 export function RfqSendOutcome({ rfq, outcome, onStay }: { rfq: { id: string; ref: string }; outcome: SendOutcome; onStay?: () => void }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    boxRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    boxRef.current?.focus({ preventScroll: true });
+  }, []);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div role="alert" data-guide="rfq.send.outcome" style={{ ...box, ...(outcome.nothingSent ? { color: "var(--redink)", background: "var(--redbg)" } : {}) }}>
+      <div ref={boxRef} tabIndex={-1} role="alert" data-guide="rfq.send.outcome" style={{ outline: "none", ...box, ...(outcome.nothingSent ? { color: "var(--redink)", background: "var(--redbg)" } : {}) }}>
         <div style={{ fontWeight: 700, marginBottom: 4 }}>{outcome.headline}</div>
         {outcome.reasons.map((r, i) => <div key={i}>{r}</div>)}
       </div>

@@ -72,6 +72,14 @@ export default function RfqComposer({
   const [editing, setEditing] = useState<Set<number>>(() => new Set((initialLines ?? []).flatMap((l, i) => (l.description.trim() ? [] : [i]))));
   const blocker = useRfqSendBlocker();
 
+  // The message sits under a long form, often below the fold of the dialog: bring it into view and put the focus on it.
+  useEffect(() => {
+    if (!error) return;
+    const el = document.getElementById("rfq-error");
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    el?.focus({ preventScroll: true });
+  }, [error]);
+
   useEffect(() => {
     fetch("/api/products").then((r) => (r.ok ? r.json() : null)).then((d) => setProducts(Array.isArray(d) ? d : null)).catch(() => {});
   }, []);
@@ -228,7 +236,7 @@ export default function RfqComposer({
       </div>
 
       {blocker && <RfqSendBlocker reason={blocker} />}
-      {error && <div role="alert" style={{ fontSize: 13, color: "var(--redink)", background: "var(--redbg)", padding: "8px 12px", borderRadius: 7 }}>{error}</div>}
+      {error && <div id="rfq-error" tabIndex={-1} role="alert" data-guide="rfq.error" style={{ fontSize: 13, color: "var(--redink)", background: "var(--redbg)", padding: "8px 12px", borderRadius: 7, outline: "none" }}>{error}</div>}
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
         {onCancel && <button type="button" style={btnGhost} onClick={onCancel} disabled={!!busy}>Cancel</button>}
         {/* When the mail channel cannot send, saving the draft is the one thing that works: it is the primary action and "Send" is not offered. */}
