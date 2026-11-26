@@ -20,6 +20,7 @@ import { CABIN_STARTERS } from "./starterTemplatesCabin";
 import { PIPES_STARTERS } from "./starterTemplatesPipes";
 import { PRECAST_ELEMENTS_STARTERS } from "./starterTemplatesPrecast";
 import { CIVIL_STARTERS } from "./starterTemplatesCivil";
+import { WASTEWATER_STARTERS } from "./starterTemplatesWastewater";
 import type { StarterCatalogueItem } from "./starterCatalogue";
 import { groupSlug } from "./types";
 import type { EstimateTemplateBody, QuoteGranularity } from "./types";
@@ -320,4 +321,6 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
   ...PIPES_STARTERS.map((t) => ({ ...t, locked: true })),
   ...PRECAST_ELEMENTS_STARTERS.map((t) => ({ ...t, locked: true })),
   ...CIVIL_STARTERS.map((t) => ({ ...t, locked: true })),
+  // Wastewater plant civil package: locked, catalogue-priced, reuses the civil basics' soils, grades, items and rates.
+  ...WASTEWATER_STARTERS.map((t) => ({ ...t, locked: true })),
 ];

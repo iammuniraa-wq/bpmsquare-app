@@ -54,7 +54,7 @@ const BLOCKS: StarterCatalogueItem[] = BLOCK_THICKNESSES.map((b) => ({
 
 export const CIVIL_CATALOGUE: readonly StarterCatalogueItem[] = [REBAR, FILL, FORMWORK, MORTAR, PLASTER, ...READY_MIX, ...BLOCKS];
 
-const SOIL_OPTIONS = [
+export const SOIL_OPTIONS = [
   { key: "sand", label: "Sand or loose soil", value: 1 },
   { key: "clay", label: "Stiff clay", value: 1.4 },
   { key: "rock", label: "Rock", value: 2.5 },
