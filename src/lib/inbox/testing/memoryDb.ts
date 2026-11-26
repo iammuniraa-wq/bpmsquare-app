@@ -142,15 +142,16 @@ class Query implements PromiseLike<Result> {
     this.preds.push((r) => typeof r[col] === "string" && re.test(r[col] as string));
     return this;
   }
-  // Case-insensitive: no wildcard is equality, "%x%" is contains; a backslash escapes a wildcard the way the real filter does.
+  // Case-insensitive like(): % matches any run, _ one character, a backslash escapes a wildcard the way the real filter does.
   ilike(col: string, pattern: string) {
-    const want = pattern.toLowerCase();
-    const contains = want.length > 2 && want.startsWith("%") && want.endsWith("%");
-    const needle = (contains ? want.slice(1, -1) : want).replace(/\\([\\%_])/g, "$1");
-    this.preds.push((r) => {
-      const v = typeof r[col] === "string" ? (r[col] as string).toLowerCase() : "";
-      return contains ? v.includes(needle) : v === needle;
-    });
+    let src = "";
+    for (let i = 0; i < pattern.length; i++) {
+      const ch = pattern[i];
+      if (ch === "\\" && i + 1 < pattern.length) { src += pattern[++i].replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); continue; }
+      src += ch === "%" ? ".*" : ch === "_" ? "." : ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+    const re = new RegExp(`^${src}$`, "i");
+    this.preds.push((r) => typeof r[col] === "string" && re.test(r[col] as string));
     return this;
   }
   contains(col: string, v: Record<string, unknown>) { this.preds.push((r) => Object.entries(v).every(([k, x]) => (r[col] as Row | undefined)?.[k] === x)); return this; }
