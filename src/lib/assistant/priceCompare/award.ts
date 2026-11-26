@@ -11,6 +11,8 @@ import { compareHref, tenderDealOf } from "./link";
 import { resolveRfq } from "./load";
 import { AWARD_ACT, MAX_AWARD_LINES, awardNotices, canonicalPlan, chooseLines, matchSupplier, type LineChoice } from "./plan";
 import { parseAwardInput } from "./tools";
+import { flaggedOf } from "@/lib/suppliers/check/awardGate";
+import { loadAwardChecks } from "@/lib/suppliers/check/awardGateServer";
 import type { AwardLineView, AwardPlan, DockAward } from "./types";
 
 // propose_award: a confirm card for "Award and price", never an award. It shows the lines, the cost, the markup the screen would add and every
@@ -109,6 +111,8 @@ export async function runProposeAward(raw: unknown, env: PriceEnv): Promise<{ ou
   const who = input.mode === "single" && supplierIndex !== null ? comparison.suppliers[supplierIndex].name : "each line's cheapest valid supplier";
   const summary = `Award ${picks.length} ${picks.length === 1 ? "line" : "lines"} of ${ref} to ${who} at a cost of ${money(total)}.${route === "tender" ? " The markup is added to make the rate." : " The price is stored as the line's cost."} Nothing is awarded until you press the button.`;
   const cardId = (env.newId ?? randomUUID)();
+  const supplierIds = picks.map((p) => data.suppliers.find((s) => s.id === p.rfqSupplierId)?.supplierId ?? "").filter(Boolean);
+  const flaggedChecks = flaggedOf((await loadAwardChecks(env.supabase, env.tenantId, supplierIds).catch(() => ({ checks: [] }))).checks);
   const card: DockAward = {
     kind: "award", id: cardId,
     token: signToken({ cid: cardId, tid: env.tenantId, uid: env.userId, act: AWARD_ACT, h: hashOf(canonicalPlan(plan)), dup: "", sm: summary, pv: {} }),
@@ -118,9 +122,10 @@ export async function runProposeAward(raw: unknown, env: PriceEnv): Promise<{ ou
     markupDefaultPct: markupDefault,
     needsReason: lines.some((l) => l.needsReason), needsReplace: lines.some((l) => l.alreadyAwarded),
     notices, blocked, primaryLabel: route === "tender" ? "Award and price" : "Award", currency: currencyView(env.currency),
-    compareHref: compareHref(found.rfq.id, deal), risk: "write",
+    compareHref: compareHref(found.rfq.id, deal), risk: "write", supplierChecks: flaggedChecks,
   };
   const note = [
+    flaggedChecks.length ? "A supplier on the card is flagged in the Supplier check: the person types the reason for awarding anyway on the card. Never supply a reason yourself." : "",
     blocked ? `The card is shown but cannot be pressed: ${blocked}` : "Card shown. NOTHING is awarded yet: the person must press the button on the card, so never say it was awarded.",
     notices.length ? `Checks that are not a pass: ${notices.slice(0, 4).join(" ")}` : "",
     "Reply with one short line and repeat no figure.",

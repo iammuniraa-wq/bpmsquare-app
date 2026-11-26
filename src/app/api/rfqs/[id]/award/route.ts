@@ -18,7 +18,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { data: rfq } = await ctx.admin.from("rfqs").select("*").eq("id", id).eq("tenant_id", ctx.tenantId).maybeSingle();
     if (!rfq) return NextResponse.json({ error: "RFQ not found" }, { status: 404 });
     if (["cancelled", "closed", "draft"].includes(rfq.status as string)) return NextResponse.json({ error: rfq.status === "draft" ? "Send the RFQ before awarding." : "This RFQ is closed." }, { status: 409 });
-    const body = (await req.json().catch(() => ({}))) as { line_id?: string; response_id?: string | null; rfq_supplier_id?: string; all?: boolean; fx_rate?: number | string | null; reason?: unknown; replace?: unknown };
+    const body = (await req.json().catch(() => ({}))) as { line_id?: string; response_id?: string | null; rfq_supplier_id?: string; all?: boolean; fx_rate?: number | string | null; reason?: unknown; replace?: unknown; supplier_check_reason?: unknown; supplier_check_ack?: unknown };
 
     const { data: t } = await ctx.admin.from("tenants").select("config").eq("id", ctx.tenantId).maybeSingle();
     const cfg = rfqConfig((t?.config as TenantConfig | null)?.rfq);
@@ -38,6 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const results = await awardWithDecision(ctx.admin, ctx, {
       rfq: rfq as Rfq, targets, reason: body.reason, replace: body.replace === true, fxRate: body.fx_rate, staleDays: cfg.price_valid_days,
+      supplierCheck: { reason: body.supplier_check_reason, ack: body.supplier_check_ack },
     });
     // The single-line shape the screen has always read stays at the top level.
     const first = results[0];

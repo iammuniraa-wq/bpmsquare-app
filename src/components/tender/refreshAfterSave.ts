@@ -20,7 +20,8 @@ export async function reloadAfterSave<T>(url: string, apply: (fresh: T) => void,
 }
 
 export const callsUrl = (opportunityId: string) => `/api/opportunities/${opportunityId}/tender/calls`;
-export const bidsUrl = (opportunityId: string) => `/api/opportunities/${opportunityId}/tender/bids`;
+export const approvalUrl = (opportunityId: string) => `/api/opportunities/${opportunityId}/tender/approval`;
+export const bidsUrl =(opportunityId: string) => `/api/opportunities/${opportunityId}/tender/bids`;
 
 /** The GET answers `{ calls, pending }`; whether the person may edit is the page's, so it is kept from the current data. */
 export function mergeCalls(current: CallsData, fresh: { calls?: CallsData["calls"]; pending?: boolean }): CallsData {

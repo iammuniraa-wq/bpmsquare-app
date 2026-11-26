@@ -356,6 +356,18 @@ describe("on a phone (under 780 px)", () => {
   });
 });
 
+describe("a tender made with an expected value", () => {
+  it("shows the expected value in the header's Details line while the deal has no lines (not 0)", () => {
+    const out = page({ stage: "received", extra: { initialLines: [], opp: { ...oppAt("received"), amount: 250000 } } });
+    expect(out).toMatch(/2,50,000/);
+  });
+
+  it("the Amount fact names it 'expected value' until lines or a quote replace it", () => {
+    const code = read("src/app/(app)/pipeline/[id]/OpportunityDetailClient.tsx");
+    expect(code).toContain('quotes.length > 0 ? "latest quote" : tender && lines.length === 0 && Number(opp.amount) > 0 ? "expected value" : "lines total"');
+  });
+});
+
 describe("the tender page at 375 px", () => {
   const css = read("src/app/globals.css");
   const flat = (s: string) => s.replace(/\s+/g, " ");
