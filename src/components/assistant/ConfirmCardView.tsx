@@ -89,7 +89,7 @@ export default function ConfirmCardView({ card, onOpen, onAsk, modelLocked = fal
     if (busy || missing.length > 0) return;
     setBusy(true); setError("");
     try {
-      const res = await fetch("/api/ai/act", {
+      const res = await fetch(card.press?.startsWith("/api/ai/act/") ? card.press : "/api/ai/act", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ card_id: card.id, token: card.token, values, confirm_duplicates: ackDupes || undefined }),
       });

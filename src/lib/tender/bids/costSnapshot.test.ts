@@ -99,10 +99,12 @@ describe("the cost never leaves the building", () => {
     ]);
   }, 60_000);
 
-  it("only the submit route, Fill from tender costs and the project screen's bid card import the cost module", () => {
+  it("only the submit route, Fill from tender costs, the project screen's bid card and the assistant's competitor analysis import the cost module", () => {
+    // The assistant reads two figures only (currentCostSummary, loadBidCostTotals): a total and a count, never a line, a rate or a markup.
     const importers = src.filter((f) => /from "(@\/lib\/tender\/bids\/costServer|\.\/costServer)"/.test(text(f))).map(rel).sort();
     expect(importers).toEqual([
       "src/app/api/opportunities/[id]/tender/bids/route.ts",
+      "src/lib/assistant/competitors/load.ts",
       "src/lib/contractProjects/allocationServer.ts",
       "src/lib/contractProjects/originServer.ts",
     ]);
