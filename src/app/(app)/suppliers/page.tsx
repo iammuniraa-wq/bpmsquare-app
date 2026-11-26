@@ -10,6 +10,9 @@ import { paginate } from "@/lib/paginate";
 import { sortRows, readSortParams, applyColFilters, parseColFilterParams, colFilterQueryParams, type SortExtractor } from "@/lib/listSort";
 import { ROUTES } from "@/lib/constants";
 import { requireWorkcenterView } from "@/lib/permissions";
+import { SupplierCheckChip } from "@/components/suppliers/supplierCheckUi";
+import { readSummaries } from "@/lib/suppliers/check/service";
+import { VERDICT_LABEL, type CheckSummary } from "@/lib/suppliers/check/types";
 
 const TYPE_LABEL: Record<Supplier["type"], string> = {
   vendor: "Vendor", subcontractor: "Subcontractor", both: "Vendor & Sub",
@@ -17,7 +20,9 @@ const TYPE_LABEL: Record<Supplier["type"], string> = {
 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
-const SORT_EXTRACTORS: Record<string, SortExtractor<Supplier>> = {
+type Row = Supplier & { check: CheckSummary | null };
+
+const SORT_EXTRACTORS: Record<string, SortExtractor<Row>> = {
   ref: (s) => s.ref,
   name: (s) => s.name,
   type: (s) => s.type,
@@ -25,10 +30,12 @@ const SORT_EXTRACTORS: Record<string, SortExtractor<Supplier>> = {
   phone: (s) => s.phone,
   gstin: (s) => s.gstin,
   status: (s) => s.status,
+  rating: (s) => s.check?.rating ?? null,
+  check: (s) => (s.check ? VERDICT_LABEL[s.check.verdict] : null),
   created_at: (s) => s.created_at,
 };
 
-const COLUMNS: ListColumn<Supplier>[] = [
+const COLUMNS: ListColumn<Row>[] = [
   {
     id: "ref", label: "ID", sortKey: "ref", width: 88, card: "hidden",
     cellStyle: { fontFamily: MONO, fontSize: 11.5, color: c.hint, whiteSpace: "nowrap" },
@@ -57,6 +64,11 @@ const COLUMNS: ListColumn<Supplier>[] = [
     render: (s) => s.gstin ?? "—",
   },
   {
+    id: "rating", label: "Rating", sortKey: "rating", cellStyle: { color: c.muted, fontSize: 13, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" },
+    render: (s) => (s.check?.rating == null ? "—" : s.check.rating.toFixed(1)),
+  },
+  { id: "check", label: "Check", sortKey: "check", render: (s) => (s.check ? <SupplierCheckChip summary={{ ...s.check, rating: null }} /> : "—") },
+  {
     id: "status", label: "Status", sortKey: "status",
     render: (s) => <StatusPill label={s.status === "active" ? "Active" : "Inactive"} tone={s.status === "active" ? "green" : "red"} />,
   },
@@ -83,7 +95,9 @@ export default async function SuppliersPage({
   else if (typeFilter && typeFilter !== "all") query = query.eq("type", typeFilter);
 
   const { data: rows } = await query;
-  const suppliers: Supplier[] = rows ?? [];
+  const { summaries } = await readSummaries({ admin: supabase, tenantId }, null);
+  const checkOf = new Map(summaries.map((x) => [x.supplierId, x]));
+  const suppliers: Row[] = ((rows ?? []) as Supplier[]).map((s) => ({ ...s, check: checkOf.get(s.id) ?? null }));
 
   const searched = suppliers.filter((s) => {
     if (!q) return true;

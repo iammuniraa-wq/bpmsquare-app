@@ -428,7 +428,7 @@ describe("tenant isolation", () => {
 
 describe("after a lookup the chat's own tools stay off, but the card's button is not one of them", () => {
   it("create_record and the tools that act are locked for the web window; the list is explicit", async () => {
-    expect([...WEB_LOCKED_TOOLS].sort()).toEqual(["create_record", "guide", "navigate", "open_record"]);
+    expect([...WEB_LOCKED_TOOLS].sort()).toEqual(["check_supplier", "create_record", "guide", "navigate", "open_record"]);
     const s = setup({ replies: [text("ok")] });
     const history = [
       { role: "user" as const, text: "Create an account Tesla Germany" },

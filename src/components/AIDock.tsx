@@ -25,6 +25,8 @@ import { parseBriefLine, splitBriefChunk, STREAM_ENDED_EARLY } from "@/lib/analy
 import { REPORT_PARTS, type ReportPartId } from "@/lib/analysis/report/types";
 import type { DockAnalysis } from "@/lib/assistant/analysisTool";
 import type { DockReport, ReportSaveTarget } from "@/lib/assistant/reportTool";
+import type { DockSupplierCheck } from "@/lib/assistant/supplierCheck/tool";
+import SupplierCheckPanel from "@/components/suppliers/SupplierCheckPanel";
 import { WEB_TAINT_WINDOW, applyChoice, settleOnNewAsk, type ConsentState, type WebAllow, type WebChoice } from "@/lib/assistant/webConsent";
 import { Markdown, InlineMarkdown } from "@/components/assistant/Markdown";
 import { plainText } from "@/lib/assistant/markdown";
@@ -56,6 +58,8 @@ type Msg = {
   analysis?: DockAnalysis;
   /** A company report, drawn as a card from its fields. */
   companyReport?: DockReport;
+  /** A supplier check, drawn as a card from its fields. */
+  supplierCheck?: DockSupplierCheck;
   /** The four research parts of a brief that is running. Never kept: a reload drops it. */
   progress?: { subject: string; parts: Record<ReportPartId, PartState> };
 };
@@ -364,9 +368,10 @@ export default function AIDock({ liftForTabBar = false }: {
           ? { object: json.clarify.object as string, name: json.clarify.name as string, state: "pending" as const } : undefined;
         const analysis: DockAnalysis | undefined = json.analysis?.card && typeof json.analysis.digest === "string" ? json.analysis : undefined;
         const companyReport: DockReport | undefined = json.companyReport?.report && typeof json.companyReport.digest === "string" && Array.isArray(json.companyReport.targets) ? json.companyReport : undefined;
+        const supplierCheck: DockSupplierCheck | undefined = json.supplierCheck?.result && typeof json.supplierCheck.supplierId === "string" ? json.supplierCheck : undefined;
         const web: WebSource[] | undefined = Array.isArray(json.web?.sources) && json.web.sources.length ? json.web.sources : undefined;
         const reply: GuideReply | undefined = json.guide && Array.isArray(json.guide.steps) ? json.guide : undefined;
-        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, guide: reply, consent, web, analysis, companyReport, clarify, fromWeb: json.fromWeb === true, confirm: json.card as ConfirmCard | undefined }]);
+        setMessages((prev) => [...prev, { from: "bot", text: json.answer, report: json.report as ReportPayload | undefined, cards, guide: reply, consent, web, analysis, companyReport, supplierCheck, clarify, fromWeb: json.fromWeb === true, confirm: json.card as ConfirmCard | undefined }]);
         if (reply) startGuide(reply);
         if (json.autoFollow && cards?.length === 1) go(cards[0].href);
       } else {
@@ -675,6 +680,7 @@ export default function AIDock({ liftForTabBar = false }: {
                 {m.analysis && (
                   <AnalysisCardView data={m.analysis} busy={busy} onOpen={go} onRefresh={() => refreshAnalysis(m.analysis!)} onAsk={(q) => ask(q)} />
                 )}
+                {m.supplierCheck && <SupplierCheckPanel supplierId={m.supplierCheck.supplierId} seed={m.supplierCheck} />}
                 {m.progress && <ReportProgressRows parts={m.progress.parts} subject={m.progress.subject} />}
                 {m.companyReport && (
                   <ReportCardView

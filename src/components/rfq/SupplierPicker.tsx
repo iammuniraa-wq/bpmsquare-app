@@ -9,6 +9,7 @@ import { RFQ_TIPS } from "@/lib/rfq/tips";
 import { currentDescription } from "@/lib/rfq/currentSupplierRank";
 import type { CurrentForProduct, PickerSupplier, SuggestedSupplier } from "./useRfqSuppliers";
 import { fmtDate } from "./rfqUi";
+import { SupplierCheckChip, useSupplierChecks } from "@/components/suppliers/supplierCheckUi";
 
 // The supplier part of both RFQ forms: the current supplier (when there is
 // one), the tenant's own history as one-tap chips, then a searchable list of
@@ -32,6 +33,7 @@ export default function SupplierPicker({
   scope?: { restricted: boolean; group: string | null } | null;
 }) {
   const [filter, setFilter] = useState("");
+  const checks = useSupplierChecks(suppliers.map((s) => s.id));
   const [kind, setKind] = useState<"all" | "vendor" | "subcontractor">("all");
   const currentIds = useMemo(() => new Set(current.map((x) => x.supplier_id)), [current]);
 
@@ -114,6 +116,7 @@ export default function SupplierPicker({
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ fontWeight: 600 }}>{s.name}</span>
               {currentIds.has(s.id) && <span style={{ marginLeft: 8 }}><StatusPill label="Current supplier" tone="green" /></span>}
+              {checks[s.id] && <span style={{ marginLeft: 8 }}><SupplierCheckChip summary={checks[s.id]} /></span>}
               <span style={{ color: c.hint, marginLeft: 6, fontSize: 12 }}>{[s.city, s.email ?? "no email"].filter(Boolean).join(" · ")}</span>
             </span>
           </label>
