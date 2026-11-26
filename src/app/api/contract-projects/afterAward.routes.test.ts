@@ -352,6 +352,73 @@ describe("the project starts as the contract, and Fill from tender costs reads t
     expect(mine("project_budget_lines").find((l) => String(l.description).startsWith("Chain link"))!.amount).toBe(12000);
   });
 
+  describe("a tender priced from estimates is split by resource, never one lump per BOQ line", () => {
+    const STAMP = "2026-10-05T00:00:00Z";
+    const estLine = (id: string, tenant: string, estimate: string, component: string, cost: number) => ({
+      id, tenant_id: tenant, estimate_id: estimate, code: null, description: `${component} work`, uom: "m", qty: 1, waste_pct: 0, unit_cost: cost, cost_total: cost, component, wbs_code: null,
+      product_id: null, custom_data: null, updated_at: STAMP, sort_order: 1,
+    });
+    function estimateOnDeal() {
+      rows("estimates").push({ id: "e1", tenant_id: T1, opportunity_id: OPP, ref: "EST-0003", name: "Fence build-up", updated_at: STAMP });
+      rows("estimate_lines").push(estLine("el1", T1, "e1", "materials", 6000), estLine("el2", T1, "e1", "labour", 3000), estLine("el3", T1, "e1", "transport", 1000));
+      Object.assign(rows("tender_boq_lines").find((b) => b.id === "b1")!, { unit_cost: 100, price_source: "estimate", price_source_ref: "EST-0003" });
+    }
+    const forLine = (description: string) => mine("project_budget_lines").filter((l) => String(l.description).startsWith(description));
+    const byResource = (ls: Record<string, unknown>[]) => ls.map((l) => [l.resource_code, l.amount]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+
+    it("a BOQ line linked to an estimate becomes one cost per resource, the contract line keeping the client's rate and amount", async () => {
+      estimateOnDeal();
+      rows("tender_boq_estimate_links").push({ id: "lk1", tenant_id: T1, opportunity_id: OPP, boq_line_id: "b1", estimate_id: "e1", output: "total", basis: "total", share_pct: 100, applied_at: STAMP, estimate_updated_at: STAMP });
+      const p = await fromTender();
+      expect(p.res.status).toBe(201);
+      const ls = forLine("Chain link");
+      expect(byResource(ls)).toEqual([["11", 6000], ["31", 3000], ["51", 1000]]);
+      const contract = ls.find((l) => Number(l.client_amount) > 0)!;
+      expect(contract).toMatchObject({ client_rate: 200, client_amount: 20000, allocated: true, resource_code: "11", wbs: "1.1" });
+      expect(ls.filter((l) => l !== contract).every((l) => l.client_amount === 0 && l.client_rate === null && l.source_line_id === "l1" && l.allocated === true)).toBe(true);
+      expect(mine("project_budget_revisions")[0].total).toBe(10000);
+    });
+
+    it("a line priced from an estimate through a path that stored no link is split by that estimate's shares", async () => {
+      estimateOnDeal();
+      const p = await fromTender();
+      expect(p.res.status).toBe(201);
+      expect(byResource(forLine("Chain link"))).toEqual([["11", 6000], ["31", 3000], ["51", 1000]]);
+      expect(mine("project_budget_revisions")[0].total).toBe(10000);
+    });
+
+    it("another workspace's estimate with the same reference is never read", async () => {
+      estimateOnDeal();
+      rows("estimates").push({ id: "e9", tenant_id: T2, opportunity_id: OPP, ref: "EST-0003", name: "Theirs", updated_at: STAMP });
+      rows("estimate_lines").push(estLine("el9", T2, "e9", "labour", 9999));
+      await fromTender();
+      expect(byResource(forLine("Chain link"))).toEqual([["11", 6000], ["31", 3000], ["51", 1000]]);
+    });
+
+    it("an estimate that is not on this deal is not read either: the line keeps its one recorded cost", async () => {
+      estimateOnDeal();
+      rows("estimates").find((e) => e.id === "e1")!.opportunity_id = "cccccccc-cccc-4ccc-8ccc-ccccccccccc9";
+      await fromTender();
+      expect(byResource(forLine("Chain link"))).toEqual([["11", 10000]]);
+    });
+
+    it("pressing Fill again with replace gives the same lines and the same total, with no duplicate cost lines", async () => {
+      estimateOnDeal();
+      const p = await fromTender();
+      const j = await (await fill(p.id, { replace: true })).json();
+      expect(j.filled).toBe(1);
+      expect(byResource(forLine("Chain link"))).toEqual([["11", 6000], ["31", 3000], ["51", 1000]]);
+      expect(mine("project_budget_lines")).toHaveLength(4);
+      expect(mine("project_budget_revisions")[0].total).toBe(10000);
+    });
+
+    it("a line priced any other way is still one figure", async () => {
+      const p = await fromTender();
+      expect(p.res.status).toBe(201);
+      expect(byResource(forLine("Chain link"))).toEqual([["11", 12000]]);
+    });
+  });
+
   it("a project made by hand has no tender to copy from; a view-only person cannot fill", async () => {
     const hand = await (await createPost(json("POST", { name: "By hand", contract_value: 100 }))).json();
     expect((await fill(hand.id)).status).toBe(409);

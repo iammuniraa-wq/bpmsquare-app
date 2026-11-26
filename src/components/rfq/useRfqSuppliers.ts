@@ -14,7 +14,7 @@ import type { CurrentSupplier } from "@/lib/rfq/currentSupplier";
 // If the source cannot be read the ordinary list is used, so a form never
 // opens empty because of it.
 
-export type PickerSupplier = { id: string; name: string; email: string | null; city: string | null; status: string; ref?: string | null; type?: string | null };
+export type PickerSupplier = { id: string; name: string; email: string | null; phone?: string | null; city: string | null; status: string; ref?: string | null; type?: string | null };
 export type SuggestedSupplier = { supplier_id: string; name: string; awarded: number; quoted: number; last_awarded_at: string | null };
 export type CurrentForProduct = CurrentSupplier & { product_id: string };
 /** `restricted` = the client has an approved group and the list is its members; `group` names it when the route says. */

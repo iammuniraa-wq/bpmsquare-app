@@ -200,7 +200,7 @@ export default function BidsTab({ opportunityId, data: pageData, stage, outcome,
       <SettingsSection id="tender.bids.current" title="Bid" info={TENDER_TIPS.bidsTab} summary={summary} defaultOpen>
         {data.pending && <div role="alert" data-guide="tender.bids.pending" style={{ fontSize: 13, color: "var(--amberink)" }}>Bid versions need a database update (migration 0225). Ask your administrator to apply it.</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {checks && open && !data.pending && (toSubmit ? <ReadinessLine warnings={readiness} /> : latest && <SubmittedLine versionNo={latest.version_no} />)}
+        {checks && open && !data.pending && !askSubmit && (toSubmit ? <ReadinessLine warnings={readiness} /> : latest && <SubmittedLine versionNo={latest.version_no} />)}
         <StatStrip guide="tender.bids.summary">
           <StatTile tone="info" label="Lines total now" info={TENDER_TIPS.bidWorking} value={fmt(data.working_total)} sub={workingVsLast === null ? null : workingVsLast === 0 ? "same as the last version" : `${workingVsLast > 0 ? "+" : "-"}${fmt(Math.abs(workingVsLast))} since version ${latest?.version_no}`} />
           <StatTile tone="info" label="Last submitted" value={latest ? fmt(latest.total) : "—"} sub={latest ? `Version ${latest.version_no} · ${latest.line_count} line${latest.line_count === 1 ? "" : "s"}` : "Nothing submitted"} />
