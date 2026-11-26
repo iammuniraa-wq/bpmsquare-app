@@ -246,6 +246,12 @@ export function parseDecision(body: Record<string, unknown>): { ok: true; decisi
   return { ok: true, decision: decision as TenderDecision, reason };
 }
 
+/** The title the New tender form suggests: the issuer (or the account when no issuer is typed) and "tender". Empty until one of them is known. */
+export function suggestedTenderTitle(args: { issuer: string | null | undefined; accountName: string | null | undefined }): string {
+  const who = (args.issuer ?? "").trim() || (args.accountName ?? "").trim();
+  return who ? `${who} tender`.slice(0, 200) : "";
+}
+
 /** A start-of-form title for a tender deal when nobody typed one: "<number> · <issuer>", else the issuing account. */
 export function derivedTenderTitle(args: { tenderNo: string | null; issuer: string | null; accountName: string | null }): string {
   const t = [args.tenderNo, args.issuer ?? args.accountName].filter(Boolean).join(" · ");

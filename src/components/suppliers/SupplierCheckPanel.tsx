@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { c } from "@/lib/theme";
 import Card from "@/components/ui/Card";
 import InfoTip from "@/components/ui/InfoTip";
@@ -27,6 +28,7 @@ const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB", { day: "2
 
 export default function SupplierCheckPanel({ supplierId, seed }: { supplierId: string; seed?: DockSupplierCheck }) {
   const dock = !!seed;
+  const router = useRouter();
   const [data, setData] = useState<Loaded | null>(null);
   const [shown, setShown] = useState<SupplierCheckResult | null>(seed?.result ?? null);
   const [saveToken, setSaveToken] = useState<string | null>(seed?.saveToken ?? null);
@@ -65,6 +67,7 @@ export default function SupplierCheckPanel({ supplierId, seed }: { supplierId: s
         setSaved(j.saved === true);
         if (j.saved !== true) setError(j.saveError ?? "The check ran but could not be saved.");
         await load();
+        if (j.saved === true) router.refresh();
       }
     } catch {
       setError("The check could not run.");
@@ -79,7 +82,7 @@ export default function SupplierCheckPanel({ supplierId, seed }: { supplierId: s
     try {
       const r = await fetch(`/api/suppliers/${supplierId}/check/save`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ result: shown, token: saveToken }) });
       const j = (await r.json().catch(() => ({}))) as { error?: string };
-      if (!r.ok) setError(j.error ?? "The check could not be saved."); else { setSaved(true); setSaveToken(null); }
+      if (!r.ok) setError(j.error ?? "The check could not be saved."); else { setSaved(true); setSaveToken(null); router.refresh(); }
     } catch {
       setError("The check could not be saved.");
     } finally {

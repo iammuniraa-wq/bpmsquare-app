@@ -14,5 +14,6 @@ export default async function NewTenderPage() {
   if (!tenderEnabled(tenant?.features)) notFound();
   const admin = createAdminSupabase();
   const { data: accounts } = await admin.from("accounts").select("id, name").eq("tenant_id", tenantId).order("name");
-  return <NewTenderForm accounts={accounts ?? []} />;
+  const { data: contacts } = await admin.from("contacts").select("id, name, account_id").eq("tenant_id", tenantId).order("name");
+  return <NewTenderForm accounts={accounts ?? []} contacts={(contacts ?? []) as { id: string; name: string; account_id: string }[]} />;
 }

@@ -4,7 +4,10 @@
 export const TENDER_TIPS = {
   tab: "Tenders are deals with a bid end date, their own stages and a recorded bid decision. They never appear on the Deals board.",
   closingSoon: "Open tenders whose bid ends within 14 days, soonest first. Red is under 2 days or past, amber is under 7.",
-  newTender: "Starts a deal and its tender details together. Only the account is required; fill in the rest when you have it.",
+  newTender: "Starts a deal and its tender details together. The account and the title are required; fill in the rest when you have it.",
+  title: "The name this deal carries in lists and on the board. It starts from the issuer or account; change it to anything your team will recognise.",
+  contact: "The person at the account who sent or manages this tender. Only that account's contacts are offered.",
+  expectedValue: "Your rough estimate of the tender's worth. It shows on the deal until the BOQ has priced lines, then the BOQ total replaces it.",
   tenderNo: "The number the issuer gave this tender. It must be unique in your workspace.",
   issuer: "Who issued the tender, as written on the documents. Link an account if you also do business with them.",
   portal: "Where the tender documents and your answer travel: a portal such as Ariba, email, or an Excel sheet.",

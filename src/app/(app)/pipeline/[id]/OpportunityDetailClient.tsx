@@ -32,6 +32,7 @@ import ClosingChip from "@/components/tender/ClosingChip";
 import { tenderIsLive } from "@/lib/tender/rules";
 import { tenderPrimary, type TenderPrimaryKey } from "@/lib/tender/headerAction";
 import { tenderSteps } from "@/lib/tender/steps";
+import { approvalUrl, reloadAfterSave } from "@/components/tender/refreshAfterSave";
 import { amountText, amountValue } from "@/lib/tender/amountText";
 import TenderStepper from "@/components/tender/TenderStepper";
 import { resolveTenderTab, type TenderTabId } from "@/lib/tender/tabs";
@@ -161,13 +162,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   // must not wait for a full reload) and the server render then replaces it.
   const [approvalNow, setApprovalNow] = useState<ApprovalView | null>(tender?.approval ?? null);
   useEffect(() => { setApprovalNow(tender?.approval ?? null); }, [tender?.approval]);
-  async function reloadApproval() {
-    try {
-      const res = await fetch(`/api/opportunities/${opp.id}/tender/approval`, { cache: "no-store" });
-      if (res.ok) setApprovalNow((await res.json()) as ApprovalView);
-    } catch { /* the refresh below brings the same facts */ }
-    router.refresh();
-  }
+  const reloadApproval = () => reloadAfterSave<ApprovalView>(approvalUrl(opp.id), setApprovalNow, () => router.refresh());
   // The BOQ's facts for the path across the top, as the page last knew them. An upload or a price re-reads them at once (the Next row
   // must not keep saying "upload the client's BOQ" until a reload) and the server render then replaces them.
   const [boqFacts, setBoqFacts] = useState<BoqStepFacts | null>(tender?.boq ?? null);
@@ -473,7 +468,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const factsRow = (
     <RecordFacts
       facts={[
-        { label: "Amount", value: <>{inr(Number(opp.amount || 0))}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{quotes.length > 0 ? "latest quote" : "lines total"}</div></> },
+        { label: "Amount", value: <>{inr(Number(opp.amount || 0))}<div style={{ fontSize: 11, fontWeight: 400, color: c.hint }}>{quotes.length > 0 ? "latest quote" : tender && lines.length === 0 && Number(opp.amount) > 0 ? "expected value" : "lines total"}</div></> },
         {
           label: "Stage",
           value: (
