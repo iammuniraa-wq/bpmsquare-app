@@ -71,6 +71,17 @@ export const DW_CATALOG: Record<ImportObjectId, DwCatalogEntry> = {
     label: "Tender WBS items", group: "sales", parent: "opportunities", modes: ALL, keywords: ["wbs", "work breakdown", "work breakdown structure", "tender wbs"], alsoNeeds: ["pipeline"],
     note: "Adds items to an existing tender's WBS or edits them. Which BOQ lines sit in an item is the WBS code on Tender BOQ lines.",
   },
+  // Buildings and elements of a contract project (0253). Owned through OBJECT_FEATURE (the Buildings add-on); the project's own lines are born from the
+  // tender, a quote or a revision, so a file never imports them.
+  project_wbs_items: {
+    label: "Project WBS items", group: "sales", modes: ALL, keywords: ["buildings", "wbs", "work breakdown", "project wbs", "activities"], alsoNeeds: ["contract_buildings"],
+    note: "Adds buildings and activities to an existing contract project, or edits name, code, parent, building code and note on items already there.",
+  },
+  project_budget_lines: {
+    label: "Project budget lines", group: "sales", parent: "project_wbs_items", modes: ["export", "update"], keywords: ["elements", "element codes", "model quantity", "budget lines"], alsoNeeds: ["contract_buildings"],
+    note: "Export with real IDs, then update element type, code, model quantity and building on the open budget. Cost is never in a file.",
+    modeNote: { import: "A budget line is made by the tender, a quote or a revision. A file only adds element codes to lines that are already there." },
+  },
   rfqs: {
     label: "RFQs", group: "sales", modes: ["export", "update"], keywords: ["request for quotation", "suppliers", "rfq"],
     note: "Export with real IDs, then update header fields in bulk.",
@@ -104,8 +115,20 @@ export const DW_CATALOG: Record<ImportObjectId, DwCatalogEntry> = {
     label: "Sales Order Lines", group: "sales", parent: "sales_orders", modes: ALL, keywords: ["line items"],
     note: "Only adds lines to a draft sales order that already exists, found by its Order ID.",
   },
+  drawings: {
+    label: "Drawings", group: "sales", modes: ALL, keywords: ["drawing register", "revisions", "engineering", "shop drawings"],
+    note: "Header only. Import adds drawings as drafts with no file; a revision is released in the register by an approver, never by a file.",
+  },
   invoices: { label: "Invoices", group: "sales", modes: ALL, keywords: ["billing", "bills"] },
   purchase_orders: { label: "Purchase Orders", group: "sales", modes: ALL, keywords: ["po", "purchasing", "buying"] },
+  site_expenses: {
+    label: "Site expenses", group: "sales", modes: ["export"], keywords: ["site", "claims", "receipts", "petty cash"],
+    modeNote: { import: "A site expense needs its photo and an approval, so it is made on a phone, never by a file.", update: "Corrections go through return, cancel and enter again, so the approval stays true." },
+  },
+  site_receipts: {
+    label: "Site receipts", group: "sales", modes: ["export"], keywords: ["site", "delivery", "goods received", "grn"],
+    modeNote: { import: "A site receipt needs its count, photos and the receiver's name, so it is made on a phone, never by a file.", update: "A confirmed receipt is evidence and is never edited. A manager cancels it and the site person enters it again." },
+  },
 
   // ── Service ──
   cases: { label: "Cases", group: "service", modes: ALL, keywords: ["tickets", "repairs", "service cases"] },

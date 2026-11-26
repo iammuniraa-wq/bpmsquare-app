@@ -9,6 +9,7 @@ import {
   type Membership, type Share,
 } from "@/lib/wbs/tree";
 import { WBS_PENDING } from "@/lib/wbs/tips";
+import { elementSplitProblem } from "@/lib/elements/buildings";
 import { loadItems, loadMembers, ownerNames } from "./read";
 import { buildWbsState, type BoqFigureLine } from "./view";
 import type { LineMembers, SplitRequestPart, WbsItemRow, WbsState } from "./types";
@@ -226,6 +227,7 @@ export async function updateItem(ctx: WbsCtx, id: string, input: ItemInput): Pro
       if (parent !== null && !items.some((i) => i.id === parent)) return fail(404, "WBS item not found");
       const problem = moveProblem(items, id, parent, holders(members));
       if (problem) return fail(422, problem);
+      if (cur.building_code && parent !== null) return fail(422, "A building is a top-level item. Clear its building code first");
       patch.parent_id = parent;
       patch.sort_order = nextSort(items.filter((i) => i.id !== id), parent);
       tree = tree.map((i) => (i.id === id ? { ...i, parent_id: parent, sort_order: patch.sort_order as number } : i));
@@ -288,6 +290,8 @@ export async function deleteItem(ctx: WbsCtx, id: string): Promise<Result<{ line
   const mine = [...members.item.entries()].filter(([, item]) => item === id).map(([boq]) => boq);
   const partCount = [...members.parts.values()].filter((ps) => ps.some((p) => p.wbs_item_id === id)).length;
 
+  // A building (0253) is only removed when it holds no lines: the screen's Remove moves nothing on its behalf.
+  if (cur.building_code && mine.length + partCount > 0) return fail(409, `${cur.building_code} still holds ${mine.length + partCount} line${mine.length + partCount === 1 ? "" : "s"}. Move them out first`);
   // Sub-items move up first, so the tree is whole at every step, and they take the removed item's place among its siblings.
   const kids = items.filter((i) => i.parent_id === id);
   for (const [n, k] of kids.entries()) {
@@ -415,6 +419,13 @@ export async function setLineSplit(ctx: WbsCtx, boqId: string, rawParts: unknown
   }
   const verdict = setSplit(candidate, named);
   if (!verdict.ok) return fail(422, verdict.error);
+  // An element belongs to one building (0253): a line that carries an element code may be split across the activities of one building, never across two.
+  if (verdict.kind === "parts") {
+    const coded = await ctx.admin.from("tender_boq_lines").select("element_code").eq("id", boqId).eq("tenant_id", ctx.tenantId).eq("opportunity_id", ctx.opportunityId).maybeSingle();
+    const hasCode = !coded.error && !!(coded.data as { element_code?: string | null } | null)?.element_code;
+    const problem = elementSplitProblem(candidate.map((i) => ({ ...i, building_code: i.building_code ?? null })), { wbs_item_id: null, parts: verdict.parts }, hasCode);
+    if (problem) return fail(422, problem);
+  }
 
   // Valid: make the new items for real.
   const created: string[] = [];

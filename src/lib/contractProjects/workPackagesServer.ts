@@ -9,20 +9,24 @@ import { readAllPages } from "@/lib/pagedRead";
 // (every item is a top-level item, nothing is split). The writes are in allocationServer.ts.
 
 const PACKAGE_COLS_BASE = "id, code, name, owner_employee_id, allocated_cost, sort_order, note";
-const PACKAGE_COLS = `${PACKAGE_COLS_BASE}, parent_id, source_wbs_item_id, code_is_manual`;
+const PACKAGE_COLS_TREE = `${PACKAGE_COLS_BASE}, parent_id, source_wbs_item_id, code_is_manual`;
+// 0253 adds the building code on a level-1 item; a database without it is read with the older list.
+const PACKAGE_COLS = `${PACKAGE_COLS_TREE}, building_code`;
 
-export type PackagesData = { packages: WorkPackageRow[]; pending: boolean; /** 0243 is not applied: the tree and the split are not there yet. */ treePending?: boolean };
+export type PackagesData = { packages: WorkPackageRow[]; pending: boolean; /** 0243 is not applied: the tree and the split are not there yet. */ treePending?: boolean; /** 0253 is not applied: no item can be a building yet. */ buildingsPending?: boolean };
 
-type PackageDb = { id: string; code: string; name: string; owner_employee_id: string | null; allocated_cost: number | string | null; sort_order: number; note: string | null; parent_id?: string | null; source_wbs_item_id?: string | null; code_is_manual?: boolean };
+type PackageDb = { id: string; code: string; name: string; owner_employee_id: string | null; allocated_cost: number | string | null; sort_order: number; note: string | null; parent_id?: string | null; source_wbs_item_id?: string | null; code_is_manual?: boolean; building_code?: string | null };
 
 export async function loadPackages(admin: SupabaseClient, tenantId: string, projectId: string): Promise<PackagesData> {
   const read = (cols: string) => admin.from("project_work_packages").select(cols).eq("tenant_id", tenantId).eq("project_id", projectId).order("sort_order", { ascending: true }).order("code", { ascending: true }).limit(500);
   let { data, error } = await read(PACKAGE_COLS);
   let treePending = false;
-  if (error && isMissingSchema(error)) { ({ data, error } = await read(PACKAGE_COLS_BASE)); treePending = !error; }
+  let buildingsPending = false;
+  if (error && isMissingSchema(error)) { ({ data, error } = await read(PACKAGE_COLS_TREE)); buildingsPending = !error; }
+  if (error && isMissingSchema(error)) { ({ data, error } = await read(PACKAGE_COLS_BASE)); treePending = !error; buildingsPending = !error; }
   if (error) return { packages: [], pending: isMissingSchema(error) };
   const rows = (data ?? []) as unknown as PackageDb[];
-  if (rows.length === 0) return { packages: [], pending: false, treePending };
+  if (rows.length === 0) return { packages: [], pending: false, treePending, buildingsPending };
 
   const links = await readAllPages((lo, hi) => admin.from("project_work_package_lines").select("package_id, line_key, sort_order").eq("tenant_id", tenantId).eq("project_id", projectId).order("sort_order", { ascending: true }).order("id", { ascending: true }).range(lo, hi));
   const keysOf = new Map<string, string[]>();
@@ -40,11 +44,11 @@ export async function loadPackages(admin: SupabaseClient, tenantId: string, proj
 
   const names = await employeeNames(admin, tenantId, rows.map((r) => r.owner_employee_id));
   return {
-    pending: false, treePending,
+    pending: false, treePending, buildingsPending,
     packages: rows.map((r) => ({
       id: r.id, code: r.code, name: r.name, owner_employee_id: r.owner_employee_id, owner_name: r.owner_employee_id ? names.get(r.owner_employee_id) ?? null : null,
       allocated_cost: r.allocated_cost == null ? null : Number(r.allocated_cost), sort_order: Number(r.sort_order ?? 0), note: r.note, line_keys: keysOf.get(r.id) ?? [],
-      parent_id: treePending ? null : r.parent_id ?? null, source_wbs_item_id: r.source_wbs_item_id ?? null, code_is_manual: r.code_is_manual === true, line_parts: partsOf.get(r.id) ?? [],
+      parent_id: treePending ? null : r.parent_id ?? null, source_wbs_item_id: r.source_wbs_item_id ?? null, code_is_manual: r.code_is_manual === true, line_parts: partsOf.get(r.id) ?? [], building_code: buildingsPending ? null : r.building_code ?? null,
     })),
   };
 }

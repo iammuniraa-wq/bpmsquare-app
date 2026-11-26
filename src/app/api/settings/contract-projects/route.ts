@@ -5,10 +5,13 @@ import { tenantHasFeature } from "@/lib/tenant";
 import { logChange } from "@/lib/changeLog";
 import { parsePaymentTermTemplates, readPaymentTermTemplates } from "@/lib/contractProjects/paymentTerms";
 import { readMarginFloor } from "@/lib/contractProjects/budget";
+import { parseFinanceSettings, readFinanceSettings } from "@/lib/projectFinance/settings";
 
 // GET / PUT /api/settings/contract-projects -- the workspace settings of the module, held in tenants.config.contract_projects:
 //   margin_floor_pct          the planned margin under which a project turns amber (null = no floor)
 //   payment_term_templates    the few named payment schedules a tender's Bid tab chooses from (name, milestones with a trigger text)
+//   finance_visibility        who sees cost and margin: "everyone" (default) or "granted"; finance_lights: { drop_points, cash_days, late_pct }
+//                             (both only with the platform-admin flag project_dashboards; see docs/design/pcbs-project-dashboards.md section 8)
 // PUT takes either or both: { margin_floor_pct?: number | null, payment_term_templates?: [...] } and keeps everything else in the config.
 // The code lists have their own routes (/api/contract-projects/masters). Admin-only in both directions; a workspace without the module
 // gets a 404.
@@ -29,11 +32,16 @@ const fail = (e: unknown) => {
 type ConfigShape = { contract_projects?: Record<string, unknown> };
 
 export async function GET() {
-  let tenantId;
-  try { ({ tenantId } = await guard()); } catch (e) { return fail(e); }
+  let tenantId, supabase;
+  try { ({ tenantId, supabase } = await guard()); } catch (e) { return fail(e); }
   const { data } = await createAdminSupabase().from("tenants").select("config").eq("id", tenantId).single();
   const config = (data?.config ?? null) as ConfigShape | null;
-  return NextResponse.json({ margin_floor_pct: readMarginFloor(config), payment_term_templates: readPaymentTermTemplates(config) });
+  const fin = readFinanceSettings(config);
+  const financeOn = await tenantHasFeature(supabase, tenantId, "project_dashboards");
+  return NextResponse.json({
+    margin_floor_pct: readMarginFloor(config), payment_term_templates: readPaymentTermTemplates(config),
+    ...(financeOn ? { finance: { visibility: fin.visibility, drop_points: fin.dropPoints, cash_days: fin.cashDays, late_pct: fin.latePct } } : {}),
+  });
 }
 
 export async function PUT(request: NextRequest) {
@@ -51,6 +59,12 @@ export async function PUT(request: NextRequest) {
       next.margin_floor_pct = Math.round(pct * 10) / 10;
     }
   }
+  if ("finance_visibility" in body || "finance_lights" in body) {
+    if (!(await tenantHasFeature(supabase, tenantId, "project_dashboards"))) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const fin = parseFinanceSettings(body);
+    if (!fin.ok) return NextResponse.json({ error: fin.error }, { status: 422 });
+    Object.assign(next, fin.value);
+  }
   let templates: ReturnType<typeof readPaymentTermTemplates> | null = null;
   if ("payment_term_templates" in body) {
     const parsed = parsePaymentTermTemplates(body.payment_term_templates, randomUUID);
@@ -66,6 +80,7 @@ export async function PUT(request: NextRequest) {
   const config = (current?.config ?? {}) as ConfigShape & Record<string, unknown>;
   const kept = (config.contract_projects && typeof config.contract_projects === "object" ? config.contract_projects : {}) as Record<string, unknown>;
   const floorBefore = readMarginFloor(config);
+  const finBefore = readFinanceSettings(config);
   const namesBefore = readPaymentTermTemplates(config).map((t) => t.name).join(", ");
   // The retired default-margin key is dropped on the first save so it stops looking like a setting.
   const { default_margin_pct: _retired, ...rest } = kept;
@@ -75,6 +90,13 @@ export async function PUT(request: NextRequest) {
   const user = await getAuthUser();
   const changes: { field: string; from: unknown; to: unknown }[] = [];
   if ("margin_floor_pct" in next && floorBefore !== next.margin_floor_pct) changes.push({ field: "Margin floor (%)", from: floorBefore, to: next.margin_floor_pct });
+  if ("finance_visibility" in next && next.finance_visibility !== finBefore.visibility) changes.push({ field: "Who sees project cost and margin", from: finBefore.visibility, to: next.finance_visibility });
+  if ("finance_lights" in next) {
+    const l = next.finance_lights as { drop_points: number; cash_days: number; late_pct: number };
+    if (l.drop_points !== finBefore.dropPoints || l.cash_days !== finBefore.cashDays || l.late_pct !== finBefore.latePct) {
+      changes.push({ field: "Project health light thresholds", from: `${finBefore.dropPoints} points, ${finBefore.cashDays} days, ${finBefore.latePct}% late`, to: `${l.drop_points} points, ${l.cash_days} days, ${l.late_pct}% late` });
+    }
+  }
   if (templates && namesBefore !== templates.map((t) => t.name).join(", ")) changes.push({ field: "Payment-term templates", from: namesBefore || null, to: templates.map((t) => t.name).join(", ") || null });
   if (changes.length > 0) {
     await logChange(supabase, { tenantId, objectType: "tenants", objectId: tenantId, objectLabel: "Contract project settings", action: "update", actorId: user?.id, actorEmail: user?.email, changes });

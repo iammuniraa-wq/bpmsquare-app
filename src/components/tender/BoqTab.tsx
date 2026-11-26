@@ -27,6 +27,7 @@ import { SOURCE_GROUPS, SOURCE_GROUP_LABEL, parseSourceGroup, sourceGroupOf } fr
 import GroupIntoWbs from "./wbs/GroupIntoWbs";
 import SplitPanel from "./wbs/SplitPanel";
 import WbsTree from "./wbs/WbsTree";
+import BuildingsPanel from "@/components/elements/BuildingsPanel";
 import { call } from "./wbs/api";
 import w from "./wbs/Wbs.module.css";
 import { reloadAfterSave } from "./refreshAfterSave";
@@ -356,6 +357,8 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
               onDone={wbsDone} onSplit={ticked.length === 1 ? () => setSplitFor(ticked[0]) : undefined}
             />
           )}
+
+          {view === "wbs" && wbsOn && <BuildingsPanel root={`/api/opportunities/${opportunityId}/tender`} canEdit={canEdit} onChanged={() => changed()} />}
 
           {view === "wbs" && wbsOn ? (
             <WbsTree

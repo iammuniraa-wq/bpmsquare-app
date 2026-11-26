@@ -121,6 +121,7 @@ export type AnalyticsData = {
     draftOrders: number;
     openOrders: number;
     openOrderValue: number;
+    drawingsWaiting?: number;
   };
   accountsByType: Array<{ type: string; label: string; count: number }>;
   leadFunnel: Array<{ stage: string; count: number }>;
@@ -163,6 +164,7 @@ export type AnalyticsData = {
   inbox: { newThisWeek: number; unhandled: number; medianFirstReplyMinutes: number | null };
   // The tender edition's dashboard blocks (only populated when the tenant has features.gcc_tender on; null otherwise or when the read failed).
   tender: TenderDeskData | null;
+  projectFinance: import("@/lib/projectFinance/portfolio").ProjectFinanceAnalytics;
 };
 
 // ── Display label maps ────────────────────────────────────────────────────────

@@ -32,6 +32,9 @@ export type BoqInfo = {
 /** What the estimates linked to each BOQ line give the cost, keyed by the deal line id (read by the bid cost snapshot, not by the project copy). */
 export type EstimateBudgetInput = ReadonlyMap<string, Pick<BudgetPartInput, "links">>;
 
+/** What the tender's BOQ row says about the element (0253): the line is that element, the client's file quantity is the contracted one. */
+export type TenderElementInfo = { element_type?: string | null; element_code?: string | null; file_qty?: number | null; model_qty?: number | null };
+
 export type TenderMapping = {
   lines: DraftLine[];
   /** Cost codes the BOQ carried that the workspace's list does not hold (those lines have no cost code until a person picks one). */
@@ -48,7 +51,7 @@ export function clientRateOf(rate: number, discountPct: number): number {
 export function mapTenderToBudget(args: {
   lines: readonly DealLine[];
   /** Only the cost code and item number of a BOQ row are read here; its cost is for Fill. */
-  boq: ReadonlyMap<string, Pick<BoqInfo, "item_no" | "cost_code">>;
+  boq: ReadonlyMap<string, Pick<BoqInfo, "item_no" | "cost_code"> & TenderElementInfo>;
   /** The workspace's cost-code list (active codes). */
   costCodes: ReadonlySet<string>;
 }): TenderMapping {
@@ -81,6 +84,11 @@ export function mapTenderToBudget(args: {
       client_rate: clientRate,
       client_amount: round2(qty * clientRate),
       source_line_id: l.id,
+      // The contracted quantity is the client's file quantity, frozen here; the element and the model's quantity travel with the line (0253).
+      client_qty: info?.file_qty != null ? Math.round(Number(info.file_qty) * 1000) / 1000 : qty,
+      element_type: info?.element_type ?? null,
+      element_code: info?.element_code ?? null,
+      model_qty: info?.model_qty != null ? Number(info.model_qty) : null,
     });
   }
   return { lines: out, unmappedCodes: [...unmapped].sort(), skipped };
@@ -101,13 +109,13 @@ export const projectNameFromDeal = (title: string): string => (title.trim() || "
 
 
 /** A tender WBS item as the copy reads it. */
-export type TenderWbsItem = TreeItem;
+export type TenderWbsItem = TreeItem & { building_code?: string | null };
 /** A row of the tender BOQ as the copy reads it: the deal line it belongs to, the item it sits in, and its shares when it is split. */
 export type TenderBoqMembership = { line_id: string | null; wbs_item_id: string | null; parts: { wbs_item_id: string; share_pct: number }[] };
 
 export type WbsCopyPlan = {
   /** In tree order, parents first. `new_id` is the project item's id; `parent` is the new id of its parent. */
-  items: { new_id: string; source_id: string; parent: string | null; code: string; name: string; owner_employee_id: string | null; code_is_manual: boolean; sort_order: number }[];
+  items: { new_id: string; source_id: string; parent: string | null; code: string; name: string; owner_employee_id: string | null; code_is_manual: boolean; sort_order: number; building_code: string | null }[];
   whole: { package: string; line_key: string; sort_order: number }[];
   parts: { package: string; line_key: string; share_pct: number; sort_order: number }[];
   /** The numbers the notice and the log entry say. */
@@ -128,7 +136,7 @@ export function mapTenderWbs(args: {
   const ids = new Map(args.items.map((i) => [i.id, args.newId()]));
   const items = treeOrder(args.items).map((i) => ({
     new_id: ids.get(i.id) as string, source_id: i.id, parent: i.parent_id ? ids.get(i.parent_id) ?? null : null, code: i.code, name: i.name,
-    owner_employee_id: i.owner_employee_id, code_is_manual: i.code_is_manual, sort_order: i.sort_order,
+    owner_employee_id: i.owner_employee_id, code_is_manual: i.code_is_manual, sort_order: i.sort_order, building_code: i.building_code ?? null,
   }));
   const byDealLine = new Map(args.boq.filter((b) => b.line_id).map((b) => [b.line_id as string, b]));
   const whole: WbsCopyPlan["whole"] = [];

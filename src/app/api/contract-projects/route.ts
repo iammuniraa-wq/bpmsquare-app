@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     const made = await createProject(req, {
       name: cleanName(body.name) ?? s.title, account_id: s.accountId, source_opportunity_id: s.opportunityId,
       source: { type: s.source.type, id: s.source.id, label: s.source.ref }, contract_value: s.contractValue, currency: s.currency,
-      planned_start: cleanDate(body.planned_start), planned_end: cleanDate(body.planned_end), manager_id: manager, lines: s.lines, budget_note: s.budgetNote,
+      planned_start: cleanDate(body.planned_start), planned_end: cleanDate(body.planned_end), manager_id: manager, lines: s.lines, budget_note: s.budgetNote, buildingLabels: s.buildingLabels,
     });
     if (!made.ok) return NextResponse.json({ error: made.error, ...(made.extra ?? {}) }, { status: made.status });
     return NextResponse.json({ id: made.project.id, ref: made.project.ref, revision_id: made.revisionId, source_type: s.source.type, lines: s.lines.length, skipped: s.skipped, budget_note: s.budgetNote }, { status: 201 });

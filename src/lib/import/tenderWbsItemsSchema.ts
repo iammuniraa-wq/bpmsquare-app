@@ -21,6 +21,8 @@ export const TENDER_WBS_ITEMS_SPEC: ObjectSpec = {
     { key: "parent_code", label: "Parent code", type: "text", hint: "Code of the item it sits under. Empty = top level. Up to three levels", aliases: ["parent", "parent wbs", "parent code", "under"] },
     { key: "owner_email", label: "Owner (email)", type: "email", hint: "Email of the employee who runs this part. Optional while bidding", aliases: ["owner", "owner email", "responsible", "manager"] },
     { key: "note", label: "Note", type: "longtext", hint: "Optional note, up to 1000 characters", aliases: ["notes", "remarks", "comment"] },
+    // Buildings (0253): a top-level item with a code is a building. Import and Update set it (the workspace needs the Buildings add-on); Export always writes it.
+    { key: "building_code", label: "Building code", type: "text", hint: "1 to 6 letters or digits (B01). Only on a top-level item; makes it a building. Empty = an ordinary item", aliases: ["building", "building code", "bldg", "bldg code"] },
     // Export-only: the roll-up of the item's lines and sub-items.
     { key: "lines", label: "Lines", type: "integer", exportOnly: true, hint: "BOQ lines in this item and its sub-items; a split line counts once for each share" },
     { key: "shared_lines", label: "Shared lines", type: "integer", exportOnly: true, hint: "Shares of split lines among them" },
@@ -33,4 +35,4 @@ export const TENDER_WBS_ITEMS_SPEC: ObjectSpec = {
 };
 
 /** What an Update file may change on an item. The tender is the parent and is not moved by a file. */
-export const TENDER_WBS_UPDATE_KEYS = ["name", "code", "parent_code", "owner_email", "note"] as const;
+export const TENDER_WBS_UPDATE_KEYS = ["name", "code", "parent_code", "owner_email", "note", "building_code"] as const;

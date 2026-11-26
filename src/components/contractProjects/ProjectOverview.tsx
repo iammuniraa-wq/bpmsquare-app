@@ -29,7 +29,7 @@ export function approvalActionDue(view: ProjectView): boolean {
  * the budget goes against the contract value, the buy-out progress, how the budget stands against the winning bid, and the project
  * details folded away. The headline figures sit once under the title; the origin sits in the page header.
  */
-export default function ProjectOverview({ view, editor, buyoutOn = false, originLinks = { quote: false, estimate: false, deal: false } }: { view: ProjectView; editor?: React.ReactNode; buyoutOn?: boolean; originLinks?: QuoteOriginLinks }) {
+export default function ProjectOverview({ view, editor, health, buyoutOn = false, originLinks = { quote: false, estimate: false, deal: false } }: { view: ProjectView; editor?: React.ReactNode; health?: React.ReactNode; buyoutOn?: boolean; originLinks?: QuoteOriginLinks }) {
   const { project: p, totals, revision } = view;
   const cur = p.currency;
   const tab = (t: string) => `${ROUTES.contractProject(p.id)}?tab=${t}`;
@@ -89,6 +89,8 @@ export default function ProjectOverview({ view, editor, buyoutOn = false, origin
           ))}
         </div>
       )}
+
+      {health}
 
       <Card title="Where the budget goes" info={PROJECT_TIPS.whereBudgetGoes} padding={16}>
         {totals.total <= 0 ? (

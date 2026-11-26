@@ -4,6 +4,12 @@ import { assertObjectFeature } from "@/lib/objectFeatures";
 import { fetchAllRows, nameKey, readImportBody } from "@/lib/import/server";
 import { boqDwGate } from "@/lib/import/tenderBoqServer";
 import { applyBoqLines, boqRequestFor, insertDwSource } from "@/lib/tender/boq/server";
+import { buildingsOn } from "@/lib/elements/server";
+import { cleanBuildingCode } from "@/lib/elements/pattern";
+import { setLineElement } from "@/lib/elements/tenderServer";
+import { assignLines, wbsCtx } from "@/lib/tender/wbs/server";
+import { loadItems } from "@/lib/tender/wbs/read";
+import { isLeaf } from "@/lib/wbs/tree";
 import { linesFromRows } from "@/lib/tender/boq/parse";
 import type { ImportResponse, RowOutcome } from "@/lib/import/types";
 
@@ -77,7 +83,32 @@ export async function POST(request: NextRequest) {
     const opened = await boqRequestFor(g.ctx, oppId, true);
     if (!opened.ok) { failAll(opened.status === 403 ? opened.error : "This tender could not be opened"); continue; }
 
-    const { lines, failed } = linesFromRows(group);
+    // The element and building columns (0253): checked BEFORE anything is written, so a row naming a building the tender does not have is refused
+    // whole ("add it in Tender WBS items first") rather than half applied.
+    const wantsElements = group.some((r) => ["element_type", "element_code", "model_qty", "building_code"].some((k) => r.values[k]?.trim()));
+    const elementsOn = wantsElements ? await buildingsOn(supabase, tenantId) : false;
+    const tenderItems = wantsElements && elementsOn ? (await loadItems(admin, tenantId, oppId)).items : [];
+    const accepted: Row[] = [];
+    const wanted = new Map<number, { element: Record<string, string>; itemId: string | null }>();
+    for (const r of group) {
+      const element: Record<string, string> = {};
+      for (const k of ["element_type", "element_code", "model_qty"] as const) if (r.values[k]?.trim()) element[k] = r.values[k].trim();
+      const bRaw = r.values.building_code?.trim() ?? "";
+      if (Object.keys(element).length === 0 && !bRaw) { accepted.push(r); continue; }
+      if (!elementsOn) { outcomes.push({ rowNum: r.rowNum, status: "failed", reason: "Buildings and element codes are not switched on for this workspace" }); continue; }
+      let itemId: string | null = null;
+      if (bRaw) {
+        const code = cleanBuildingCode(bRaw);
+        const item = code ? tenderItems.find((i) => i.building_code === code) : undefined;
+        if (!item) { outcomes.push({ rowNum: r.rowNum, status: "failed", reason: `Building ${bRaw} does not exist on this tender. Add it in Tender WBS items first` }); continue; }
+        if (!isLeaf(tenderItems, item.id)) { outcomes.push({ rowNum: r.rowNum, status: "failed", reason: `${item.building_code} has activities. Put the line in one of them with the WBS code on Update` }); continue; }
+        itemId = item.id;
+      }
+      wanted.set(r.rowNum, { element, itemId });
+      accepted.push(r);
+    }
+
+    const { lines, failed } = linesFromRows(accepted);
     outcomes.push(...failed);
     if (lines.length === 0) continue;
 
@@ -88,7 +119,29 @@ export async function POST(request: NextRequest) {
 
     const added = new Set(applied.diff.added.map((l) => l.key));
     const changed = new Set(applied.diff.changed.map((c) => c.key));
+
+    // The element fields and the building go on the lines just saved, found by their matching key, through the writers the screen uses.
+    const problem = new Map<number, string>();
+    if (wanted.size > 0) {
+      const { data: saved } = await admin.from("tender_boq_lines").select("id, item_key").eq("tenant_id", tenantId).eq("opportunity_id", oppId).in("item_key", lines.map((l) => l.key));
+      const idOf = new Map(((saved ?? []) as { id: string; item_key: string }[]).map((x) => [x.item_key, x.id]));
+      for (const l of lines) {
+        const w = wanted.get(l.row_no);
+        const id = idOf.get(l.key);
+        if (!w || !id) continue;
+        if (w.itemId) {
+          const put = await assignLines(wbsCtx(opened.req), [id], w.itemId);
+          if (!put.ok) { problem.set(l.row_no, put.error); continue; }
+        }
+        if (Object.keys(w.element).length > 0) {
+          const done = await setLineElement(opened.req, id, w.element);
+          if (!done.ok) problem.set(l.row_no, done.error);
+        }
+      }
+    }
     for (const l of lines) {
+      const bad = problem.get(l.row_no);
+      if (bad) { outcomes.push({ rowNum: l.row_no, status: "failed", reason: `The line was saved, but ${bad}` }); continue; }
       if (added.has(l.key)) outcomes.push({ rowNum: l.row_no, status: "inserted" });
       else if (changed.has(l.key)) outcomes.push({ rowNum: l.row_no, status: "skipped", reason: "Already on the tender — updated by item number" });
       else outcomes.push({ rowNum: l.row_no, status: "skipped", reason: "Already on the tender — unchanged" });

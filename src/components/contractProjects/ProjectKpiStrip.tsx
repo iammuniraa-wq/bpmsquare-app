@@ -22,7 +22,9 @@ export default function ProjectKpiStrip({ view, buyoutOn = false, initialBuyout 
 }) {
   const { project: p, totals, margin, revision } = view;
   const cur = p.currency;
-  const words = marginWords(margin, marginCoverage(view.lines));
+  // Cost and margin are granted (project_dashboards, finance_visibility "granted") and this person does not hold the grant: no margin figure here.
+  const hideMargin = view.hideMargin === true;
+  const words = hideMargin ? { value: "not shared with you", sub: null, partial: false } : marginWords(margin, marginCoverage(view.lines));
   return (
     <div style={{ marginBottom: 14 }}>
       <SettingsSection id="cp.key_figures" title="Key figures" defaultOpen defaultOpenNarrow={false} summary={`${money(p.contract_value, cur)} · margin ${words.partial ? "not complete" : words.value === "Not allocated yet" ? "not allocated yet" : words.value}`}>
@@ -35,11 +37,11 @@ export default function ProjectKpiStrip({ view, buyoutOn = false, initialBuyout 
               {buyoutOn && revision && <BudgetOrdered projectId={p.id} budget={totals.total} currency={cur} initial={initialBuyout} />}
             </>}
           />
-          <StatTile
+          {!hideMargin && <StatTile
             tone={words.partial ? "neutral" : marginTone(margin.state)} label="Planned margin" info={words.partial ? PROJECT_TIPS.marginPartial : PROJECT_TIPS.plannedMargin}
             value={words.value}
             sub={words.sub ?? (margin.pct === null ? "Needs a contract value" : margin.state === "none" ? "allocate a cost on the Budget tab" : money(margin.amount, cur))}
-          />
+          />}
         </StatStrip>
       </SettingsSection>
     </div>

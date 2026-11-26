@@ -9,6 +9,8 @@ import { boqRequestFor, editBoqLines, type EditBody } from "@/lib/tender/boq/ser
 import { wbsCtx } from "@/lib/tender/wbs/server";
 import { applyWbsCells } from "@/lib/import/tenderWbsServer";
 import { loadBoqRowsForApi } from "@/lib/tender/boq/apiRows";
+import { buildingsOn } from "@/lib/elements/server";
+import { setLineElement } from "@/lib/elements/tenderServer";
 import { parseNumber } from "@/lib/tender/boq/parse";
 import type { RowOutcome } from "@/lib/import/types";
 
@@ -55,7 +57,7 @@ export async function POST(request: NextRequest) {
   }
 
   const outcomes: RowOutcome[] = [];
-  type Item = { rowNum: number; id: string; values: Record<string, string>; body: EditBody; wbs: string | null };
+  type Item = { rowNum: number; id: string; values: Record<string, string>; body: EditBody; wbs: string | null; elem: Record<string, string> | null };
   const perTender = new Map<string, Item[]>();
 
   for (const { rowNum, values } of rows) {
@@ -75,8 +77,11 @@ export async function POST(request: NextRequest) {
     if (may("cost_code") && "cost_code" in values) body.cost_code = values.cost_code?.trim() || null;
     // The WBS cell: present (even empty) means the column is mapped; an empty cell is Unassigned.
     const wbs = may("wbs_code") && "wbs_code" in values ? values.wbs_code ?? "" : null;
-    if (Object.keys(body).length === 0 && wbs === null) { outcomes.push({ rowNum, status: "skipped", reason: "No mapped columns to update" }); continue; }
-    (perTender.get(oppId) ?? perTender.set(oppId, []).get(oppId)!).push({ rowNum, id, values, body, wbs });
+    // The element columns (0253): present (even empty) means mapped; an empty cell clears the field.
+    const elem: Record<string, string> = {};
+    for (const k of ["element_type", "element_code", "model_qty"] as const) if (may(k) && k in values) elem[k] = values[k] ?? "";
+    if (Object.keys(body).length === 0 && wbs === null && Object.keys(elem).length === 0) { outcomes.push({ rowNum, status: "skipped", reason: "No mapped columns to update" }); continue; }
+    (perTender.get(oppId) ?? perTender.set(oppId, []).get(oppId)!).push({ rowNum, id, values, body, wbs, elem: Object.keys(elem).length > 0 ? elem : null });
   }
 
   for (const [oppId, group] of perTender) {
@@ -91,6 +96,29 @@ export async function POST(request: NextRequest) {
     const wbsRows = group.filter((r) => r.wbs !== null);
     const wbsDone = wbsRows.length > 0 ? await applyWbsCells(wbsCtx(opened.req), wbsRows.map((r) => ({ boqId: r.id, cell: r.wbs as string }))) : [];
     const wbsOf = new Map(wbsRows.map((r, i) => [r, wbsDone[i]] as const));
+
+    // The element columns go through the writer the screen uses (setLineElement): the type list, the unique code, the one-building rule and the
+    // change log are the screen's. Only a value that differs from what the line has is sent, so an export loaded back is "No change".
+    const elemRows = group.filter((r) => r.elem !== null);
+    const elemOf = new Map<(typeof group)[number], { status: "updated" | "skipped" | "failed"; reason?: string }>();
+    if (elemRows.length > 0) {
+      const now = new Map((await loadBoqRowsForApi(admin, tenantId, oppId)).rows.map((x) => [String(x.id), x]));
+      const on = await buildingsOn(supabase, tenantId);
+      for (const r of elemRows) {
+        const have = now.get(r.id);
+        const delta: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(r.elem as Record<string, string>)) {
+          const cell = v.trim();
+          const was = have?.[k] === null || have?.[k] === undefined ? "" : String(have[k]);
+          const same = k === "model_qty" ? (cell === "" ? was === "" : Number(cell.replace(/,/g, "")) === Number(was || Number.NaN)) : cell.toUpperCase() === was.toUpperCase();
+          if (!same) delta[k] = cell === "" ? null : k === "model_qty" ? cell.replace(/,/g, "") : cell;
+        }
+        if (Object.keys(delta).length === 0) { elemOf.set(r, { status: "skipped" }); continue; }
+        if (!on) { elemOf.set(r, { status: "failed", reason: "Buildings and element codes are not switched on for this workspace" }); continue; }
+        const done = await setLineElement(opened.req, r.id, delta);
+        elemOf.set(r, done.ok ? { status: "updated" } : { status: "failed", reason: done.error });
+      }
+    }
 
     // The columns a file cannot change are only worth a word where they differ from what is there (an export carries them all).
     const wanted = group.some((r) => NOT_BY_FILE.some((k) => r.values[k]?.trim()));
@@ -118,7 +146,9 @@ export async function POST(request: NextRequest) {
         outcomes.push({ rowNum: r.rowNum, status: "failed", reason: `${w.reason}${o?.changed ? " (the other columns of this row were updated)" : ""}` });
         return;
       }
-      if (!o?.changed && w?.status !== "updated") outcomes.push({ rowNum: r.rowNum, status: "skipped", reason: noted ? `No change. ${noted}` : "No change" });
+      const e = elemOf.get(r);
+      if (e?.status === "failed") { outcomes.push({ rowNum: r.rowNum, status: "failed", reason: `${e.reason}${o?.changed || w?.status === "updated" ? " (the other columns of this row were updated)" : ""}` }); return; }
+      if (!o?.changed && w?.status !== "updated" && e?.status !== "updated") outcomes.push({ rowNum: r.rowNum, status: "skipped", reason: noted ? `No change. ${noted}` : "No change" });
       else outcomes.push({ rowNum: r.rowNum, status: "updated", ...(noted ? { reason: noted } : {}) });
     });
   }

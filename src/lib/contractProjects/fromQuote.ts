@@ -9,6 +9,7 @@ import { accountInTenant } from "@/lib/tender/server";
 import { round2 } from "./budget";
 import { mapTenderToBudget, type DealLine } from "./fromTender";
 import { UUID_RE, type Failure, type ProjectCtx } from "./server";
+import { cleanLabel, quoteElementType } from "@/lib/elements/fromQuote";
 import type { DraftLine } from "./types";
 
 // A contract project made from a quote that was accepted (docs/design/won-quote-to-project.md). The quote's CHARGED lines are the contract:
@@ -51,6 +52,8 @@ export type QuoteSource = {
   opportunityId: string | null;
   /** The estimate the quote was made from, when the request named one. */
   estimateId: string | null;
+  /** 0253: the building label a quote line carries, by the budget line's source_line_id. Becomes a building when the project is made. */
+  buildingLabels?: Record<string, string>;
 };
 
 type Row = Record<string, unknown>;
@@ -95,6 +98,17 @@ async function fromStandardQuote(admin: SupabaseClient, tenantId: string, id: st
   const { data: rows, error } = await readAllPages((lo, hi) => admin.from("standard_quote_lines").select("*").eq("standard_quote_id", id).eq("tenant_id", tenantId).order("sl_no").order("id", { ascending: true }).range(lo, hi));
   if (error) return { ok: false, status: 500, error: error.message };
   const mapped = quoteLinesToBudget((rows ?? []) as Row[]);
+  // The element type and the building label a quote line may carry (0253): the type goes on the budget line, the label becomes a building.
+  const buildingLabels: Record<string, string> = {};
+  const byId = new Map(((rows ?? []) as Row[]).map((r) => [String(r.id), r]));
+  for (const l of mapped.lines) {
+    const r = l.source_line_id ? byId.get(l.source_line_id) : undefined;
+    if (!r || !l.source_line_id) continue;
+    const type = quoteElementType(r.element_type);
+    if (type) l.element_type = type;
+    const label = cleanLabel(r.building);
+    if (label) buildingLabels[l.source_line_id] = label;
+  }
   const tenant = await getTenant();
   const stored = round2(num(quote.subtotal));
   const ref = str(quote.ref);
@@ -103,7 +117,7 @@ async function fromStandardQuote(admin: SupabaseClient, tenantId: string, id: st
     source: {
       title: projectTitle(await accountName(admin, tenantId, accountId), ref), accountId, currency: str(quote.currency) ?? resolveCurrency(tenant?.config).code,
       contractValue: stored > 0 ? stored : mapped.subtotal, lines: mapped.lines, unmappedCodes: [], skipped: mapped.skipped, budgetNote: QUOTE_BUDGET_NOTE,
-      source: { type: "standard_quote", id, ref }, opportunityId: await verifiedOpportunity(admin, tenantId, quote.opportunity_id), estimateId,
+      source: { type: "standard_quote", id, ref }, opportunityId: await verifiedOpportunity(admin, tenantId, quote.opportunity_id), estimateId, buildingLabels,
     },
   };
 }

@@ -12,6 +12,7 @@ import { CONSENTS_SPEC } from "@/lib/import/consentsSchema";
 import { STANDARD_QUOTE_LINES_SPEC } from "@/lib/import/standardQuoteLinesSchema";
 import { SALES_ORDER_LINES_SPEC } from "@/lib/import/salesOrderLinesSchema";
 import { TENDER_BOQ_LINES_SPEC } from "@/lib/import/tenderBoqLinesSchema";
+import { PROJECT_BUDGET_LINES_SPEC, PROJECT_WBS_ITEMS_SPEC } from "@/lib/import/projectElementsSchema";
 import { TENDER_WBS_ITEMS_SPEC } from "@/lib/import/tenderWbsItemsSchema";
 import { EMPLOYEES_SPEC, buildEmployeesSpec } from "@/lib/import/employeesSchema";
 import { requireWorkcenterView } from "@/lib/permissions";
@@ -34,6 +35,8 @@ const STATIC_SPECS: Partial<Record<ImportObjectId, ObjectSpec>> = {
   sales_order_lines: SALES_ORDER_LINES_SPEC,
   tender_boq_lines: TENDER_BOQ_LINES_SPEC,
   tender_wbs_items: TENDER_WBS_ITEMS_SPEC,
+  project_budget_lines: PROJECT_BUDGET_LINES_SPEC,
+  project_wbs_items: PROJECT_WBS_ITEMS_SPEC,
 };
 
 export default async function DataWorkbenchPage() {
@@ -49,6 +52,12 @@ export default async function DataWorkbenchPage() {
   if (objectOrder.includes("tender_wbs_items")) {
     const probe = await supabase.from("tender_wbs_items").select("id").eq("tenant_id", tenantId).limit(1);
     if (probe.error && (probe.error.code === "42P01" || probe.error.code === "PGRST205")) objectOrder = objectOrder.filter((id) => id !== "tender_wbs_items");
+  }
+
+  // Migration 0253 not applied yet: the project objects read columns that are not there, so they are not offered (nothing else changes).
+  if (objectOrder.includes("project_wbs_items") || objectOrder.includes("project_budget_lines")) {
+    const probe = await supabase.from("project_work_packages").select("building_code").eq("tenant_id", tenantId).limit(1);
+    if (probe.error && (probe.error.code === "42703" || probe.error.code === "42P01" || probe.error.code === "PGRST204" || probe.error.code === "PGRST205")) objectOrder = objectOrder.filter((id) => id !== "project_wbs_items" && id !== "project_budget_lines");
   }
 
   // Catalog order, not alphabetical: the picker groups by module and nests lines under their parent.

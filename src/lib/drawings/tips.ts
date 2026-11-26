@@ -1,0 +1,41 @@
+// The explanations the drawing register keeps behind an "i" (bpmsquarecore 6b). One place, so tips.test.ts holds every text to the InfoTip limit:
+// two sentences, 160 characters. The screens never print these as running text.
+
+export const DRAWING_TIPS = {
+  list: "Drawings with a number and revisions. Only a released revision can feed a bill of quantities, an estimate or a handover.",
+  drawingNo: "The number the ERP receives. It is fixed once a revision has been submitted, and unique in the workspace.",
+  externalNo: "The consultant's or client's own number for this drawing, kept for reference. It is not the number the ERP receives.",
+  type: "The type decides the numbering pattern, who may release, and what the drawing feeds. It is fixed once a revision has been submitted.",
+  filedUnder: "File the drawing under a tender, a project or both. A building comes from that tender's work breakdown.",
+  rail: "Each revision of this drawing, oldest first. Only one is released at a time; a new release supersedes the one before it.",
+  draft: "Prepared, with its file attached. Nobody else sees it as current until it is submitted and released.",
+  inReview: "Submitted and waiting for a named approver. The person who submitted it cannot release it when the type asks for a second person.",
+  released: "Signed off, and the revision that feeds the bill of quantities, estimates and the handover. It can never be edited.",
+  superseded: "An older release that a later one replaced. It stays on record for evidence.",
+  submit: "Needs a number, a revision label, a file or a loaded element schedule, and anything the type makes required.",
+  release: "Signs the revision off and supersedes the one before it, in one step. Only a named approver of the type can do it.",
+  returnToDraft: "Sends it back to be fixed. A reason is required so the preparer knows what to change.",
+  newRevision: "Starts the next revision as a draft. Only one revision can be open at a time.",
+  file: "PDF, DXF, DWG, IFC, Excel, CSV, PNG or JPG, up to 50 MB. SVG and HTML files are never accepted.",
+  fingerprint: "A fingerprint of the file is taken when it is uploaded and checked again when the revision is released.",
+  elements: "The quantities this revision declares, read from a schedule exported from the model. They are the basis of the comparison.",
+  schedule: "An Excel or CSV schedule with a column for the element code (Mark) and, ideally, count, volume and weight.",
+  perPiece: "Volume, area, length and weight are per piece. Totals multiply by the number of pieces.",
+  units: "The file did not state the unit of these columns. Check them before loading, because a wrong unit changes every quantity.",
+  weightCalculated: "Where the file has no weight it is worked out as volume times 2.5 tonnes per cubic metre and marked as calculated.",
+  saveMap: "Keeps the column choices on the drawing type, so the next schedule of this type loads without mapping.",
+  compare: "Matches elements by model id first, then by element code. An element with neither is listed as not matched and never guessed.",
+  effect: "The bill of quantities lines that take a quantity from this drawing, and what their model quantity would become. Nothing is changed here.",
+  usedBy: "The tender lines that take a quantity from this drawing. A later release flags them for review and changes nothing by itself.",
+  pin: "Takes the quantity from a code in the released revision. The client's own quantity is never changed; the two show side by side.",
+  reviewChanges: "A later revision was released. Apply it to take the new quantity, or keep the old one and say why.",
+  types: "A type is data your workspace edits: its numbering pattern, revision labels, approvers and what it feeds. There is no code per type.",
+  numbering: "For example {project}-{discipline}-{seq3}. {seq3} is three digits; any other word in braces is letters and digits.",
+  approvers: "People who may release this type. With none named, a workspace admin can release.",
+  secondPerson: "When on, the person who submitted a revision cannot release it. Keep it on unless one person does both jobs.",
+  feeds: "What a released drawing of this type may feed. A drawing of a type that feeds nothing is a record only.",
+  requiredFields: "Fields that must be filled before a revision of this type can be submitted.",
+  immutable: "A released revision is a record. If something is wrong, issue a new revision rather than editing it.",
+} as const;
+
+export type DrawingTipKey = keyof typeof DRAWING_TIPS;

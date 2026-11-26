@@ -13,11 +13,11 @@ export const REVISION_STATUS_LABEL: Record<RevisionStatus, string> = {
   draft: "Draft", pending: "Waiting for approval", approved: "Approved", superseded: "Superseded",
 };
 
-export const MASTER_KINDS = ["resource", "cost_code", "justification", "reserve_type", "division", "job_location"] as const;
+export const MASTER_KINDS = ["resource", "cost_code", "justification", "reserve_type", "division", "job_location", "element_type"] as const;
 export type MasterKind = (typeof MASTER_KINDS)[number];
 export const MASTER_KIND_LABEL: Record<MasterKind, string> = {
   resource: "Resource levels", cost_code: "Cost codes", justification: "Justification reasons",
-  reserve_type: "Reserve types", division: "Divisions", job_location: "Job locations",
+  reserve_type: "Reserve types", division: "Divisions", job_location: "Job locations", element_type: "Element types",
 };
 export const isMasterKind = (v: unknown): v is MasterKind => typeof v === "string" && (MASTER_KINDS as readonly string[]).includes(v);
 
@@ -172,6 +172,8 @@ export type ProjectRow = {
   handover_sent_at: string | null;
   /** 0240: allocate the budget by BOQ line or by WBS (stored as "package"). "line" while that migration is pending. */
   allocation_basis: AllocationBasis;
+  /** 0253: the element-code pattern the project issues in, frozen when its first code is issued. Null until then, and while 0253 is pending. */
+  element_pattern?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -220,6 +222,11 @@ export type BudgetLine = {
   client_rate: number | null;
   client_amount: number | null;
   source_line_id: string | null;
+  /** 0253. The element this contract line is: its type (a code from the Element types list), its unique code, the contracted quantity (frozen) and the model's. All null on a line that is not an element, and while 0253 is pending. */
+  element_type?: string | null;
+  element_code?: string | null;
+  client_qty?: number | null;
+  model_qty?: number | null;
 };
 
 /**
@@ -249,6 +256,11 @@ export type DraftLine = {
   client_rate?: number | null;
   client_amount?: number | null;
   source_line_id?: string | null;
+  /** 0253 (see BudgetLine). Absent = not an element; a budget save without them keeps what the line already has. */
+  element_type?: string | null;
+  element_code?: string | null;
+  client_qty?: number | null;
+  model_qty?: number | null;
 };
 
 /**
@@ -274,6 +286,8 @@ export type WorkPackageRow = {
   code_is_manual?: boolean;
   /** 0243. The shares of the budget lines split across items, by line_key. */
   line_parts?: { line_key: string; share_pct: number }[];
+  /** 0253. A level-1 item with a code is a building; null for every other item (and for every item while 0253 is pending). */
+  building_code?: string | null;
 };
 
 export const LINE_LIMITS = { maxLines: 5000, maxQty: 999_999_999, maxUnitCost: 999_999_999, maxAmount: 999_999_999_999 } as const;

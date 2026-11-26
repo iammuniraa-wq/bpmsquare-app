@@ -4,6 +4,7 @@
 import type { PillarKey } from "./theme";
 import type { CurrencyCode } from "./currency";
 import type { ScoringRubric } from "./marketing/scoring";
+import type { ContractElementsConfig } from "./elements/types";
 
 // The single shared app URL — every tenant without a `custom_domain` is reached here.
 // Hostnames other than this (and localhost, for dev) are resolved to a tenant via
@@ -138,7 +139,19 @@ export const ROUTES = {
   contractProjects: "/contract-projects",
   contractProject: (id: string) => `/contract-projects/${id}`,
   contractProjectNew: "/contract-projects/new",
+  siteHome: "/site",
+  siteExpenses: "/site-expenses",
+  siteExpense: (id: string) => `/site-expenses/${id}`,
+  siteExpenseNew: "/site/expense",
+  siteReceipts: "/site-receipts",
+  siteReceipt: (id: string) => `/site-receipts/${id}`,
+  siteReceiptNew: "/site/receipt",
+  settingsSite: "/settings/site",
   settingsContractProjects: "/settings/contract-projects",
+  drawings: "/drawings",
+  drawing: (id: string) => `/drawings/${id}`,
+  drawingNew: "/drawings/new",
+  settingsDrawingTypes: "/settings/drawing-types",
   employees: "/employees",
   configPricing: "/settings/pricing",
   settingsNumberRanges: "/settings/number-ranges",
@@ -337,6 +350,10 @@ export const NAV: NavGroup[] = [
           { label: "Sales Orders", href: ROUTES.salesOrders, icon: "▣", pillar: "blue", featureKey: "sales_orders", workcenterKey: "sales_orders" },
           { label: "Purchase Orders", href: ROUTES.purchaseOrders, icon: "⇱", pillar: "blue", featureKey: "purchasing", workcenterKey: "purchase_orders" },
           { label: "Contract Projects", href: ROUTES.contractProjects, icon: "▤", pillar: "blue", featureKey: "contract_projects", workcenterKey: "contract_projects" },
+          // Drawing register (0255): numbered drawings with revisions and a release; only Released feeds the BOQ, estimate and handover.
+          { label: "Drawings", href: ROUTES.drawings, icon: "◫", pillar: "blue", featureKey: "drawing_register", workcenterKey: "drawing_register" },
+          // Site receipt and Site expenses (0258, 0259): the phone home for site people, and the lists a manager approves from.
+          { label: "Site", href: ROUTES.siteHome, icon: "⌂", pillar: "blue", featureAnyOf: ["site_receipts", "site_expenses"], workcenterAnyOf: ["site_receipts", "site_expenses"] },
           { label: "Invoices",   href: ROUTES.invoices,   icon: "⊟", pillar: "blue", featureKey: "invoices", workcenterKey: "invoices" },
         ],
       },
@@ -839,6 +856,21 @@ export type TenantFeatures = {
   // handover stand-in. Not the Workforce "Projects". Platform-admin-only, default OFF; needs gcc_tender. With it off there is no
   // menu item, route, API answer or button on a deal, and the new tables are never queried.
   contract_projects: boolean;
+  // Buildings and element codes of contract projects (migration 0253, docs/design/pcbs-buildings-elements.md): a building is a level-1 WBS item with a code,
+  // an element is a contract line with a type, a unique code and a second (model) quantity, and a model comparison sets the drawings beside the budget.
+  // Platform-admin-only, default OFF; needs contract_projects. With it off no screen, route or API answer shows any of it.
+  contract_buildings: boolean;
+  // Drawing register (docs/design/pcbs-drawing-register.md): numbered drawings with append-only revisions, a status flow
+  // (draft, in review, released, superseded), release by named approvers, element schedules and a comparison of a new revision.
+  // Only a RELEASED revision feeds the BOQ, estimate and handover. Platform-admin-only, default OFF, missing key = false; with it off
+  // there is no menu item, route, API answer or button, and the new tables are never queried.
+  drawing_register: boolean;
+  // Site receipt and Site expenses (docs/design/pcbs-site-receipt-expenses.md): a person on site records, on a phone, what physically arrived
+  // (a receipt: evidence, no cost) and what they spent (an expense: a cost claim a manager approves, counted as recorded on its budget line).
+  // Two platform-admin-only flags, each default OFF, a missing key reads false: with them off there is no menu item, screen, tab, API answer
+  // or button. Both need contract_projects.
+  site_receipts: boolean;
+  site_expenses: boolean;
   // AI automation (docs/design/nova-crew-agents.md, section 3.1): the workcenter of pre-built agents. Three platform-admin-only
   // flags (set in /admin/tenants, never by a workspace admin), each default OFF, a missing key reads false, and none depends on
   // Nova or the dock assistant. `crew` = the page and the runner exist; `crew_tender_watch` needs gcc_tender + pipeline;
@@ -846,6 +878,10 @@ export type TenantFeatures = {
   crew: boolean;
   crew_tender_watch: boolean;
   crew_attendance: boolean;
+  // Project cost-to-complete and profitability dashboards (docs/design/pcbs-project-dashboards.md): the Health card on a contract project,
+  // its Forecast tab, four KPI tiles and three dashboard blocks, and a Reports table. Cost and margin are internal. Platform-admin-only,
+  // default OFF, a missing key reads false; needs `contract_projects`. The ERP half shows "Not connected" until a read-back lands.
+  project_dashboards: boolean;
 };
 
 // WfmConfig — tenant-level WFM (attendance) settings, stored in
@@ -1176,6 +1212,7 @@ export type AnalyticsMetricId =
   | "estimates_open"
   | "inbox_open"
   | "sales_orders_open"
+  | "drawings_waiting"
   | "abm_targets_engaged"
   | "wfm_attendance_today" | "wfm_night_shift_cost"
   | "wfm_corrections_queue" | "wfm_leave_requests_queue" | "wfm_recheck_queue"
@@ -1186,6 +1223,8 @@ export type AnalyticsMetricId =
   | "tender_open_pipeline" | "tender_weighted" | "tender_closing_soon" | "tender_win_rate" | "tender_buyout_committed"
   | "tender_by_stage" | "tender_closing_list" | "tender_won_lost" | "tender_by_client" | "tender_attention" | "tender_trend"
   | "tender_deadlines" | "tender_buyout"
+  // Project cost-to-complete and profitability (feature project_dashboards): four KPI tiles and three blocks, read from AnalyticsData.projectFinance.
+  | "pf_margin_at_risk" | "pf_forecast_margin" | "pf_cost_to_complete" | "pf_billing_behind" | "pf_portfolio" | "pf_cash"
   // The signed-in person's own daily briefing (assistant). Not a report metric: it is per person, not per workspace.
   | "my_briefing";
 
@@ -1341,7 +1380,16 @@ export type TenantConfig = {
   // `payment_term_templates`: a few named payment schedules (milestones as percent or fixed amount, each with a trigger text) chosen on a
   // tender's Bid tab and copied into the project's billing schedule. Read through src/lib/contractProjects/paymentTerms.ts; Settings > Contract projects.
   // `default_margin_pct` was removed 2026-10-29 (the budget is allocated by people, not guessed); a stored value is ignored.
-  contract_projects?: { default_margin_pct?: number; margin_floor_pct?: number; payment_term_templates?: PaymentTermTemplate[] };
+  contract_projects?: {
+    default_margin_pct?: number; margin_floor_pct?: number; payment_term_templates?: PaymentTermTemplate[];
+    // Cost and margin (project_dashboards). `finance_visibility`: "everyone" (default: anyone who can open Contract projects) or "granted"
+    // (admins, people holding the project_finance workcenter, and a project manager for their own projects). `finance_lights`: the three
+    // thresholds behind the health lights. Read through src/lib/projectFinance/settings.ts.
+    finance_visibility?: "everyone" | "granted"; finance_lights?: { drop_points?: number; cash_days?: number; late_pct?: number };
+  };
+  // Site receipt and Site expenses (Settings > Site; read through src/lib/site/config.ts). `pm_limit`: a project manager approves alone up to this
+  // amount in the project currency, above it only a cost approver may. `monthly_cap`: a person's approved and waiting total in a month above it is flagged.
+  site?: { pm_limit?: number | null; monthly_cap?: number | null };
   // E-invoicing scheme of the workspace (Region pack switch until the pack framework exists, einvoicing_ksa flag).
   // `scheme: null` switches the feature off even with the flag on; an absent key with the flag on means ksa_zatca.
   // `default_doc_type` is what a buyer without a VAT number gets (default simplified).
@@ -1519,6 +1567,9 @@ export type TenantConfig = {
   // tenant's own external source cards. Absent = every built-in card, default
   // order, no external sources.
   account_360?: Account360Config;
+  // Buildings and element codes of contract projects (migration 0253): the element-code pattern, the code length, the quantity tolerance and
+  // the words for the WBS levels. Read through resolveElementsSettings() in src/lib/elements/types.ts, never directly.
+  contract_elements?: ContractElementsConfig;
   /** Dashboard blocks that carry their own content rather than the tenant's
    * data (owner request 2026-09-20: "if the client is not using the system
    * there is no data to represent"). Both default OFF and are set by a

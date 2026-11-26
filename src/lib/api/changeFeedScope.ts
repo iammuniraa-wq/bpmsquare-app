@@ -36,6 +36,10 @@ const SCOPE_FOR_TYPE: Record<string, string> = {
   tender_wbs_items: "tenders", tender_wbs_line_parts: "tenders",
   // Contract projects (0226): budget totals and margin are internal cost, so the explicit "contract_projects" scope, never the wildcard.
   contract_projects: "contract_projects",
+  // Drawing register (0255): explicit "drawings" scope, never the wildcard. Its change entries name revisions and numbers, never a file path.
+  drawings: "drawings", drawing_types: "drawings",
+  // Site expenses and receipts (0258, 0259): internal cost and evidence, so the explicit scope of each, never the wildcard.
+  site_expenses: "site_expenses", site_receipts: "site_receipts",
   wfm_projects: "projects",
   abm_programs: "abm_programs", abm_program: "abm_programs",
   abm_target_accounts: "abm_targets", abm_buying_group_members: "abm_targets", abm_target: "abm_targets",
@@ -57,6 +61,8 @@ const INTERNAL_FIELDS: Record<string, ReadonlySet<string>> = {
 /** Fields of a type that are internal by their NAME: a BOQ row's typed unit cost is logged as "BOQ cost <item>", and "BOQ price all" carries the markup. */
 const INTERNAL_FIELD_PREFIXES: Record<string, readonly string[]> = {
   opportunity_tenders: ["BOQ cost ", "BOQ price all"],
+  // A project manager's typed estimate to go ("Forecast estimate to go (Material, 1.2)") is internal cost: never in the outbound feed.
+  contract_projects: ["Forecast "],
 };
 
 export function scopeForChangeType(objectType: string): string | null {

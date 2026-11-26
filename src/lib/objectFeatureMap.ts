@@ -127,6 +127,10 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   "contract-projects": "contract_projects",
   project_budget_revisions: "contract_projects",
   project_budget_lines: "contract_projects",
+  // Buildings and element codes (0253): owned by the module like the rest; the add-on (contract_buildings) is an extra flag the Data Workbench catalog
+  // names (alsoNeeds) and every route checks again.
+  project_wbs_items: "contract_projects",
+  project_elements: "contract_projects",
   erp_masters: "contract_projects",
   // After award: variations (0231) and invoicing milestones (0232) of a contract project. In-app routes only: they carry internal cost.
   contract_project_variations: "contract_projects",
@@ -139,6 +143,13 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   project_work_packages: "contract_projects",
   project_work_package_lines: "contract_projects",
   project_work_package_line_parts: "contract_projects",
+  // Site receipt and Site expenses (0258, 0259). Every spelling a surface uses: the tables, the Data Workbench routes and the v1 endpoints.
+  site_receipts: "site_receipts",
+  site_receipt_lines: "site_receipts",
+  "site-receipts": "site_receipts",
+  site_expenses: "site_expenses",
+  site_expense_categories: "site_expenses",
+  "site-expenses": "site_expenses",
   // Supplier groups (0233): a client's approved vendor list. In-app routes only; the Suppliers module owns them (the routes also need gcc_tender).
   supplier_groups: "suppliers",
   supplier_group_members: "suppliers",
@@ -171,6 +182,11 @@ export const OBJECT_FEATURE: Record<string, keyof TenantFeatures | null> = {
   sales_orders: "sales_orders",
   sales_order_lines: "sales_orders",
   "sales-orders": "sales_orders",
+  // Drawing register (0255-0257): every spelling a surface uses (tables, the Data Workbench family, the v1 endpoint). Platform-admin flag.
+  drawings: "drawing_register",
+  drawing_types: "drawing_register",
+  drawing_revisions: "drawing_register",
+  drawing_revision_elements: "drawing_register",
   suppliers: "suppliers",
   work_orders: "work_orders",
   "work-orders": "work_orders",

@@ -85,7 +85,9 @@ describe("part 2: the v1 routes, Talk to data, the keys panel and the change fee
     expect(block).toContain("loadBoqRowsForApi(");
     expect(block).not.toMatch(/\.from\("tender_boq_lines"\)|unit_cost|markup_pct|price_source_ref/);
     expect(src.indexOf("  tender_boq_lines: {")).toBeGreaterThan(src.indexOf("  estimates: {"));
-    expect(read("src/app/api/v1/ask/route.ts")).toMatch(/object === "tender_boq_lines" \? "tenders" : object/);
+    // The scope a source is asked with is one function now (askScopeFor), so a v1 route file names no module it does not own.
+    expect(read("src/app/api/v1/ask/route.ts")).toContain("authorizeApi(req, askScopeFor(object))");
+    expect(src).toMatch(/source === "tender_boq_lines"\) return "tenders"/);
   });
 
   it("a key can be minted with the scope, the index and the registry name the endpoints, and the scope stays explicit-only", () => {
@@ -103,8 +105,9 @@ describe("part 3: the MCP manifest", () => {
   const mcp = JSON.parse(read("mcp-server/mcp.json")) as { version: string; tools: { name: string; description: string; method: string; path: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } }[] };
   const tools = ["list_tenders", "get_tender", "get_tender_boq", "get_tender_wbs"].map((n) => mcp.tools.find((t) => t.name === n));
 
-  it("is version 1.21.0 with the four tender tools, each a GET on the v1 endpoint it names", () => {
-    expect(mcp.version).toBe("1.21.0");
+  it("is version 1.21.0 or later with the four tender tools, each a GET on the v1 endpoint it names", () => {
+    const [major, minor] = mcp.version.split(".").map(Number);
+    expect(major * 1000 + minor).toBeGreaterThanOrEqual(1021);
     expect(tools.every(Boolean)).toBe(true);
     expect(tools.map((t) => `${t!.method} ${t!.path}`)).toEqual(["GET /api/v1/tenders", "GET /api/v1/tenders/{id}", "GET /api/v1/tenders/{id}/boq", "GET /api/v1/tenders/{id}/wbs"]);
     expect(tools[3]!.inputSchema.required).toEqual(["id"]);

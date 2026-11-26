@@ -241,6 +241,22 @@
       "comment": "Contract projects, slice 5a of the same design (docs/design/gcc-tender-deals.md section 15): the project a won tender becomes, with its cost budget by resource type and cost code, numbered revisions with a reason, a mana"
     },
     {
+      "key": "contract_buildings",
+      "comment": "Buildings and element codes of contract projects (migration 0253, docs/design/pcbs-buildings-elements.md): a building is a level-1 WBS item with a code, an element is a contract line with a type, a unique code and a seco"
+    },
+    {
+      "key": "drawing_register",
+      "comment": "Drawing register (docs/design/pcbs-drawing-register.md): numbered drawings with append-only revisions, a status flow (draft, in review, released, superseded), release by named approvers, element schedules and a compariso"
+    },
+    {
+      "key": "site_receipts",
+      "comment": "Site receipt and Site expenses (docs/design/pcbs-site-receipt-expenses.md): a person on site records, on a phone, what physically arrived (a receipt: evidence, no cost) and what they spent (an expense: a cost claim a man"
+    },
+    {
+      "key": "site_expenses",
+      "comment": ""
+    },
+    {
       "key": "crew",
       "comment": "AI automation (docs/design/nova-crew-agents.md, section 3.1): the workcenter of pre-built agents."
     },
@@ -251,6 +267,10 @@
     {
       "key": "crew_attendance",
       "comment": ""
+    },
+    {
+      "key": "project_dashboards",
+      "comment": "Project cost-to-complete and profitability dashboards (docs/design/pcbs-project-dashboards.md): the Health card on a contract project, its Forecast tab, four KPI tiles and three dashboard blocks, and a Reports table."
     }
   ],
   "extensionHooks": [
@@ -284,7 +304,7 @@
     }
   ],
   "mcp": {
-    "version": "1.21.0",
+    "version": "1.22.0",
     "tools": [
       {
         "name": "list_accounts",
@@ -391,6 +411,22 @@
         "description": "Fetch one sales order by id with its lines (description, printed text, quantity, unit price, discount, tax, line total, requested date, and the confirmed quantity and date with where that answer came from: the ERP or mas"
       },
       {
+        "name": "list_site_expenses",
+        "description": "List the tenant's site expenses (the Site expenses module): ref, project, date, amount, currency, vendor, invoice number, status (submitted, approved, rejected, cancelled), who paid, whether the invoice is still to follo"
+      },
+      {
+        "name": "get_site_expense",
+        "description": "Fetch one site expense by id: the header fields, the VAT, the amount in the project currency and the posted amount."
+      },
+      {
+        "name": "list_site_receipts",
+        "description": "List the tenant's site receipts (the Site receipts module): ref, project, delivery note, outcome (complete, partial, rejected), received time, driver, vehicle and ERP state."
+      },
+      {
+        "name": "get_site_receipt",
+        "description": "Fetch one site receipt by id with its items: description, element code, building, expected, received, accepted and rejected quantity, condition and reason."
+      },
+      {
         "name": "list_estimates",
         "description": "List the tenant's project estimates: ref, name, status, customer, the template used and the price quoted to the customer before and after tax."
       },
@@ -423,6 +459,14 @@
         "description": "Get one employee record by id, including any tenant-defined custom fields."
       },
       {
+        "name": "list_drawings",
+        "description": "List the tenant's engineering drawings with their RELEASED revision: id, ref, drawing number, external number, title, type, whether a revision is released, its label and release date, effective date, and the tender or pr"
+      },
+      {
+        "name": "get_drawing",
+        "description": "Fetch one drawing by id with its released revision."
+      },
+      {
         "name": "list_tenders",
         "description": "List the tenant's tender deals: deal id and ref, title, customer, tender number, issuer, portal, bid end date, bid guarantee, change requests, go / no-go decision, stage, outcome and amount."
       },
@@ -436,7 +480,15 @@
       },
       {
         "name": "get_tender_wbs",
-        "description": "The WBS (work breakdown structure) of one tender, one row per item in tree order and paged: code, name, parent, level (up to three), the owner's name, the number of BOQ lines, shared (split) lines and priced lines and th"
+        "description": "The WBS (work breakdown structure) of one tender, one row per item in tree order and paged: code, name, parent, level (up to three), the owner's name, building_code (set on a top-level item that is a building), the numbe"
+      },
+      {
+        "name": "list_contract_projects",
+        "description": "List the tenant's contract projects, header only and paged: reference, name, status, source (tender, standard_quote, quotation, estimate, manual), customer, contract value, currency, planned end, and a link to the projec"
+      },
+      {
+        "name": "get_project_elements",
+        "description": "The elements of one contract project, one row per budget line of its current revision (the open draft, else the approved one) that is an element or sits in a building, paged: building_code, element_type, element_code (un"
       }
     ]
   },
@@ -547,6 +599,21 @@
         "A contact belongs to an account and can be chosen on a quote or a case."
       ]
     },
+    "contract_buildings": {
+      "status": "experimental",
+      "plain": "Buildings and element codes. Buildings as top-level WBS items, an element type and a unique element code on each contract line, the client's quantity beside the model's, and a model comparison that never overwrites an approved budget. An add-on of Contract projects.",
+      "rules": [
+        "A building is a top-level WBS item with a code of 1 to 6 letters or digits, unique on the tender or project; its activities sit under it and its lines roll up into it. A line's building is the building of the WBS item it sits in, never stored a second time.",
+        "An element is a contract line with an element type from the workspace's Element types list (Settings, Contract projects) and a unique element code. The code is issued from a pattern (default building, type and a four-digit running number), by one button that previews first, skips lines that already have a code and never reuses a number; a code the client typed is kept as typed and only flagged when it falls outside the pattern.",
+        "A project freezes the pattern with its first issued code, so changing the workspace pattern changes only new projects. Renaming a building changes nothing issued; changing a building code under issued codes is refused unless the codes are reissued, which is allowed only before the baseline is approved and before anything reaches the ERP.",
+        "A line that carries an element code cannot be split across buildings, and a cost-only category line never carries a code of its own.",
+        "The client quantity is the contracted number, copied from the tender when the project is made and then frozen; the model quantity sits beside it. The budget uses the model quantity only once a person accepts it into the line, and the contract side (client rate and amount) never moves with it.",
+        "A model comparison arrives as an Excel or CSV file, or from a connector, and is matched against the budget: Same, Quantity changed, New element, New building, and what the budget has that the model does not mention (flagged, never deleted or zeroed). Nothing changes until rows are ticked and applied, and then only a draft revision is written: revision 0 before the baseline is approved, otherwise a new draft revision with a reason from the list.",
+        "Element codes can be issued on a tender and travel to the project with the lines; a quote's lines may carry an element type and a free building label that become buildings when the project is made.",
+        "The handover Excel gains the building and element columns and a Buildings sheet; Data Workbench has Project WBS items and Project budget lines; the v1 API has the contract projects list and each project's elements, with no cost or margin.",
+        "The flag is set by a platform admin and needs Contract projects; a workspace without it sees no Buildings section, no Model comparison, no Element types list and no new column anywhere."
+      ]
+    },
     "contract_projects": {
       "status": "experimental",
       "plain": "Contract projects. The project a won tender becomes, with a cost budget by resource type and cost code, numbered revisions with a reason, a baseline a manager approves, and an Excel file for handing it over. Not the Workforce projects.",
@@ -640,6 +707,21 @@
       "status": "live",
       "plain": "Plan which technician goes where and when.",
       "rules": []
+    },
+    "drawing_register": {
+      "status": "experimental",
+      "plain": "Numbered engineering drawings with revisions A, B, C, a release signed by a named approver, and a comparison when a new revision arrives. Only a released revision can feed a bill of quantities or a handover.",
+      "rules": [
+        "A revision moves draft, in review, released, then superseded when a later one is released. A released revision is a record: its file, label and number never change, and a mistake is fixed by a new revision.",
+        "Who may release is set per drawing type (Settings, Drawing types): the named approvers, or a workspace admin when none are named. When the type asks for a second person, the person who submitted a revision cannot release it.",
+        "Files go to a private store and are opened only through a short-lived link after a workspace check. SVG and HTML files are refused whatever they are called, and a file's fingerprint is checked again when the revision is released.",
+        "Elements are read from an Excel or CSV schedule exported from the model. A unit the file does not state must be confirmed before it loads; a missing weight is worked out from the volume and marked as calculated. Reading IFC models is not built yet.",
+        "A new revision is compared with the last release by model id, then by element code; elements with neither are listed and never guessed.",
+        "A tender bill of quantities line can take a quantity from a released revision. It sits beside the client's own quantity, which is never changed. A later release flags the line for review and changes nothing by itself: a person applies it, or keeps the old quantity and says why.",
+        "The project baseline cannot be asked for while a bill of quantities line still carries a quantity from an older revision. The handover Excel has a Drawings sheet of released elements.",
+        "A connector can never release. Nothing is sent to the ERP yet: the F&O interface and a link to Autodesk's cloud are not built.",
+        "The flag is set by a platform admin; a workspace without it sees no menu entry, screen, button or API answer, and the new tables are never read."
+      ]
     },
     "einvoicing_ksa": {
       "status": "live",
@@ -906,6 +988,17 @@
       "plain": "A product catalogue with prices and categories; a product can be a kit with a multi-level bill of materials and a cost roll-up.",
       "rules": []
     },
+    "project_dashboards": {
+      "status": "live",
+      "plain": "Project cost and profitability dashboards. A Health card on each contract project (margin, cash and delivery lights, with their words), a Forecast tab (cost against budget, cost by category with the project manager's estimate to go, and the margin bridge), six dashboard blocks and a Reports table. The planned half works from the budget, client changes, billing plan and buy-out; every figure that needs the ERP says Not connected until a cost read-back exists.",
+      "rules": [
+        "It needs Contract projects and is switched on per workspace by the platform admin; with it off nothing changes on any screen.",
+        "Cost and margin are internal: who sees them is a workspace setting (everyone who can open Contract projects, or only admins, people granted Project cost and margin, and a project's own manager), and it is enforced where the figures are made.",
+        "A figure that needs the ERP is never shown as 0: it says Not connected with one next step, and a real 0 appears only after a read-back that held nothing.",
+        "The estimate to go is typed by the project manager per cost cell (WBS item and resource type); an empty box means the budget is assumed to hold, and that share of the forecast is always shown as an estimate.",
+        "Cost and margin never appear on the API, MCP, Data Workbench, Talk to data, the outbound change feed or a customer document."
+      ]
+    },
     "purchasing": {
       "status": "live",
       "plain": "Purchase orders to suppliers, receiving, and inventory records of the stock you hold.",
@@ -951,6 +1044,35 @@
         "Check with ERP asks the connected ERP for credit, price and stock and saves nothing in it; Send to ERP is a separate step, and a send never makes a second order in the ERP.",
         "With SAP S/4HANA the check is SAP's own order simulation, every line must be a catalogue product that exists in SAP, and the customer's coverage must have a sales area on the Mapping tab.",
         "An order read from the ERP, or accepted by it, is read-only here; its status, deliveries and invoices follow the ERP."
+      ]
+    },
+    "site_expenses": {
+      "status": "experimental",
+      "plain": "A person on site photographs a receipt on a phone, picks a category and submits; the project manager approves it and it counts as recorded cost on its budget line at once, then goes to the ERP as a proposal finance posts.",
+      "rules": [
+        "The photo is the form: the phone opens the camera first, the person picks a category and the project and presses Submit; the amount, date and vendor may be read from the photo and are only a proposal the person checks.",
+        "An expense can be saved with no signal and uploads when the phone is back online; sending it twice never makes two expenses, and a rejected one stays visible on the phone with the reason.",
+        "A waiting expense is exposure, not cost; an approved one counts as recorded on its budget line at once, and a posted one replaces the recorded amount with the posted one, never both. The budget line's own Actual column stays the ERP's figure.",
+        "The project manager approves within a limit set in Settings, a cost approver (the same people as a bid decision) approves anything, and nobody approves their own expense unless the workspace allows self-approval; returning an expense needs a reason.",
+        "A possible duplicate (same amount, vendor and project within 60 days, or the same photo), an amount over a limit or a monthly cap, and a missing cost line are shown as warnings and never block.",
+        "A site person never sees budget figures; a manager sees the expense against its budget line.",
+        "A foreign-currency expense is entered in the project currency by the approver; the VAT amount is captured and the cost counts as typed.",
+        "Nothing is posted to a ledger and no vendor or category is created in the ERP: approved expenses leave as a daily Excel register that the person who uploads it marks as sent.",
+        "Switched on per workspace by a platform admin and needs Contract projects; until then there is no menu item, route, tab or button."
+      ]
+    },
+    "site_receipts": {
+      "status": "experimental",
+      "plain": "A person on site confirms on a phone what physically arrived: pick the delivery, count the items, record short, damaged or rejected pieces with a reason and photos, and confirm. A receipt is evidence and creates no cost.",
+      "rules": [
+        "A receipt takes three steps on a phone: pick the delivery (a buy-out package or something else), check the items starting from All OK, then confirm with the receiver's name, the driver and vehicle, an optional signature and photos.",
+        "Accepted plus rejected equals received; a reason is required when an item is short, over, rejected or not in good condition, and more than expected is flagged and never blocked.",
+        "A confirmed receipt cannot be changed; a manager cancels it with a reason and the site person enters it again, and both are logged.",
+        "A second truck for the same delivery note is a second receipt, and the note shows the balance.",
+        "Any shortfall, rejection or damage tells the project manager by e-mail and in the Nova inbox.",
+        "Each buy-out package shows what was awarded, the value received on site (accepted quantity times the awarded rate) and what is still to receive; it is named Received on site and never progress or installed.",
+        "A receipt works with or without the element master: the element code and building are plain text until that master exists.",
+        "Switched on per workspace by a platform admin and needs Contract projects; until then there is no menu item, route, tab or button."
       ]
     },
     "spectacular_theme": {

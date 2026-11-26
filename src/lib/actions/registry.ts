@@ -190,10 +190,15 @@ export const actionFor = (object: string): CreateActionDef | undefined => ACTION
  * decision, not an oversight) and when an entry here no longer has a POST (so the list cannot rot).
  */
 export const DEFERRED: Record<string, string> = {
+  // Buildings and element codes (0253) have no create_record card, by decision: a building is made on the project's or the tender's WBS tab (Add building) and an
+  // element is two fields and a code on a line that already exists (Issue codes previews first), so there is nothing to create from a sentence. Its routes are
+  // nested under contract-projects and opportunities, which is why it has no entry of its own here.
   // Business objects: next in line, each needs its own required links or lines worked out first.
   assets: "needs an owning account and technical fields; next in line",
   cases: "needs an account and assets; next in line after accounts and contacts",
   estimates: "born from a template; the Estimator stays the way in",
+  "site-expenses": "a cost claim needs the receipt photo and an approval by a project manager; the phone flow stays the way in, and the assistant reads expenses through Talk to data",
+  "site-receipts": "a delivery confirmation is evidence with a count, photos and the receiver's name; the phone flow stays the way in, and the assistant reads receipts through Talk to data",
   "fence-projects": "has a site, lines and pricing; the project screens stay the way in",
   inventory: "unique SKU and stock rules; next in line",
   "work-orders": "created from a case with its authorisation (quote or contract); the Create work order action on the case stays the way in",
@@ -207,6 +212,7 @@ export const DEFERRED: Record<string, string> = {
   "sales-orders": "made from an accepted quote or a won deal with its lines and prices copied; Create sales order on the quote stays the way in, and the assistant reads orders through Talk to data",
   "sales-order-types": "settings for Sales Orders",
   "contract-projects": "made from an awarded tender with its lines and costs copied, and its budget is approved by a manager; Create contract project on the awarded deal stays the way in, and the assistant reads projects (header and totals only) through Talk to data",
+  drawings: "a drawing needs its file, and a revision is released by a named approver, never from a chat; the register and Add a drawing stay the way in, and the assistant reads drawings (released revisions only) through Talk to data",
   "supplier-groups": "a client's approved vendor list in a workspace with the tender edition; set up from the Groups tab in Suppliers, which also holds the members",
   technicians: "linked to a login and skills; set up from the Technicians screen",
   // Marketing and studios: configuration-heavy, not a typed record.

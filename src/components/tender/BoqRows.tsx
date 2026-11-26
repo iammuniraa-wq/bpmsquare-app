@@ -26,6 +26,8 @@ export type BoqRow = {
   details?: string | null; client_data?: Record<string, string> | null;
   /** The WBS item the line sits in, or its shares when it is split across items (0243). Absent when the tender has no WBS. */
   wbs_item_id?: string | null; wbs_parts?: readonly Share[];
+  /** A quantity taken from a released drawing (drawing register): the chip's words, and whether a later release waits for review. */
+  drawing_chip?: string | null; drawing_review?: boolean;
 };
 
 /** What the WBS adds to the table (docs/design/wbs.md section 3a): a tick box per row, a WBS column, a Split button, and the parts of a split line. */
@@ -47,7 +49,7 @@ export type WbsColumn = {
 export const money = (n: number | null | undefined) => (n == null ? "–" : n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const qtyText = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 3 });
 
-const CHIP_TONE: Record<Chip["kind"], PillarKey> = { estimate: "purple", rfq: "blue", unpriced: "red", stale: "amber", changed: "amber" };
+const CHIP_TONE: Record<Chip["kind"], PillarKey> = { estimate: "purple", rfq: "blue", unpriced: "red", stale: "amber", changed: "amber", drawing: "teal", drawing_review: "amber" };
 
 /** `tips` is off inside a card: the whole card is a button and an "i" cannot sit inside another button. */
 export function RowChips({ row, links, tips = true }: { row: BoqRow; links: readonly EstimateLinkLike[]; tips?: boolean }) {

@@ -27,10 +27,17 @@ const SCOPABLE_OBJECTS = [
   { key: "abm_programs", label: "ABM programs" },
   { key: "standard_quotes", label: "Standard Quotes" },
   { key: "sales_orders", label: "Sales Orders" },
+  // Internal cost and delivery evidence: explicit scope only.
+  { key: "site_expenses", label: "Site expenses (internal cost)" },
+  { key: "site_receipts", label: "Site receipts (deliveries)" },
   // Buying groups name people and their role: explicit scope only.
   { key: "abm_targets", label: "ABM target accounts (buying-group roles)" },
+  // Numbers, revisions and where each drawing is filed: project IP, explicit scope only.
+  { key: "drawings", label: "Drawings (released revisions)" },
   // Bids, bond amounts and the rates we bid (no costs): explicit scope only, like employees.
   { key: "tenders", label: "Tenders (bids and BOQ rates, no costs)" },
+  // The buildings and element codes of a contract project (client and model quantities, no costs): explicit scope only.
+  { key: "contract_projects", label: "Contract projects (buildings and elements, no costs)" },
   // Staff personal data: a key reaches it ONLY by naming it here, never via
   // the all-objects wildcard (see EXPLICIT_SCOPE_ONLY in api/v1/_auth.ts).
   { key: "employees", label: "Employees (staff data)" },
