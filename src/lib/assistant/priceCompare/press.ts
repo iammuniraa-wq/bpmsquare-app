@@ -9,6 +9,8 @@ import { hashOf, verifyToken } from "@/lib/actions/token";
 import { runVia } from "@/lib/actions/via";
 import { awardDecision, cleanReason } from "@/lib/rfq/comparison";
 import { parseMarkup } from "@/lib/tender/costing/rules";
+import { cleanGateReason } from "@/lib/suppliers/check/awardGate";
+import { enforceAwardGate } from "@/lib/suppliers/check/awardGateServer";
 import type { NextStep } from "@/lib/assistant/cards";
 import { latestAnswers, usableUnit } from "./compute";
 import { loadRfqData, type RfqHead } from "./load";
@@ -30,7 +32,7 @@ export type PressCtx = {
   now?: number;
 };
 
-export type PressBody = { card_id?: unknown; token?: unknown; plan?: unknown; reason?: unknown; replace?: unknown; markup_pct?: unknown };
+export type PressBody = { card_id?: unknown; token?: unknown; plan?: unknown; reason?: unknown; replace?: unknown; markup_pct?: unknown; supplier_check_reason?: unknown; supplier_check_ack?: unknown };
 export type PressOutcome = { status: number; body: Record<string, unknown> };
 export type RouteCall = { status: number; json: Record<string, unknown> };
 
@@ -56,7 +58,7 @@ async function callAwardRoute(plan: AwardPlan, body: Record<string, unknown>, ba
  * line five would otherwise leave four awarded. The answers behind the plan are read again now: one that has changed or gone since the card was
  * shown is a stale card, not an award of something the person did not see.
  */
-async function precheck(ctx: PressCtx, plan: AwardPlan, a: { reason: string | null; replace: boolean }): Promise<PressOutcome | null> {
+async function precheck(ctx: PressCtx, plan: AwardPlan, a: { reason: string | null; replace: boolean; checkReason: unknown; checkAck: unknown }): Promise<PressOutcome | null> {
   let data;
   try {
     const { data: head } = await ctx.admin.from("rfqs").select("id, ref, title, status, origin_type, origin_id, respond_by").eq("id", plan.rfqId).eq("tenant_id", ctx.tenantId).maybeSingle();
@@ -86,6 +88,9 @@ async function precheck(ctx: PressCtx, plan: AwardPlan, a: { reason: string | nu
   if (taken.length && !a.replace) {
     return refuse(409, "already_awarded", `Item ${taken.join(", ")} already ${taken.length === 1 ? "has" : "have"} an award. Tick the box to replace it.`, { items: taken });
   }
+  const supplierIds = plan.targets.map((t) => data.suppliers.find((s) => s.id === t.rfqSupplierId)?.supplierId ?? "").filter(Boolean);
+  const gate = await enforceAwardGate(ctx.admin, ctx.tenantId, supplierIds, { reason: a.checkReason, ack: a.checkAck });
+  if (!gate.ok) return refuse(gate.status === 503 ? 502 : gate.status, gate.code, gate.error, gate.extra);
   return null;
 }
 
@@ -117,8 +122,10 @@ export async function pressAward(ctx: PressCtx, body: PressBody, deps: PressDeps
   if (markup === null && body.markup_pct !== undefined && body.markup_pct !== null && body.markup_pct !== "") return refuse(422, "markup", "Markup must be a number from 0 to 1000.");
   const reason = cleanReason(body.reason);
   const replace = body.replace === true;
+  const checkReason = cleanGateReason(body.supplier_check_reason);
+  const checkAck = body.supplier_check_ack === true;
 
-  const early = await precheck(ctx, plan, { reason, replace });
+  const early = await precheck(ctx, plan, { reason, replace, checkReason, checkAck });
   if (early) return early;
 
   const claim = await claimCard(ctx.admin, {
@@ -140,7 +147,10 @@ export async function pressAward(ctx: PressCtx, body: PressBody, deps: PressDeps
   try {
     await runVia("assistant", async () => {
       for (const t of plan.targets) {
-        const common = { line_id: t.lineId, response_id: t.responseId, ...(reason ? { reason } : {}), ...(replace ? { replace: true } : {}) };
+        const common = {
+          line_id: t.lineId, response_id: t.responseId, ...(reason ? { reason } : {}), ...(replace ? { replace: true } : {}),
+          ...(checkReason ? { supplier_check_reason: checkReason } : {}), ...(checkAck ? { supplier_check_ack: true } : {}),
+        };
         const payload = plan.route === "tender" ? { rfq_id: plan.rfqId, ...common, ...(markup !== null ? { markup_pct: markup } : {}) } : common;
         let res: RouteCall;
         try {

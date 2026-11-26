@@ -176,3 +176,30 @@ describe("source hygiene", () => {
     expect(src).not.toMatch(/\brgba?\(/);
   });
 });
+
+describe("the award card on a flagged supplier", () => {
+  const flagged = (verdict: "check_first" | "concerning") => [{ supplierId: "5a000000-0000-4000-8000-000000000001", name: "Beta Trading", verdict, findings: ["Shares a bank account with Other Co", "No tax number on file"], checkedAt: "2026-11-20T00:00:00Z" }];
+  const press = /<button[^>]*disabled=""[^>]*data-guide="assistant.price.award.press"|<button[^>]*data-guide="assistant.price.award.press"[^>]*disabled=""/;
+
+  it("shows the amber warning with the two findings and the link, and the button cannot be pressed until the reason is typed", () => {
+    const o = view(awardCard({ supplierChecks: flagged("check_first") }));
+    expect(o).toContain('data-guide="award.check.warning"');
+    expect(o).toContain("is marked <b>Check first</b> in your Supplier check: Shares a bank account with Other Co. No tax number on file.");
+    expect(o).toContain('href="/suppliers/5a000000-0000-4000-8000-000000000001?tab=check"');
+    expect(o).toContain("Reason for awarding anyway");
+    expect(o).not.toContain('data-guide="award.check.ack"');
+    expect(o).toMatch(press);
+  });
+
+  it("a concerning supplier also shows the tick", () => {
+    const o = view(awardCard({ supplierChecks: flagged("concerning") }));
+    expect(o).toContain("I have reviewed the findings");
+    expect(o).toMatch(press);
+  });
+
+  it("an unflagged card shows nothing of it and stays pressable", () => {
+    const o = view(awardCard({ supplierChecks: [] }));
+    expect(o).not.toContain("award.check");
+    expect(o).not.toMatch(press);
+  });
+});

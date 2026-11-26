@@ -672,3 +672,73 @@ describe("price_check on a tender's bill of quantities", () => {
     expect(JSON.stringify(s.params[1].messages)).toContain("no bill of quantities uploaded yet");
   });
 });
+
+describe("the award card on a flagged supplier", () => {
+  const flagBeta = (verdict = "check_first", tenant = T1) => {
+    state.db.rows("supplier_checks").push({ id: "b0000000-0000-4000-8000-000000000001", tenant_id: tenant, supplier_id: SUPPLIERS[1].supplierId, checked_at: "2026-11-20T00:00:00Z", verdict, genuine_findings: { signals: [{ id: "x", severity: "high", text: "Shares a bank account with Other Co." }] } });
+  };
+  async function card(): Promise<DockAward> {
+    const s = setup({ replies: [toolUse("propose_award", { reference: "RFQ-0014", mode: "single", supplier: "Beta Trading" }), text("Check the card.")] });
+    return asAward(await askAssistant(ask("Award RFQ-0014"), s.ctx));
+  }
+  const pctx = (): PressCtx => ({ admin: { from: (t: string) => state.db.from(t) } as never, tenantId: T1, userId: ME, perms: ALL, features: { ...ACTIONS }, baseUrl: "http://internal.invalid/api/ai/award" });
+  const press = (c: DockAward, extra: Record<string, unknown> = {}, deps = {}) => pressAward(pctx(), { card_id: c.id, token: c.token, plan: c.plan, reason: "Delivery terms for the whole package", ...extra }, deps);
+  const current = () => state.db.rows("rfq_line_awards").filter((a) => !a.superseded_at);
+
+  it("the card carries the flagged supplier and its findings; an unflagged or other workspace's check adds nothing", async () => {
+    flagBeta("check_first");
+    expect((await card()).supplierChecks).toEqual([{ supplierId: SUPPLIERS[1].supplierId, name: SUPPLIERS[1].name, verdict: "check_first", findings: ["Shares a bank account with Other Co"], checkedAt: "2026-11-20T00:00:00Z" }]);
+    seed();
+    flagBeta("concerning", T2);
+    expect((await card()).supplierChecks).toEqual([]);
+  });
+
+  it("a forged press without the reason is refused before the card is spent, and nothing is awarded", async () => {
+    flagBeta("check_first");
+    const c = await card();
+    const no = await press(c);
+    expect(no.status).toBe(422);
+    expect(no.body).toMatchObject({ ok: false, code: "supplier_check_reason" });
+    expect(current()).toHaveLength(0);
+    expect(state.db.rows("assistant_actions")).toHaveLength(0);
+    expect((await press(c, { supplier_check_reason: "no" })).status).toBe(422);
+    expect(current()).toHaveLength(0);
+  });
+
+  it("the reason the person typed reaches the award route and the change history; the same card then works", async () => {
+    flagBeta("check_first");
+    const c = await card();
+    const seen: Record<string, unknown>[] = [];
+    const call = async (_p: unknown, body: Record<string, unknown>) => { seen.push(body); return { status: 200, json: { ok: true } }; };
+    const out = await press(c, { supplier_check_reason: "Only one in stock this week" }, { call });
+    expect(out.status).toBe(200);
+    expect(seen).toHaveLength(8);
+    expect(seen.every((b) => b.supplier_check_reason === "Only one in stock this week" && !("supplier_check_ack" in b))).toBe(true);
+  });
+
+  it("through the real award route the note is on record 'via assistant'", async () => {
+    flagBeta("check_first");
+    const out = await press(await card(), { supplier_check_reason: "Only one in stock this week" });
+    expect(out.status).toBe(200);
+    expect(current()).toHaveLength(8);
+    const notes = state.changes.filter((x) => x.changes?.some((ch) => String(ch.to).startsWith("Awarded despite Supplier check")));
+    expect(notes.length).toBeGreaterThan(0);
+    expect(notes.every((x) => x.via === "assistant")).toBe(true);
+  });
+
+  it("a concerning supplier needs the tick as well", async () => {
+    flagBeta("concerning");
+    const c = await card();
+    const no = await press(c, { supplier_check_reason: "Only one in stock this week" });
+    expect(no.status).toBe(422);
+    expect(no.body).toMatchObject({ code: "supplier_check_ack" });
+    expect((await press(c, { supplier_check_reason: "Only one in stock this week", supplier_check_ack: true })).status).toBe(200);
+  });
+
+  it("the model is told never to supply the reason", async () => {
+    flagBeta("check_first");
+    const s = setup({ replies: [toolUse("propose_award", { reference: "RFQ-0014", mode: "single", supplier: "Beta Trading" }), text("Check the card.")] });
+    await askAssistant(ask("Award RFQ-0014"), s.ctx);
+    expect(JSON.stringify(s.params[1])).toMatch(/Never supply a reason yourself/);
+  });
+});

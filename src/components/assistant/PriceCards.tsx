@@ -8,6 +8,8 @@ import { InlineMarkdown } from "./Markdown";
 import { PRICE_TIPS } from "@/lib/assistant/priceCompare/tips";
 import type { CompareCell, DockAward, DockPriceCheck, DockPriceCompare, PriceCard } from "@/lib/assistant/priceCompare/types";
 import type { NextStep } from "@/lib/assistant/cards";
+import { AwardCheckPanel, type AwardGate } from "@/components/suppliers/AwardCheckPanel";
+import { gateBody, gateReady, type AwardCheck } from "@/lib/suppliers/check/awardGate";
 
 // The three price cards of the dock (compare, award, check). Pure views of the fields the server worked out: nothing here adds, ranks or decides
 // anything, and every string arrives as a React text node. The award card's one button is the only thing that writes, through POST /api/ai/award.
@@ -192,12 +194,19 @@ export function AwardCardView({ card, onOpen }: { card: DockAward; onOpen: (href
   const [dismissed, setDismissed] = useState(false);
   const [allLines, setAllLines] = useState(false);
   const [done, setDone] = useState<Done | null>(null);
+  const [checks, setChecks] = useState<AwardCheck[]>(card.supplierChecks ?? []);
+  const [checkReason, setCheckReason] = useState("");
+  const [checkAck, setCheckAck] = useState(false);
+  const gate: AwardGate = {
+    checks, askedIds: [], loaded: true, reason: checkReason, setReason: setCheckReason, ack: checkAck, setAck: setCheckAck,
+    ready: gateReady(checks, checkReason, checkAck), body: gateBody(checkReason, checkAck, checks.length > 0),
+  };
   const money = moneyFor(card.currency);
   const lines = allLines ? card.lines : card.lines.slice(0, ROWS);
   const blocked = card.blocked;
   const reasonMissing = needReason && reason.trim().length < 3;
   const replaceMissing = needReplace && !replace;
-  const locked = busy || !!blocked || reasonMissing || replaceMissing;
+  const locked = busy || !!blocked || reasonMissing || replaceMissing || !gate.ready;
 
   async function press() {
     if (locked) return;
@@ -205,7 +214,7 @@ export function AwardCardView({ card, onOpen }: { card: DockAward; onOpen: (href
     try {
       const res = await fetch("/api/ai/award", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ card_id: card.id, token: card.token, plan: card.plan, reason: needReason ? reason.trim() : undefined, replace: replace || undefined, markup_pct: markup.trim() === "" ? undefined : markup.trim() }),
+        body: JSON.stringify({ card_id: card.id, token: card.token, plan: card.plan, reason: needReason ? reason.trim() : undefined, replace: replace || undefined, markup_pct: markup.trim() === "" ? undefined : markup.trim(), ...gate.body }),
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok && json.ok) {
@@ -215,6 +224,9 @@ export function AwardCardView({ card, onOpen }: { card: DockAward; onOpen: (href
       if (res.status === 409 && json.code === "already_done") { setDone({ awarded: json.result?.awarded ?? 0, of: json.result?.of ?? card.lines.length, next: [], warnings: [] }); return; }
       if (json.code === "reason_required") setNeedReason(true);
       if (json.code === "already_awarded") setNeedReplace(true);
+      if (typeof json.code === "string" && json.code.startsWith("supplier_check") && Array.isArray(json.flagged)) {
+        setChecks((json.flagged as { supplier_id: string; name: string; verdict: AwardCheck["verdict"]; findings: string[] }[]).map((f) => ({ supplierId: f.supplier_id, name: f.name, verdict: f.verdict, findings: f.findings ?? [], checkedAt: "" })));
+      }
       setError(json.error ?? "Could not award it.");
     } catch {
       setError("Could not reach the server. Nothing was awarded; check before trying again.");
@@ -281,6 +293,7 @@ export function AwardCardView({ card, onOpen }: { card: DockAward; onOpen: (href
 
       {!blocked && (
         <div style={{ padding: "10px 12px 0", display: "flex", flexDirection: "column", gap: 8 }}>
+          <AwardCheckPanel gate={gate} />
           {needReason && (
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <span style={{ fontWeight: 600, color: c.muted }}>Reason <InfoTip label="the reason">{PRICE_TIPS.reason}</InfoTip></span>

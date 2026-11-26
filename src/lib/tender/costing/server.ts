@@ -358,6 +358,8 @@ export async function buildCompareView(r: CostingRequest, rfqId: string): Promis
 export type AwardBody = {
   rfq_id?: unknown; line_id?: unknown; response_id?: unknown; rfq_supplier_id?: unknown; all?: unknown; fx_rate?: unknown; reason?: unknown;
   replace?: unknown; markup_pct?: unknown;
+  /** The person's answer to the Supplier check warning on a flagged supplier. */
+  supplier_check_reason?: unknown; supplier_check_ack?: unknown;
   /** Write the cost, markup and source of awards already standing (awarded elsewhere, or a write that failed) without awarding again. */
   apply_only?: unknown;
 };
@@ -420,7 +422,7 @@ export async function awardAndPrice(r: CostingRequest, body: AwardBody): Promise
   let results: AwardOutcome[] = [];
   if (body.apply_only !== true) {
     try {
-      results = await awardWithDecision(admin, ctx, { rfq, targets, reason: body.reason, replace: body.replace === true, fxRate: body.fx_rate, staleDays: cfg.price_valid_days });
+      results = await awardWithDecision(admin, ctx, { rfq, targets, reason: body.reason, replace: body.replace === true, fxRate: body.fx_rate, staleDays: cfg.price_valid_days, supplierCheck: { reason: body.supplier_check_reason, ack: body.supplier_check_ack } });
     } catch (e) {
       if (e instanceof AwardError) return { ok: false, status: e.status, error: e.message, extra: e.extra };
       throw e;
