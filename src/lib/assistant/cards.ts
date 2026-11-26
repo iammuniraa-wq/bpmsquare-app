@@ -49,6 +49,8 @@ export type ConfirmCard = {
   notices: string[];
   primaryLabel: string;
   risk: "write";
+  /** Where the press goes when it is not POST /api/ai/act (the competitor card has its own, src/app/api/ai/act/competitor). */
+  press?: string;
 };
 
 export type ActResult = {

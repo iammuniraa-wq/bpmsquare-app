@@ -63,3 +63,29 @@ export async function loadWinningBid(admin: SupabaseClient, tenantId: string, op
   const cost = costRes.error || !costRes.data ? null : parseCostSnapshot((costRes.data as { snapshot: unknown }).snapshot);
   return { version_no: Number(row.version_no), submitted_at: row.submitted_at, currency: row.currency, total: Number(row.total), cost };
 }
+
+/**
+ * The deal's cost as figures only, for the assistant's competitor analysis: what the lines cost in all and how many lines have a recorded
+ * cost. Never a line, a rate or a markup leaves this file.
+ */
+export async function currentCostSummary(admin: SupabaseClient, tenantId: string, opportunityId: string, snap: Pick<Snapshot, "lines" | "source_ids">): Promise<{ total: number; costedLines: number }> {
+  const cost = await buildCurrentCost(admin, tenantId, opportunityId, snap);
+  return { total: snapshotCostTotal(cost), costedLines: cost.lines.filter((l) => l.cost_total > 0).length };
+}
+
+/**
+ * The recorded total cost of bid versions, by `${opportunityId}:${versionNo}`, for the assistant's competitor analysis. Only the total is
+ * selected, never the snapshot. A pending migration reads as no costs.
+ */
+export async function loadBidCostTotals(admin: SupabaseClient, tenantId: string, opportunityIds: readonly string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  for (let i = 0; i < opportunityIds.length; i += 100) {
+    const { data, error } = await admin.from("tender_bid_version_costs").select("opportunity_id, version_no, total_cost").eq("tenant_id", tenantId).in("opportunity_id", opportunityIds.slice(i, i + 100)).limit(1000);
+    if (error) break;
+    for (const r of (data ?? []) as { opportunity_id: string; version_no: number; total_cost: number | string | null }[]) {
+      const n = Number(r.total_cost);
+      if (r.total_cost != null && Number.isFinite(n)) out.set(`${r.opportunity_id}:${Number(r.version_no)}`, n);
+    }
+  }
+  return out;
+}
