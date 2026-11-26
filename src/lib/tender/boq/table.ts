@@ -22,16 +22,23 @@ export const isUnpricedRow = (l: Pick<RowLike, "priced">): boolean => !l.priced;
 /** Rows removed in a revised file are not part of the table (the screen says how many are kept). */
 export const activeRows = <T extends Pick<RowLike, "removed">>(lines: readonly T[]): T[] => lines.filter((l) => !l.removed);
 
-export function filterRows<T extends RowLike>(lines: readonly T[], filter: BoqFilter): T[] {
+/** An estimate that priced the row was saved after it did: the row is out of date and shows "Re-price". A build-up still waiting is not. */
+export type RepriceLinkLike = { boq_id: string; stale?: boolean; waiting?: boolean; broken?: boolean };
+export const needsRepriceRow = (id: string | undefined, links: readonly RepriceLinkLike[]): boolean =>
+  !!id && links.some((k) => k.boq_id === id && k.stale === true && !k.waiting && !k.broken);
+
+const isStaleOrChanged = (l: RowLike & { id?: string }, links: readonly RepriceLinkLike[]): boolean => isStaleRow(l) || needsRepriceRow(l.id, links);
+
+export function filterRows<T extends RowLike & { id?: string }>(lines: readonly T[], filter: BoqFilter, links: readonly RepriceLinkLike[] = []): T[] {
   const active = activeRows(lines);
   if (filter === "unpriced") return active.filter(isUnpricedRow);
-  if (filter === "stale") return active.filter(isStaleRow);
+  if (filter === "stale") return active.filter((l) => isStaleOrChanged(l, links));
   return active;
 }
 
-export const filterCounts = (lines: readonly RowLike[]): Record<BoqFilter, number> => {
+export const filterCounts = (lines: readonly (RowLike & { id?: string })[], links: readonly RepriceLinkLike[] = []): Record<BoqFilter, number> => {
   const active = activeRows(lines);
-  return { all: active.length, unpriced: active.filter(isUnpricedRow).length, stale: active.filter(isStaleRow).length };
+  return { all: active.length, unpriced: active.filter(isUnpricedRow).length, stale: active.filter((l) => isStaleOrChanged(l, links)).length };
 };
 
 /** A value from the address or a saved state that is not a filter is "all". */

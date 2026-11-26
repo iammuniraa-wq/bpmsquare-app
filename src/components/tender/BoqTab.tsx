@@ -244,11 +244,11 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
   }
 
   const hasBoq = !!data.source;
-  const counts = filterCounts(data.lines);
-  const rows = sourceFilter ? filterRows(data.lines, "all").filter((l) => sourceGroupOf(l) === sourceFilter) : filterRows(data.lines, filter);
+  const links = est?.links ?? [];
+  const counts = filterCounts(data.lines, links);
+  const rows = sourceFilter ? filterRows(data.lines, "all").filter((l) => sourceGroupOf(l) === sourceFilter) : filterRows(data.lines, filter, links);
   const page = pageOf(rows, shown);
   const flagged = data.lines.filter((l) => l.removed);
-  const links = est?.links ?? [];
   const openRow = openId ? data.lines.find((l) => l.id === openId && !l.removed) ?? null : null;
   const total = data.totals;
   const pct = pricedPercent(total.priced, total.lines);

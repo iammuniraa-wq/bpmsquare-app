@@ -6,7 +6,7 @@ import { loadOpportunity } from "@/lib/sales/opportunityServer";
 import { tenderForDeal } from "@/lib/tender/server";
 import type { ComposerLine } from "@/components/rfq/RfqComposer";
 import { estimateOriginLabel, missingRfqLines } from "./rfqLines";
-import { bidIsLocked, costPerUnit, isLinkStale, isUuid, missingCosts, outputCost, parseOutput, type QuantityView } from "./rules";
+import { bidIsLocked, costPerUnit, isLinkStale, isUuid, missingCosts, outputCost, parseOutput, pricesSeveralParts, type QuantityView } from "./rules";
 import { loadDealEstimate, loadLinesFor, loadLinks, quantityChecks } from "./server";
 import { rfqConfig } from "@/lib/rfq/types";
 
@@ -37,6 +37,8 @@ export type EstimateBoqLink = {
   waiting: boolean; stale: boolean; needs_review: boolean; review_note: string | null; output_label: string;
   /** Only for a rate build-up: is this estimate made for the quantity of the BOQ line? Absent = nothing to say. */
   quantity?: QuantityView | null;
+  /** The estimate prices several parts and nothing says which quantity one line divides it by: "Apply" is not offered, the part picker is. */
+  several_parts?: boolean;
   /** The cost per BOQ unit this link works out to from the estimate as it is saved now (the rule that prices the line). Null when it cannot be worked out. */
   unit_cost?: number | null;
 };
@@ -101,6 +103,7 @@ export async function estimateTenderContext(
         link_id: l.id, boq_id: l.boq_line_id, item_no: b ? (b.item_no ?? `row ${b.row_no}`) : undefined, item: b ? `${b.item_no ?? `row ${b.row_no}`} ${b.file_description}`.trim().slice(0, 80) : "A BOQ line",
         qty: b?.file_qty ?? 0, uom: b?.file_uom ?? null, waiting: !l.applied_at, stale: isLinkStale(l, head.updated_at), needs_review: l.needs_review, review_note: l.review_note,
         quantity: quantities.get(l.id) ?? null,
+        several_parts: pricesSeveralParts(estLines, quantities.get(l.id)?.status),
         unit_cost: unitCostOf(l, b?.file_qty ?? 0, estLines, head.cost_total),
         output_label: l.output === "total" ? "Whole estimate" : l.output.startsWith("line:") ? byId.get(l.output.slice(5))?.description ?? "A line" : `WBS ${l.output.slice(4)}`,
       };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { c } from "@/lib/theme";
@@ -12,7 +12,7 @@ import { useFeel } from "@/components/FeelProvider";
 import { ESTIMATE_TIPS } from "@/lib/tender/estimates/tips";
 import { postReprice, unconfirmed } from "./quantityGuard";
 import type { EstimatesState, LinkView, OutputPreview } from "@/lib/tender/estimates/server";
-import type { Basis } from "@/lib/tender/estimates/rules";
+import { SEVERAL_PARTS_TEXT, suggestTemplate, type Basis, type TemplateHint } from "@/lib/tender/estimates/rules";
 
 // Estimates on the BOQ Prices tab (GCC tender deals, slice 3c-1, migration 0227): for each line, the estimate that priced it (with
 // "Estimate changed, re-price" when the estimate moved on), "Price from estimate" (pick an estimate and the part of it that prices the
@@ -26,6 +26,48 @@ const J = { "Content-Type": "application/json" };
 export type EstimateBoqLine = { id: string; item_no: string | null; description: string; qty: number; uom: string | null; priced: boolean };
 
 type Outputs = { estimate: { id: string; ref: string | null; name: string }; outputs: OutputPreview[]; boq: { id: string; qty: number; uom: string | null } };
+
+/** What a person sees about a line priced from several estimates, and from the same one twice: said once, in plain words. */
+export function SharedLineNote({ links }: { links: readonly LinkView[] }) {
+  const estimates = new Set(links.filter((l) => !l.broken).map((l) => l.estimate_id));
+  if (estimates.size < 2) return null;
+  return (
+    <div data-guide="boq.estimate.shared" role="note" style={{ fontSize: 12.5, color: "var(--amberink)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+      Priced from {estimates.size} estimates: their costs add up. <InfoTip label="Several estimates">{ESTIMATE_TIPS.replaces}</InfoTip>
+    </div>
+  );
+}
+
+/** In the BOQ row panel, under each estimate link: the way to take it off, and, for a whole-scope estimate, the way to pick the part. */
+export function PanelLinkActions({ l, base, canEdit, bidLocked, onPick, onChanged, onError, onNotice }: {
+  l: LinkView; base: string; canEdit: boolean; bidLocked: boolean; onPick: (estimateId: string) => void;
+  onChanged: () => void; onError: (m: string) => void; onNotice: (m: string) => void;
+}) {
+  const { confirm } = useFeel();
+  const [busy, setBusy] = useState(false);
+  async function unlink() {
+    const body = bidLocked ? `${ESTIMATE_TIPS.unlink} The bid is already in; the submitted bid version is kept as it was.` : ESTIMATE_TIPS.unlink;
+    if (!(await confirm({ title: "Unlink this estimate?", body, confirmLabel: "Unlink" }))) return;
+    setBusy(true); onError("");
+    try {
+      const res = await fetch(`${base}/links/${l.id}`, { method: "DELETE" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { onError(j.error ?? "Could not unlink"); return; }
+      const failed = (j.failed ?? []) as { item: string; reason: string }[];
+      if (failed.length > 0) onError(`${failed[0].item}: ${failed[0].reason}`); else onNotice("Unlinked");
+      onChanged();
+    } catch { onError("Network error. Try again."); } finally { setBusy(false); }
+  }
+  if (!canEdit) return null;
+  const pick = l.waiting && l.several_parts && !l.broken;
+  return (
+    <div data-guide="boq.row.estimate_actions_link" style={{ display: "flex", flexWrap: "wrap", gap: "4px 8px", alignItems: "center" }}>
+      {pick && <b role="alert" data-guide="boq.estimate.several" style={{ flexBasis: "100%", color: "var(--amberink)", background: "var(--amberbg)", borderRadius: 6, padding: "6px 8px", overflowWrap: "anywhere" }}>{SEVERAL_PARTS_TEXT}</b>}
+      {pick && <Button size="sm" variant="primary" onClick={() => onPick(l.estimate_id)} style={{ minHeight: 44 }} data-guide="boq.estimate.pick_part">Pick the part</Button>}
+      <Button size="sm" variant="quiet" loading={busy} onClick={() => void unlink()} style={{ minHeight: 44 }} data-guide="boq.estimate.unlink">Unlink</Button>
+    </div>
+  );
+}
 
 function LinkChip({ l, canEdit, bidLocked, busy, onReprice, onReviewed, onUnlink }: {
   l: LinkView; canEdit: boolean; bidLocked: boolean; busy: boolean; onReprice: () => void; onReviewed: () => void; onUnlink: () => void;
@@ -45,7 +87,8 @@ function LinkChip({ l, canEdit, bidLocked, busy, onReprice, onReviewed, onUnlink
           {l.review_note ?? "Re-priced from a supplier award, check it"} <InfoTip label="Review">{bidLocked ? ESTIMATE_TIPS.reviewLocked : ESTIMATE_TIPS.review}</InfoTip>
         </span>
       )}
-      {canEdit && (l.stale || l.waiting) && !l.broken && (
+      {l.waiting && l.several_parts && !l.broken && <b role="alert" data-guide="boq.estimate.several" style={{ flexBasis: "100%", color: "var(--amberink)", overflowWrap: "anywhere" }}>{SEVERAL_PARTS_TEXT}</b>}
+      {canEdit && (l.stale || l.waiting) && !l.broken && !(l.waiting && l.several_parts) && (
         <Button size="sm" variant="secondary" loading={busy} onClick={onReprice} style={{ minHeight: 44 }} data-guide="boq.estimate.reprice">{l.waiting ? "Use its total" : "Re-price"}</Button>
       )}
       {canEdit && l.needs_review && <Button size="sm" variant="quiet" disabled={busy} onClick={onReviewed} style={{ minHeight: 44 }} data-guide="boq.estimate.reviewed">Mark reviewed</Button>}
@@ -55,13 +98,15 @@ function LinkChip({ l, canEdit, bidLocked, busy, onReprice, onReviewed, onUnlink
 }
 
 /** Under each BOQ line of the Prices tab: its estimate links and the two ways to price it from an estimate. */
-export function LineEstimates({ opportunityId, base, line, state, canEdit, markup, onChanged, onError, onNotice, initialOpen, initialOutputs, actionsOnly = false }: {
+export function LineEstimates({ opportunityId, base, line, state, canEdit, markup, onChanged, onError, onNotice, initialOpen, initialOutputs, initialEstimateId, actionsOnly = false }: {
   opportunityId: string;
   /** /api/opportunities/[id]/tender/estimates */
   base: string; line: EstimateBoqLine; state: EstimatesState; canEdit: boolean; markup: number;
   /** Called after a change, so the BOQ state, the estimate state and the page reload. */
   onChanged: () => void; onError: (m: string) => void; onNotice: (m: string) => void;
   initialOpen?: "price" | "build" | null; initialOutputs?: Outputs;
+  /** Opens the part picker already on this estimate (the "Pick the part" button of a whole-scope estimate). */
+  initialEstimateId?: string;
   /** Only the two buttons ("Price from estimate", "Build up this rate") and what they open: the BOQ row panel already shows the row's estimate links. */
   actionsOnly?: boolean;
 }) {
@@ -69,13 +114,14 @@ export function LineEstimates({ opportunityId, base, line, state, canEdit, marku
   const { confirm } = useFeel();
   const [open, setOpen] = useState<"price" | "build" | null>(initialOpen ?? null);
   const [busy, setBusy] = useState(false);
-  const [estimateId, setEstimateId] = useState(initialOutputs?.estimate.id ?? "");
+  const [estimateId, setEstimateId] = useState(initialOutputs?.estimate.id ?? initialEstimateId ?? "");
   const [outs, setOuts] = useState<Outputs | null>(initialOutputs ?? null);
   const [basis, setBasis] = useState<Basis>("total");
   const [share, setShare] = useState("100");
-  const [templates, setTemplates] = useState<{ id: string; name: string }[] | null>(null);
+  const [templates, setTemplates] = useState<TemplateHint[] | null>(null);
   const [templateId, setTemplateId] = useState("");
   const mine = state.links.filter((l) => l.boq_id === line.id);
+  const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open !== "price" || !estimateId || initialOutputs) return;
@@ -92,11 +138,16 @@ export function LineEstimates({ opportunityId, base, line, state, canEdit, marku
     if (open !== "build" || templates) return;
     fetch(base, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (j) { setTemplates(j.templates ?? []); setTemplateId(j.templates?.[0]?.id ?? ""); } })
+      .then((j) => {
+        if (!j) return;
+        const list = (j.templates ?? []) as TemplateHint[];
+        setTemplates(list);
+        setTemplateId(suggestTemplate(list, line.description, line.uom) ?? "");
+      })
       .catch(() => {});
-  }, [open, templates, base]);
+  }, [open, templates, base, line.description, line.uom]);
 
-  async function send(url: string, init: RequestInit, done: string): Promise<boolean> {
+  async function send(url: string, init: RequestInit, done: string | ((j: { replaced?: number }) => string)): Promise<boolean> {
     setBusy(true); onError("");
     try {
       const res = await fetch(url, init);
@@ -104,18 +155,19 @@ export function LineEstimates({ opportunityId, base, line, state, canEdit, marku
       if (!res.ok) { onError(j.error ?? "That did not work"); return false; }
       const failed = (j.failed ?? []) as { item: string; reason: string }[];
       if (failed.length > 0) onError(`${failed[0].item}: ${failed[0].reason}`);
-      else onNotice(done);
+      else onNotice(typeof done === "function" ? done(j) : done);
       onChanged();
       return true;
     } catch { onError("Network error. Try again."); return false; } finally { setBusy(false); }
   }
 
   async function use(o: OutputPreview) {
+    if (state.bid_locked && !(await confirm({ title: "The bid is already in", body: "Pricing changes the rate on the deal's lines. The submitted bid version is kept as it was.", confirmLabel: "Price the line" }))) return;
     const sh = Number(share);
     const ok = await send(`${base}/links`, {
       method: "POST", headers: J,
       body: JSON.stringify({ items: [{ boq_id: line.id, estimate_id: estimateId, output: o.key, basis: o.kind === "line" ? basis : "total", share_pct: sh }], markup_pct: markup }),
-    }, "Priced from the estimate");
+    }, (j) => ((j.replaced ?? 0) > 0 ? "Priced from the part. What this estimate gave the line before is replaced" : "Priced from the estimate"));
     if (ok) setOpen(null);
   }
 
@@ -149,9 +201,14 @@ export function LineEstimates({ opportunityId, base, line, state, canEdit, marku
     } catch { onError("Network error. Try again."); } finally { setBusy(false); }
   }
 
+  useEffect(() => {
+    if (initialEstimateId) root.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }, [initialEstimateId]);
+
   if (!canEdit && (actionsOnly || mine.length === 0)) return null;
   return (
-    <div data-guide="boq.estimate" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    <div ref={root} data-guide="boq.estimate" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {!actionsOnly && <SharedLineNote links={mine} />}
       {!actionsOnly && mine.map((l) => (
         <LinkChip key={l.id} l={l} canEdit={canEdit} bidLocked={state.bid_locked} busy={busy}
           onReprice={() => void reprice(l)} onReviewed={() => void send(`${base}/links/${l.id}`, { method: "PATCH", headers: J, body: JSON.stringify({ reviewed: true }) }, "Marked reviewed")} onUnlink={() => void unlink(l)} />
@@ -191,6 +248,14 @@ export function LineEstimates({ opportunityId, base, line, state, canEdit, marku
           <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, color: c.muted }}>
             {basis === "total" ? ESTIMATE_TIPS.basisTotal : ESTIMATE_TIPS.basisPerUnit}
           </div>
+          {estimateId && mine.some((l) => l.estimate_id === estimateId) && (
+            <div role="note" data-guide="boq.estimate.replaces" style={{ fontSize: 12.5, color: "var(--amberink)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+              This replaces what this estimate already gives the line. <InfoTip label="Replace">{ESTIMATE_TIPS.replaces}</InfoTip>
+            </div>
+          )}
+          {estimateId && !mine.some((l) => l.estimate_id === estimateId) && mine.length > 0 && (
+            <div role="note" data-guide="boq.estimate.adds" style={{ fontSize: 12.5, color: "var(--amberink)" }}>This line is already priced from another estimate. This cost is added to it.</div>
+          )}
           {estimateId && !outs && <div style={{ fontSize: 12.5, color: c.hint }}>Looking…</div>}
           {outs?.outputs.length === 0 && <div style={{ fontSize: 12.5, color: c.hint }}>This estimate has no cost lines yet.</div>}
           {outs?.outputs.map((o) => {
@@ -219,6 +284,7 @@ export function LineEstimates({ opportunityId, base, line, state, canEdit, marku
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
               <Field label="Template" guide="boq.estimate.template">
                 <Select value={templateId} onChange={(e) => setTemplateId(e.target.value)} style={{ minHeight: 44 }}>
+                  {templateId === "" && <option value="">Choose a template</option>}
                   {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </Select>
               </Field>
