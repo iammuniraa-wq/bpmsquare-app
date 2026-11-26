@@ -5,6 +5,8 @@ import { tenantToday } from "@/lib/tenantClock";
 import { awardLine, isMissingRelation } from "./server";
 import { awardDecision, cleanReason, MIN_REASON_CHARS, type CompareResponse } from "./comparison";
 import { landedUnit } from "./rules";
+import { enforceAwardGate } from "@/lib/suppliers/check/awardGateServer";
+import { gateNote, type GateInput } from "@/lib/suppliers/check/awardGate";
 import type { Rfq, RfqLine } from "./types";
 
 // Awarding with a recorded decision (GCC tender deals, slice 3b, migration 0224). The existing awardLine() still does the work
@@ -81,6 +83,8 @@ const fxOf = (v: unknown): number | null => {
  */
 export async function awardWithDecision(admin: SupabaseClient, ctx: Ctx, args: {
   rfq: Rfq; targets: AwardTarget[]; reason: unknown; replace: boolean; fxRate?: unknown; staleDays: number;
+  /** The person's answer to the Supplier check warning. Absent = this caller has no screen for it and the warning is not asked (buyout packages). */
+  supplierCheck?: GateInput;
 }): Promise<AwardOutcome[]> {
   const { tenantId } = ctx;
   const { rfq } = args;
@@ -148,6 +152,15 @@ export async function awardWithDecision(admin: SupabaseClient, ctx: Ctx, args: {
   if (needReason.length && !reason) {
     throw new AwardError(422, `Say why: line ${needReason.map((p) => p.line.sl_no).join(", ")} ${needReason.length === 1 ? "is" : "are"} not the lowest valid price (at least ${MIN_REASON_CHARS} characters).`, { code: "reason_required", lines: needReason.map((p) => p.line.id) });
   }
+
+  // 3b. A supplier whose newest saved Supplier check is "Check first" or "Concerning" can still be awarded, with a reason on record.
+  let gated: Awaited<ReturnType<typeof enforceAwardGate>> | null = null;
+  if (args.supplierCheck) {
+    const awardedSuppliers = plan.flatMap((p) => (p.resp ? [sups.get(p.resp.rfq_supplier_id)?.supplier_id ?? ""] : [])).filter(Boolean);
+    gated = await enforceAwardGate(admin, tenantId, awardedSuppliers, args.supplierCheck);
+    if (!gated.ok) throw new AwardError(gated.status, gated.error, { code: gated.code, ...gated.extra });
+  }
+  const awardedTo = new Set<string>();
 
   // 4. Record and award, one line at a time.
   const out: AwardOutcome[] = [];
@@ -228,7 +241,16 @@ export async function awardWithDecision(admin: SupabaseClient, ctx: Ctx, args: {
         warning = `${warning ? `${warning} ` : ""}Awarded, but the cost could not be written to the estimate.`;
       }
     }
+    awardedTo.add(rs.supplier_id);
     out.push({ line_id: p.line.id, status: "awarded", unit_cost: result.unit_cost, cost_input_id: result.cost_input_id, not_lowest: notLowest, warning, ...(estimate ? { estimate } : {}) });
+  }
+  if (gated?.ok && gated.reason) {
+    for (const f of gated.flagged.filter((x) => awardedTo.has(x.supplierId))) {
+      await logChange(admin, {
+        tenantId, objectType: "rfqs", objectId: rfq.id, objectLabel: rfq.ref, action: "update", actorId: ctx.userId, actorEmail: ctx.email,
+        changes: [{ field: `award to ${f.name}`, from: null, to: gateNote(f, gated.reason) }],
+      });
+    }
   }
   return out;
 }

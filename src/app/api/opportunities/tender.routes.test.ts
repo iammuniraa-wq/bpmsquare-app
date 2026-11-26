@@ -25,7 +25,11 @@ const U1 = "11111111-1111-4111-8111-111111111111";
 const U_OTHER_TENANT = "99999999-9999-4999-8999-999999999999";
 const ACC = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
 const ACC_T2 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2";
-const OPP_STD = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
+const ACC_B = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3";
+const CON = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+const CON_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2";
+const CON_T2 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3";
+const OPP_STD ="cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
 const OPP_TENDER = "cccccccc-cccc-4ccc-8ccc-ccccccccccc2";
 const OPP_T2 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc3";
 const MAIL_T1 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1";
@@ -95,7 +99,12 @@ function tenderRow(over: Record<string, unknown> = {}) {
 beforeEach(() => {
   state.db = new MemoryDb({
     tenants: [{ id: T1, config: {} }, { id: T2, config: {} }],
-    accounts: [{ id: ACC, tenant_id: T1, name: "Acme" }, { id: ACC_T2, tenant_id: T2, name: "Other" }],
+    accounts: [{ id: ACC, tenant_id: T1, name: "Acme" }, { id: ACC_T2, tenant_id: T2, name: "Other" }, { id: ACC_B, tenant_id: T1, name: "Beta" }],
+    contacts: [
+      { id: CON, tenant_id: T1, account_id: ACC, name: "Sara" },
+      { id: CON_B, tenant_id: T1, account_id: ACC_B, name: "Omar" },
+      { id: CON_T2, tenant_id: T2, account_id: ACC_T2, name: "Eve" },
+    ],
     tenant_users: [{ tenant_id: T1, user_id: U1 }, { tenant_id: T2, user_id: U_OTHER_TENANT }],
     inbound_emails: [{ id: MAIL_T1, tenant_id: T1 }, { id: MAIL_T2, tenant_id: T2 }],
     opportunities: [opp(OPP_STD), opp(OPP_TENDER, { stage: "estimating", probability: 25, ref: "OPP-2", title: "ARB-1 · Aramco" }), opp(OPP_T2, { tenant_id: T2 })],
@@ -232,6 +241,53 @@ describe("POST /api/opportunities/tender", () => {
     expect(t).toMatchObject({ tenant_id: T1, tender_no: "ARB-4400123", issuer_name: "Saudi Aramco", portal: "ariba", closing_at: "2026-10-30T09:00:00.000Z", addenda_count: 0, source_email_id: null, reminders_sent: [] });
     expect(t.deal_type_id).toBeTruthy();
     expect(state.created).toHaveLength(1);
+  });
+
+  it("saves the title the person gave, the contact of that account and the expected value as the deal amount", async () => {
+    const res = await tenderPost(req("POST", body({ title: "  Aramco pipe tender  ", contact_id: CON, amount: "1,250,000.456" })));
+    expect(res.status).toBe(201);
+    const id = (await res.json()).id;
+    const deal = opps().find((o) => o.id === id)!;
+    expect(deal).toMatchObject({ title: "Aramco pipe tender", contact_id: CON, amount: 1250000.46, account_id: ACC });
+    expect(state.changes[0].changes?.map((c) => c.field)).toContain("amount");
+  });
+
+  it("an empty or missing expected value is 0, and a bad one is refused before anything is written", async () => {
+    const j = await (await tenderPost(req("POST", body({ amount: "" })))).json();
+    expect(opps().find((o) => o.id === j.id)?.amount).toBe(0);
+    const before = opps().length;
+    for (const amount of [-1, "abc", {}, 1e12]) expect((await tenderPost(req("POST", body({ amount })))).status).toBe(400);
+    expect(opps()).toHaveLength(before);
+  });
+
+  it("refuses a title that is not text or longer than 200 characters", async () => {
+    expect((await tenderPost(req("POST", body({ title: "x".repeat(201) })))).status).toBe(400);
+    expect((await tenderPost(req("POST", body({ title: 5 })))).status).toBe(400);
+    expect((await tenderPost(req("POST", body({ title: "x".repeat(200) })))).status).toBe(201);
+  });
+
+  it("falls back to the issuer, then the account, for a title nobody typed; the deal is never named just after the tender number alone when an issuer exists", async () => {
+    const j = await (await tenderPost(req("POST", body()))).json();
+    expect(opps().find((o) => o.id === j.id)?.title).toBe("ARB-4400123 · Saudi Aramco");
+  });
+
+  it("a blank issuer becomes the chosen account's name, on the deal's tender row", async () => {
+    const j = await (await tenderPost(req("POST", { account_id: ACC, tender: { tender_no: "N-1", issuer_name: "  " } }))).json();
+    expect(tenders().find((r) => r.opportunity_id === j.id)?.issuer_name).toBe("Acme");
+    const k = await (await tenderPost(req("POST", { account_id: ACC, tender: { tender_no: "N-2" } }))).json();
+    expect(tenders().find((r) => r.opportunity_id === k.id)?.issuer_name).toBe("Acme");
+    const m = await (await tenderPost(req("POST", body({ tender: { tender_no: "N-3", issuer_name: "Saudi Aramco" } })))).json();
+    expect(tenders().find((r) => r.opportunity_id === m.id)?.issuer_name).toBe("Saudi Aramco");
+  });
+
+  it("refuses a contact of another workspace or of another account, writing nothing", async () => {
+    const before = opps().length;
+    expect((await tenderPost(req("POST", body({ contact_id: CON_T2 })))).status).toBe(404);
+    expect((await tenderPost(req("POST", body({ contact_id: CON_B })))).status).toBe(404);
+    expect((await tenderPost(req("POST", body({ account_id: ACC_B, contact_id: CON })))).status).toBe(404);
+    expect(opps()).toHaveLength(before);
+    expect(tenders()).toHaveLength(0);
+    expect((await tenderPost(req("POST", body({ account_id: ACC_B, contact_id: CON_B })))).status).toBe(201);
   });
 
   it("keeps one 'tender' deal type per workspace however many tenders are made", async () => {

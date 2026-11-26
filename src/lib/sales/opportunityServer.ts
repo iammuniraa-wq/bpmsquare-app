@@ -54,13 +54,19 @@ export async function refreshOpportunityDerived(
   const [lines, linked] = await Promise.all([loadOpportunityLines(admin, tenantId, id), loadLinkedQuotes(admin, tenantId, id)]);
   // A rejected/expired quote is not what the deal is worth any more.
   const live = linked.filter((q) => !["rejected", "expired"].includes(q.status));
-  const amount = opportunityAmount(live.map((q) => ({ created_at: q.created_at, subtotal: q.subtotal })), lines);
+  let amount = opportunityAmount(live.map((q) => ({ created_at: q.created_at, subtotal: q.subtotal })), lines);
   // A tender deal's stage is on the tender list, not the workspace's. Only asked when the stored stage is not in the list
   // we were given, which a standard deal's never is, so a standard workspace takes the line above unchanged.
   let effective = stages;
-  if (!stages.some((s) => s.value === opp.stage)) {
+  // A tender made with an expected value keeps it until lines or a quote give the deal a real total (a standard deal still goes to 0).
+  const noTotalYet =amount === 0 && lines.length === 0 && live.length === 0 && Number(opp.amount) > 0;
+  const tenderStage = !stages.some((s) => s.value === opp.stage);
+  if (tenderStage || noTotalYet) {
     const { data: t } = await admin.from("opportunity_tenders").select("opportunity_id").eq("opportunity_id", id).eq("tenant_id", tenantId).maybeSingle();
-    if (t) effective = DEFAULT_TENDER_STAGES;
+    if (t) {
+      if (tenderStage) effective = DEFAULT_TENDER_STAGES;
+      if (noTotalYet) amount = Number(opp.amount);
+    }
   }
   const probability = probabilityFor(effective, opp.stage, opp.probability_override);
   if (amount !== Number(opp.amount) || probability !== opp.probability) {

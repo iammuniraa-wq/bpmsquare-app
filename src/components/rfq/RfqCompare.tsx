@@ -16,6 +16,7 @@ import { quoteLabel, QUOTE_ORIGIN_TYPES } from "@/lib/rfq/linking";
 import { inp, lbl, btnPrimary, btnGhost, fmtDate, fmtMoney } from "./rfqUi";
 import RfqModal from "./RfqModal";
 import { SupplierCheckChip, useSupplierChecks } from "@/components/suppliers/supplierCheckUi";
+import { AwardCheckPanel, useAwardGate } from "@/components/suppliers/AwardCheckPanel";
 
 // "Compare & award" (GCC tender deals, slice 3b): one row per RFQ line, one column per supplier, the lowest VALID price marked,
 // expired or stale answers in amber, each supplier's total and "covers N of M lines", unanswered suppliers as waiting with the
@@ -289,6 +290,7 @@ function AwardDialog({ b, id, call, today, stale, picks, supplier, all, awards, 
     return known ? String(known) : foreign ? "" : "";
   });
   const [reason, setReason] = useState("");
+  const gate = useAwardGate([supplier.supplier_id]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fxN = fx ? Number(fx) : null;
@@ -304,13 +306,13 @@ function AwardDialog({ b, id, call, today, stale, picks, supplier, all, awards, 
   const replacing = rows.filter((r) => r.replaces);
   const nameOf = (rsId: string) => b.suppliers.find((s) => s.id === rsId)?.suppliers?.name ?? "a supplier";
   const missingFx = foreign && !(fxN && fxN > 0);
-  const ready = !busy && !missingFx && (!needReason || reason.trim().length >= MIN_REASON_CHARS);
+  const ready = !busy && !missingFx && gate.ready && (!needReason || reason.trim().length >= MIN_REASON_CHARS);
 
   const submit = async () => {
     setBusy(true);
     setError(null);
     try {
-      const common = { fx_rate: fx || null, reason: needReason ? reason.trim() : undefined, replace: replacing.length > 0 };
+      const common = { fx_rate: fx || null, reason: needReason ? reason.trim() : undefined, replace: replacing.length > 0, ...gate.body };
       const j = all
         ? await call(`/api/rfqs/${id}/award`, json("POST", { rfq_supplier_id: supplier.id, all: true, ...common }))
         : await call(`/api/rfqs/${id}/award`, json("POST", { line_id: rows[0].line.id, response_id: rows[0].resp.id, ...common }));
@@ -354,6 +356,7 @@ function AwardDialog({ b, id, call, today, stale, picks, supplier, all, awards, 
             <textarea id="award-reason" data-guide="rfq.award.reason" rows={3} style={{ ...inp, resize: "vertical" }} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={1000} />
           </div>
         )}
+        <AwardCheckPanel gate={gate} />
         {error && <div role="alert" style={{ color: "var(--redink)" }}>{error}</div>}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, alignItems: "center" }}>
           <InfoTip label="awarding">{all ? RFQ_TIPS.awardAll : replacing.length ? RFQ_TIPS.replace : RFQ_TIPS.award}</InfoTip>

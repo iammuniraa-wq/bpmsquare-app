@@ -1,4 +1,5 @@
 import type { NextStep } from "@/lib/assistant/cards";
+import type { AwardCheck } from "@/lib/suppliers/check/awardGate";
 
 // The cards the price tools put in the dock (docs/design/gcc-tender-deals.md, RFQ comparison and Award and price). Client-safe and data only:
 // the dock draws these fields and nothing else, and every figure in them was worked out by compute.ts, never by a model.
@@ -158,6 +159,8 @@ export type DockAward = {
   currency: { symbol: string; locale: string; decimals: number };
   compareHref: string;
   risk: "write";
+  /** Suppliers on the card whose newest saved Supplier check is Check first or Concerning. The press asks again; the person types the reason. */
+  supplierChecks?: AwardCheck[];
 };
 
 export type PriceCheckRow = {

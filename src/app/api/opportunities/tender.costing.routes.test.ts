@@ -540,3 +540,49 @@ describe("pricing awards that already stand", () => {
     expect((await compare(RFQ)).json.awards).toHaveLength(1);
   });
 });
+
+describe("the Supplier check warning on Award and price", () => {
+  const flag = (verdict: string, tenant = T1) => {
+    state.db.rows("suppliers").push({ id: SA, tenant_id: T1, name: "Gulf Skirting" });
+    state.db.rows("supplier_checks").push({ id: id(191), tenant_id: tenant, supplier_id: SA, checked_at: "2026-11-01T00:00:00Z", verdict, genuine_findings: { signals: [{ id: "b", severity: "high", text: "Shares a bank account with Other Co." }] } });
+  };
+
+  it("a flagged supplier without a reason is refused with 422 and the BOQ row, the award and the deal line stay as they were", async () => {
+    flag("check_first");
+    const before = snapshot();
+    const r = await award({ line_id: L1, response_id: rA1 });
+    expect(r.status).toBe(422);
+    expect(r.json.code).toBe("supplier_check_reason");
+    expect(r.json.flagged).toEqual([{ supplier_id: SA, name: "Gulf Skirting", verdict: "check_first", findings: ["Shares a bank account with Other Co"] }]);
+    expect(snapshot()).toBe(before);
+    expect(state.changes).toHaveLength(0);
+  });
+
+  it("with the reason it prices the row and the change history of the RFQ carries the note", async () => {
+    flag("check_first");
+    const r = await award({ line_id: L1, response_id: rA1, supplier_check_reason: "Only one in stock this week" });
+    expect(r.status).toBe(200);
+    expect(boq(BQ1)).toMatchObject({ unit_cost: 100, markup_pct: 15 });
+    const note = state.changes.find((c) => c.changes?.some((x) => String(x.to).startsWith("Awarded despite Supplier check")));
+    expect(note?.changes?.[0].to).toBe("Awarded despite Supplier check: check first. Reason: Only one in stock this week");
+    expect(note?.objectId).toBe(RFQ);
+  });
+
+  it("concerning needs the tick; the whole-supplier award is held to the same rule", async () => {
+    flag("concerning");
+    const r = await award({ rfq_supplier_id: RS_A, all: true, reason: "Best delivery terms", supplier_check_reason: "Only one in stock this week" });
+    expect(r.status).toBe(422);
+    expect(r.json.code).toBe("supplier_check_ack");
+    expect(current()).toHaveLength(0);
+    expect((await award({ rfq_supplier_id: RS_A, all: true, reason: "Best delivery terms", supplier_check_reason: "Only one in stock this week", supplier_check_ack: true })).status).toBe(200);
+  });
+
+  it("an unchecked supplier is unaffected", async () => {
+    expect((await award({ line_id: L1, response_id: rA1 })).status).toBe(200);
+  });
+
+  it("another workspace's concerning check never applies", async () => {
+    flag("concerning", T2);
+    expect((await award({ line_id: L1, response_id: rA1 })).status).toBe(200);
+  });
+});

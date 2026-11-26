@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => {}, replace: () => {}, refresh: () => {} }),
@@ -122,5 +124,22 @@ describe("the card in the dock", () => {
 
   it("says what is already saved", () => {
     expect(panel(seed({ lastSaved: { checkedAt: "2026-11-01T00:00:00.000Z", verdict: "check_first" } }))).toContain("last saved check: Check first");
+  });
+});
+
+describe("the page behind the card follows a saved check (the header chip no longer reads 'Not checked')", () => {
+  const src = readFileSync(path.join(__dirname, "SupplierCheckPanel.tsx"), "utf8");
+
+  it("refreshes the server page after a run that saved and after the dock's Save to supplier, and nowhere else", () => {
+    expect(src).toContain('import { useRouter } from "next/navigation"');
+    expect(src).toMatch(/await load\(\);\s*if \(j\.saved === true\) router\.refresh\(\);/);
+    expect(src).toMatch(/setSaved\(true\); setSaveToken\(null\); router\.refresh\(\);/);
+    expect((src.match(/router\.refresh\(\)/g) ?? []).length).toBe(2);
+  });
+
+  it("the supplier page draws its header chip on the server from the newest saved check, so a refresh is what changes it", () => {
+    const page = readFileSync(path.join(__dirname, "../../app/(app)/suppliers/[id]/page.tsx"), "utf8");
+    expect(page).toContain("readSummaries(");
+    expect(page).toContain("<SupplierCheckChip summary={latestCheck} />");
   });
 });

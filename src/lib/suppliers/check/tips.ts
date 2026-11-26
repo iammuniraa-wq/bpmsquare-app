@@ -10,6 +10,7 @@ export const CHECK_TIPS = {
   reputation: "What cited pages report, in their own terms. Nothing here is our finding, and a page may be out of date.",
   sharpen: "Each line is something missing that, once added or done, makes the result more reliable.",
   history: "Earlier checks of this supplier, newest first. Each one is kept as it was.",
+  awardWarning: "Your last saved Supplier check marked this supplier. You can still award; your reason is kept in the change history.",
   save: "Keeps this check on the supplier's record, where the list and the RFQ screens read it. The assistant never saves without your press.",
 } as const;
 

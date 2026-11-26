@@ -12,6 +12,7 @@ import StatusPill from "@/components/ui/StatusPill";
 import { awardDecision, buildComparison, MIN_REASON_CHARS, type CompareResponse } from "@/lib/rfq/comparison";
 import { ageText, awardSum, parseMarkup, unpricedAwards, type CompareView } from "@/lib/tender/costing/rules";
 import { COSTING_TIPS } from "@/lib/tender/costing/tips";
+import { AwardCheckPanel, useAwardGate } from "@/components/suppliers/AwardCheckPanel";
 
 // The compare-and-award screen of the Costing tab (docs/design/gcc-tender-deals.md section 25). Suppliers side by side for each line,
 // the lowest valid price marked, an expired or stale answer in amber. "Award and price" is the only way a tender RFQ is awarded: it
@@ -236,6 +237,7 @@ function AwardPanel({ view, base, panel, onClose, onDone }: {
   const foreign = picks.some((p) => !!p.resp.currency && p.resp.currency !== view.tenant_currency);
   const [fx, setFx] = useState(() => { const known = picks.find((p) => p.resp.fx_rate && p.resp.fx_rate !== 1)?.resp.fx_rate; return known ? String(known) : ""; });
   const [reason, setReason] = useState("");
+  const gate = useAwardGate([supplier?.supplier_id]);
   const [markup, setMarkup] = useState(String(view.markup_default));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -256,13 +258,13 @@ function AwardPanel({ view, base, panel, onClose, onDone }: {
   const replacing = rows.filter((r) => r.replaces);
   const missingFx = foreign && !(fxN && fxN > 0);
   const needsMarkup = view.prices_rows;
-  const ready = !busy && !missingFx && (!needsMarkup || markupN !== null) && (!needReason || reason.trim().length >= MIN_REASON_CHARS) && rows.length > 0;
+  const ready = !busy && !missingFx && gate.ready && (!needsMarkup || markupN !== null) && (!needReason || reason.trim().length >= MIN_REASON_CHARS) && rows.length > 0;
   const nameOf = (rsId: string) => view.suppliers.find((s) => s.id === rsId)?.name ?? "another supplier";
 
   async function submit() {
     setBusy(true); setError(null);
     try {
-      const common = { rfq_id: view.rfq.id, markup_pct: needsMarkup ? markupN : undefined };
+      const common = { rfq_id: view.rfq.id, markup_pct: needsMarkup ? markupN : undefined, ...(applyOnly ? {} : gate.body) };
       const body = applyOnly
         ? { ...common, apply_only: true }
         : panel.all
@@ -324,6 +326,7 @@ function AwardPanel({ view, base, panel, onClose, onDone }: {
             <Textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={1000} />
           </Field>
         )}
+        {!applyOnly && <AwardCheckPanel gate={gate} />}
         {error && <div role="alert" style={{ color: "var(--redink)" }}>{error}</div>}
       </div>
     </SidePanel>

@@ -442,3 +442,68 @@ describe("the explanations", () => {
     for (const k of ["compare", "award", "reason", "awardAll", "replace", "deal", "fx", "waiting", "coverage", "stale"] as const) expect(RFQ_TIPS[k]).toBeTruthy();
   });
 });
+
+describe("the Supplier check warning on an award", () => {
+  const seedCheck = (verdict: string, over: Record<string, unknown> = {}) => {
+    state.db.rows("suppliers").push({ id: SA, tenant_id: T1, name: "Gulf Skirting" });
+    state.db.rows("supplier_checks").push({ id: id(91), tenant_id: T1, supplier_id: SA, checked_at: "2026-11-01T00:00:00Z", verdict, genuine_findings: { signals: [{ id: "b", severity: "high", text: "Shares a bank account with Other Co." }, { id: "c", severity: "medium", text: "No tax number on file." }, { id: "d", severity: "low", text: "Third finding." }] }, ...over });
+  };
+
+  it("a flagged supplier without a reason is refused with 422 and nothing is written", async () => {
+    seedCheck("check_first");
+    const r = await post({ line_id: L1, response_id: rA1 });
+    expect(r.status).toBe(422);
+    expect(r.json).toMatchObject({ code: "supplier_check_reason", flagged: [{ name: "Gulf Skirting", verdict: "check_first", findings: ["Shares a bank account with Other Co", "No tax number on file"] }] });
+    expect(awards()).toHaveLength(0);
+    expect(line(L1).status).toBe("open");
+    expect(state.changes).toHaveLength(0);
+    expect((await post({ line_id: L1, response_id: rA1, supplier_check_reason: "no" })).status).toBe(422);
+  });
+
+  it("with a reason the award goes through and the change history carries the note", async () => {
+    seedCheck("check_first");
+    const r = await post({ line_id: L1, response_id: rA1, supplier_check_reason: "Only one in stock this week" });
+    expect(r.status).toBe(200);
+    expect(current()).toHaveLength(1);
+    const note = state.changes.find((c) => c.changes?.some((x) => String(x.to).startsWith("Awarded despite Supplier check")));
+    expect(note?.changes?.[0]).toMatchObject({ field: "award to Gulf Skirting", to: "Awarded despite Supplier check: check first. Reason: Only one in stock this week" });
+    expect(note).toMatchObject({ objectType: "rfqs", objectId: RFQ });
+  });
+
+  it("concerning also needs the tick: a forged request with only a reason is refused", async () => {
+    seedCheck("concerning");
+    const r = await post({ line_id: L1, response_id: rA1, supplier_check_reason: "Only one in stock this week" });
+    expect(r.status).toBe(422);
+    expect(r.json).toMatchObject({ code: "supplier_check_ack" });
+    expect(awards()).toHaveLength(0);
+    expect((await post({ line_id: L1, response_id: rA1, supplier_check_reason: "Only one in stock this week", supplier_check_ack: true })).status).toBe(200);
+  });
+
+  it("a split award checks every awarded supplier", async () => {
+    seedCheck("check_first");
+    const r = await post({ rfq_supplier_id: RS_A, all: true, reason: "Best delivery terms" });
+    expect(r.status).toBe(422);
+    expect(r.json).toMatchObject({ code: "supplier_check_reason" });
+    expect(awards()).toHaveLength(0);
+  });
+
+  it("an unchecked supplier is unaffected", async () => {
+    expect((await post({ line_id: L1, response_id: rA1 })).status).toBe(200);
+  });
+
+  it("an older flagged check does not apply once a newer one passes", async () => {
+    seedCheck("check_first");
+    state.db.rows("supplier_checks").push({ id: id(92), tenant_id: T1, supplier_id: SA, checked_at: "2026-11-10T00:00:00Z", verdict: "looks_genuine", genuine_findings: {} });
+    expect((await post({ line_id: L1, response_id: rA1 })).status).toBe(200);
+  });
+
+  it("another workspace's check on the same supplier id never applies", async () => {
+    state.db.rows("supplier_checks").push({ id: id(93), tenant_id: T2, supplier_id: SA, checked_at: "2026-11-10T00:00:00Z", verdict: "concerning", genuine_findings: {} });
+    expect((await post({ line_id: L1, response_id: rA1 })).status).toBe(200);
+  });
+
+  it("the check table being missing (migration pending) changes nothing", async () => {
+    state.db.missing.add("supplier_checks");
+    expect((await post({ line_id: L1, response_id: rA1 })).status).toBe(200);
+  });
+});
