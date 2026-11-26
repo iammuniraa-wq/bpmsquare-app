@@ -68,9 +68,9 @@ describe.each(NEW_STARTERS)("starter $name", (t) => {
 });
 
 describe("the catalogue", () => {
-  it("is 72 items with unique SKUs, a unit, a positive placeholder cost and tags", () => {
-    expect(ITEMS).toHaveLength(72);
-    expect(new Set(ITEMS.map((i) => i.sku)).size).toBe(72);
+  it("is 81 items with unique SKUs, a unit, a positive placeholder cost and tags", () => {
+    expect(ITEMS).toHaveLength(81);                                   // 72 for the five GCC starters + 9 new for the wastewater package
+    expect(new Set(ITEMS.map((i) => i.sku)).size).toBe(81);
     for (const i of ITEMS) {
       expect(i.sku, i.name).toMatch(/^EST-[A-Z0-9-]+$/);
       expect(i.uom.length, i.sku).toBeGreaterThan(0);
@@ -397,7 +397,10 @@ describe("the seeds", () => {
     expect(sql).not.toMatch(/update products/i);                      // an item is never rewritten
     expect(sql).toContain("is_demo = true");                          // demo tenants only as shipped
     expect(sql).toContain("-- TARGET");
-    for (const i of ITEMS) expect(sql.split(`"sku":"${i.sku}","name":`).length - 1, i.sku).toBe(1);
+    const itemsOfBundle = starterCatalogue(NEW_STARTERS);
+    expect(itemsOfBundle).toHaveLength(72);
+    for (const i of itemsOfBundle) expect(sql.split(`"sku":"${i.sku}","name":`).length - 1, i.sku).toBe(1);
+    expect(sql).not.toContain("Wastewater plant");                     // that starter ships in bundle 57, bundle 38 stays what was applied
     expect(sql).toContain('"illustrative":true');
   });
 

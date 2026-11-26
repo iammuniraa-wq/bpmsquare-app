@@ -12,10 +12,12 @@
 // and nothing is duplicated. Re-run it (and commit the SQL) when the starter template, the
 // engine or that products script changes.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CHAINLINK_FENCE_STARTER } from "../src/lib/estimator/starterTemplates";
-import { GUARD_0213, dq, installBlock, sqlText, starterBody, startersSql, bundle38Sql, BUNDLE_38_FILE } from "../src/lib/estimator/starterSeedSql";
+import {
+  GUARD_0213, dq, installBlock, sqlText, starterBody, startersSql, bundle38Sql, BUNDLE_38_FILE, bundle57Sql, BUNDLE_57_FILE, wastewaterSlugSql, SLUG_SCRIPT_FILE, SLUG_VARIABLE_RE,
+} from "../src/lib/estimator/starterSeedSql";
 import { computeEstimate } from "../src/lib/estimator/compute";
 import { persistLine } from "../src/lib/estimator/lines";
 import { parseMatchKey } from "../src/lib/estimator/productMatch";
@@ -199,7 +201,14 @@ $seed$;
 writeFileSync(join(__dirname, "seed-estimate-templates-starter.sql"), startersSql(), "utf8");
 writeFileSync(join(__dirname, "seed-estimates-demo.sql"), demoSql, "utf8");
 writeFileSync(join(__dirname, BUNDLE_38_FILE), bundle38Sql(), "utf8");
+writeFileSync(join(__dirname, BUNDLE_57_FILE), bundle57Sql(), "utf8");
+// The slug is the one value this script keeps from the file it rewrites, so a regenerate never changes which workspace is named.
+const SLUG_FILE = join(__dirname, SLUG_SCRIPT_FILE);
+const keptSlug = existsSync(SLUG_FILE) ? SLUG_VARIABLE_RE.exec(readFileSync(SLUG_FILE, "utf8"))?.[1] : undefined;
+const slug = keptSlug ?? process.env.WASTEWATER_SLUG;
+if (!slug) throw new Error(`${SLUG_SCRIPT_FILE} does not exist yet: set WASTEWATER_SLUG to the workspace slug for the first run.`);
+writeFileSync(SLUG_FILE, wastewaterSlugSql(slug), "utf8");
 for (const b of built) {
   console.error(`${b.sample.name}: ${b.lines.length} lines, ${b.r.model?.pieces.length ?? 0} pieces, cost ${b.r.summary.cost_total}, total incl. VAT ${b.r.summary.price_incl_vat}`);
 }
-console.error(`wrote scripts/seed-estimate-templates-starter.sql, scripts/seed-estimates-demo.sql and scripts/${BUNDLE_38_FILE}`);
+console.error(`wrote scripts/seed-estimate-templates-starter.sql, scripts/seed-estimates-demo.sql, scripts/${BUNDLE_38_FILE}, scripts/${BUNDLE_57_FILE} and scripts/${SLUG_SCRIPT_FILE}`);
