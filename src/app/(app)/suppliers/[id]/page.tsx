@@ -11,6 +11,10 @@ import RecordMoreMenu from "@/components/page/RecordMoreMenu";
 import RecordActivity from "@/components/page/RecordActivity";
 import ObjectSections from "@/components/fields/ObjectSections";
 import SupplierRfqCard from "@/components/rfq/SupplierRfqCard";
+import SupplierCheckPanel from "@/components/suppliers/SupplierCheckPanel";
+import { SupplierCheckChip } from "@/components/suppliers/supplierCheckUi";
+import { readSummaries } from "@/lib/suppliers/check/service";
+import type { CheckSummary } from "@/lib/suppliers/check/types";
 import RelatedList from "@/components/page/RelatedList";
 import PagerLink from "@/components/PagerLink";
 import { getTenant, getTenantCurrency } from "@/lib/tenant";
@@ -82,6 +86,11 @@ export default async function SupplierDetailPage({
   }
   const cur = supplied ? await getTenantCurrency() : null;
 
+  // The newest saved supplier check, for the chip in the header strip. A missing table (0263 pending) reads as "no check yet".
+  const latestCheck: CheckSummary | null = canViewWorkcenter(perms, "suppliers")
+    ? (await readSummaries({ admin: supabase, tenantId }, [supplier.id])).summaries[0] ?? null
+    : null;
+
   return (
     <ObjectRecordPage
       backHref={ROUTES.suppliers}
@@ -106,6 +115,7 @@ export default async function SupplierDetailPage({
         { label: "Type", value: TYPE_LABEL[supplier.type] },
         { label: "City", value: supplier.city ?? "—" },
         { label: "Added", value: fmtDate(supplier.created_at) },
+        { label: "Check", value: latestCheck ? <SupplierCheckChip summary={latestCheck} /> : "Not checked" },
       ]}
       externalLine={<ExternalRecordSlot objectType="suppliers" objectId={id} />}
       basePath={basePath}
@@ -122,6 +132,11 @@ export default async function SupplierDetailPage({
               exclude={["name", "type", "city", "status"]}
             />
           ),
+        },
+        {
+          id: "check",
+          label: "Supplier check",
+          content: <SupplierCheckPanel supplierId={supplier.id} />,
         },
         ...(supplied && cur ? [{
           id: "products",
