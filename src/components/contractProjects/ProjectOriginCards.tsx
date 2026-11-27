@@ -58,7 +58,7 @@ export function BidAgainstBudgetCard({ bid, currency, coverage = null }: { bid: 
             <StatusPill label={f.delta === 0 ? "On the bid" : grew ? "Over the bid" : "Under the bid"} tone={tone} />
           </dd>
         </div>
-        <div style={row}><dt style={{ color: c.muted }}>Margin at bid → planned now</dt><dd style={{ margin: 0, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{coverage ? `Not complete · ${coverageText(coverage)}` : `${pct(f.bid_margin_pct)} → ${pct(f.planned_margin_pct)}`}</dd></div>
+        <div style={row}><dt style={{ color: c.muted }}>Margin at bid → planned now</dt><dd style={{ margin: 0, color: c.ink, fontVariantNumeric: "tabular-nums" }}>{coverage ? `Not complete · ${coverageText(coverage)}` : f.bid_margin_note ?? `${pct(f.bid_margin_pct)} → ${pct(f.planned_margin_pct)}`}</dd></div>
       </dl>
     </Card>
   );

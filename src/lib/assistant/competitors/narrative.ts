@@ -25,9 +25,10 @@ export function factsText(c: Computed): string {
   lines.push(d.daysLeft === null ? "Bid end date: not set"
     : d.daysLeft >= 0 ? `Bid ends in ${plural(d.daysLeft, "day")}` : `Bid end date passed ${plural(Math.abs(d.daysLeft), "day")} ago`);
   lines.push(d.price !== null ? `Our price now: ${moneyText(d.price, cur)}` : "Our price now: none");
-  lines.push(d.cost !== null ? `Our cost now: ${moneyText(d.cost, cur)}` : "Our cost now: not recorded");
+  lines.push(d.cost !== null ? `Our cost now: ${moneyText(d.cost, cur)}`
+    : d.costedLines > 0 ? "Our cost now: recorded on part of the lines only, so there is no total cost" : "Our cost now: not recorded");
   lines.push(d.marginPct !== null ? `Our margin now: ${pctText(d.marginPct)}` : "Our margin now: unknown");
-  if (d.cost !== null) lines.push(`Cost recorded on ${d.costedLines} of ${d.totalLines} lines`);
+  if (d.costedLines > 0) lines.push(`Cost recorded on ${d.costedLines} of ${d.totalLines} lines`);
   const h = c.history;
   lines.push(`Decided tenders: ${h.decided}, won ${h.wins}, lost ${h.losses}${h.winRatePct !== null ? `, win rate ${pctText(h.winRatePct)}` : ""}`);
   if (h.withMargin > 0) lines.push(`Margin known on ${h.withMargin} decided bids; average on wins ${h.avgMarginWinPct === null ? "unknown" : pctText(h.avgMarginWinPct)}, on losses ${h.avgMarginLossPct === null ? "unknown" : pctText(h.avgMarginLossPct)}`);

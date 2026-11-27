@@ -34,7 +34,7 @@ export const OPEN: PastTender[] = [
 
 export const DEAL: DealInput = {
   ref: "OPP-0034", title: "Riyadh precast package", href: "/pipeline/11111111-aaaa-4aaa-8aaa-000000000034", closingAt: "2026-12-03T12:00:00.000Z",
-  currency: "SAR", price: 2_000_000, cost: 1_800_000, costedLines: 10, totalLines: 10, state: "open",
+  currency: "SAR", price: 2_000_000, cost: 1_800_000, costedAmount: 2_000_000, costedLines: 10, totalLines: 10, state: "open",
 };
 
 export const COMPETITORS: CompetitorInput[] = [

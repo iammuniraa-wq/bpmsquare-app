@@ -12,6 +12,7 @@ import type { BoqInfo, DealLine, EstimateBudgetInput } from "@/lib/contractProje
 import type { DraftLine } from "@/lib/contractProjects/types";
 import { mapTenderToCostLines } from "./costLines";
 import type { Snapshot } from "./rules";
+import { marginHiddenText, marginIsStated, type CostCoverage } from "./marginCoverage";
 
 export const COST_SNAPSHOT_VERSION = 1;
 
@@ -137,17 +138,23 @@ export type BidVsBudget = {
   delta_pct: number | null;
   /** Margin the bid was made on, and the planned margin now, as percent of the price / contract value; null with no price. */
   bid_margin_pct: number | null;
+  /** Why there is no margin at bid, when too little of the bid had a cost. */
+  bid_margin_note?: string | null;
   planned_margin_pct: number | null;
 };
 
 const pct1 = (n: number) => Math.round(n * 10) / 10;
 
-export function bidVsBudget(args: { bidPrice: number; bidCost: number; budget: number; contractValue: number }): BidVsBudget {
+/** `coverage` says how much of the bid had a cost: the margin at bid is over that part only, and is left out when it is too small. */
+export function bidVsBudget(args: { bidPrice: number; bidCost: number; budget: number; contractValue: number; coverage?: CostCoverage | null }): BidVsBudget {
   const delta = round2(args.budget - args.bidCost);
+  const cover = args.coverage ?? { cost: args.bidCost, costedAmount: args.bidPrice, costedLines: 0, pricedLines: 0 };
+  const stated = marginIsStated(args.bidPrice, cover.costedAmount);
   return {
     bid_price: round2(args.bidPrice), bid_cost: round2(args.bidCost), budget: round2(args.budget), delta,
     delta_pct: args.bidCost > 0 ? pct1((delta / args.bidCost) * 100) : null,
-    bid_margin_pct: args.bidPrice > 0 ? pct1(((args.bidPrice - args.bidCost) / args.bidPrice) * 100) : null,
+    bid_margin_pct: stated ? pct1(((cover.costedAmount - cover.cost) / cover.costedAmount) * 100) : null,
+    ...(!stated && args.coverage ? { bid_margin_note: marginHiddenText(args.coverage) } : {}),
     planned_margin_pct: args.contractValue > 0 ? pct1(((args.contractValue - args.budget) / args.contractValue) * 100) : null,
   };
 }

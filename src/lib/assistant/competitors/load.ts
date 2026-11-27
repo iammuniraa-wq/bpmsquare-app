@@ -16,7 +16,7 @@ import type { AnalysisInput, CompetitorInput, PastTender } from "./compute";
 // bid cost table has no member policy at all. A table or column that a pending migration has not created reads as "no data", never
 // as a crash.
 
-export type DealMoney = { price: number | null; cost: number | null; costedLines: number; totalLines: number };
+export type DealMoney = { price: number | null; cost: number | null; costedAmount: number; costedLines: number; totalLines: number };
 
 export type LoadDeps = {
   /** The deal's lines priced as they stand, and their recorded cost. Replaced in tests. */
@@ -27,12 +27,12 @@ export async function dealMoney(admin: SupabaseClient, tenantId: string, dealId:
   try {
     const snap = await currentSnapshot(admin, tenantId, dealId);
     const price = snap.total > 0 ? snap.total : null;
-    if (!costVisible || price === null) return { price, cost: null, costedLines: 0, totalLines: snap.line_count };
-    const cost = await currentCostSummary(admin, tenantId, dealId, snap);
-    return { price, cost: cost.total > 0 ? cost.total : null, costedLines: cost.costedLines, totalLines: snap.line_count };
+    if (!costVisible || price === null) return { price, cost: null, costedAmount: 0, costedLines: 0, totalLines: snap.line_count };
+    const c = await currentCostSummary(admin, tenantId, dealId, snap);
+    return { price, cost: c.cost > 0 ? c.cost : null, costedAmount: c.costedAmount, costedLines: c.costedLines, totalLines: c.pricedLines };
   } catch (e) {
     console.error("Competitor analysis could not read the deal's price and cost:", e);
-    return { price: null, cost: null, costedLines: 0, totalLines: 0 };
+    return { price: null, cost: null, costedAmount: 0, costedLines: 0, totalLines: 0 };
   }
 }
 
@@ -122,10 +122,10 @@ async function pastTenders(admin: SupabaseClient, tenantId: string, exceptId: st
       if (!had || v > had.version) latest.set(r.opportunity_id, { version: v, total: num(r.total) });
     }
   }
-  const costTotals = costVisible ? await loadBidCostTotals(admin, tenantId, ids) : new Map<string, number>();
-  const costOf = (id: string): number | null => {
+  const costTotals: Awaited<ReturnType<typeof loadBidCostTotals>> = costVisible ? await loadBidCostTotals(admin, tenantId, ids) : new Map();
+  const costOf = (id: string) => {
     const v = latest.get(id)?.version;
-    return v === undefined ? null : costTotals.get(`${id}:${v}`) ?? null;
+    return v === undefined ? undefined : costTotals.get(`${id}:${v}`);
   };
 
   return tenders.filter((t) => oppRows.has(t.opportunity_id)).map((t): PastTender => {
@@ -135,7 +135,8 @@ async function pastTenders(admin: SupabaseClient, tenantId: string, exceptId: st
       outcome: outcomeOf(o),
       currency: o.currency ?? null,
       ourBid: latest.get(t.opportunity_id)?.total ?? null,
-      ourCost: costOf(t.opportunity_id),
+      ourCost: costOf(t.opportunity_id)?.cost ?? null,
+      ourCostedAmount: costOf(t.opportunity_id)?.costedAmount ?? null,
       awardValue: num(t.award_value),
       winner,
       competitors: listed.get(t.opportunity_id) ?? [],
@@ -169,7 +170,7 @@ export async function loadAnalysisInput(
     input: {
       deal: {
         ref: opp.ref ?? "this tender", title: opp.title, href: ROUTES.pipelineDetail(dealId), closingAt: tender.closing_at,
-        currency: opp.currency ?? null, price: money.price, cost: money.cost, costedLines: money.costedLines, totalLines: money.totalLines,
+        currency: opp.currency ?? null, price: money.price, cost: money.cost, costedAmount: money.costedAmount, costedLines: money.costedLines, totalLines: money.totalLines,
         state: outcomeOf(opp),
       },
       competitors,

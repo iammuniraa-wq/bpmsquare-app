@@ -12,6 +12,7 @@ import { isMissingSchema } from "@/lib/tender/server";
 import { tenderRfqLines } from "@/lib/tender/rfqLines";
 import { isStale, priceKind, priceValidityDays, type PriceSource } from "@/lib/tender/boq/price";
 import { buildEstimatesState, loadDealEstimate, type EstimatesState } from "@/lib/tender/estimates/server";
+import { awardKeptText, closedOutcome, pricesKeptText, pricesLockText } from "@/lib/tender/closedPrices";
 import { bidIsLocked, isUuid } from "@/lib/tender/estimates/rules";
 import { rfqConfig, RFQ_STATUS_LABEL, type Rfq, type RfqStatus } from "@/lib/rfq/types";
 import { RFQ_STATUS_TONE } from "@/components/rfq/rfqUi";
@@ -199,7 +200,7 @@ export async function buildCostingState(r: CostingRequest): Promise<CostingData>
     tiles: { priced: boq.priced, unpriced: boq.unpriced, rfqs_out: out.length, replies_in: out.reduce((s, x) => s + x.suppliers_replied, 0) },
     templates, rfq_lines: rfqLines, rfq_origin_label: `Deal ${opp.ref ?? opp.title}`,
     markup_default: tenderMarkupDefault(config as Parameters<typeof tenderMarkupDefault>[0]),
-    currency: String((config as { currency?: unknown }).currency ?? opp.currency ?? ""), today, stage: opp.stage, bid_locked: bidIsLocked(opp.stage),
+    currency: String((config as { currency?: unknown }).currency ?? opp.currency ?? ""), today, stage: opp.stage, bid_locked: bidIsLocked(opp.stage), prices_locked: pricesLockText(opp.outcome),
   };
 }
 
@@ -350,6 +351,7 @@ export async function buildCompareView(r: CostingRequest, rfqId: string): Promis
     can_award: !!r.rfqs?.canEdit && r.canEditDeal && !["cancelled", "closed"].includes(status)
       && (status !== "draft" || b.suppliers.some((s) => s.status === "replied")) && !awardState.pending,
     bid_locked: bidIsLocked(opp.stage), prices_rows: found.origin === "deal",
+    closed_note: closedOutcome(opp.outcome) ? pricesKeptText(closedOutcome(opp.outcome)!) : null,
   };
 }
 
@@ -367,6 +369,8 @@ export type AwardBody = {
 export type PricedRow = { rfq_line_id: string; item: string; from: number; to: number; cost: number; markup_pct: number };
 export type AwardAndPriceResult = {
   ok: true; results: AwardOutcome[]; priced: PricedRow[]; skipped: { rfq_line_id: string; reason: string }[]; markup_pct: number | null; bid_locked: boolean;
+  /** The one line to show when the award stood but the closed tender's prices were left alone. */
+  notice?: string;
 };
 
 export async function awardAndPrice(r: CostingRequest, body: AwardBody): Promise<AwardAndPriceResult | ({ ok: false } & Failure)> {
@@ -376,6 +380,9 @@ export async function awardAndPrice(r: CostingRequest, body: AwardBody): Promise
   const found = await loadDealRfq(r, body.rfq_id);
   if (!found) return { ok: false, status: 404, error: "RFQ not found" };
   const { rfq } = found;
+  // Buying out after a win is normal: the award goes through, the write onto the closed tender does not.
+  const closed = closedOutcome(opp.outcome);
+  if (closed && body.apply_only === true) return { ok: false, status: 409, error: pricesLockText(closed)! };
   if (["cancelled", "closed"].includes(rfq.status)) return { ok: false, status: 409, error: "This RFQ is closed." };
   if (rfq.status === "draft") {
     // A reply on a draft (entered by hand before the request was ever emailed) is enough to award; the RFQ leaves draft first.
@@ -434,7 +441,9 @@ export async function awardAndPrice(r: CostingRequest, body: AwardBody): Promise
   // and re-priced the rows that estimate prices (writeAwardedCostToEstimate), so there is nothing to write twice.
   let priced: PricedRow[] = [];
   let skipped: { rfq_line_id: string; reason: string }[] = [];
-  if (found.origin === "deal" && lineIds.length > 0) {
+  if (found.origin === "deal" && lineIds.length > 0 && closed) {
+    skipped = lineIds.map((id) => ({ rfq_line_id: id, reason: pricesKeptText(closed) }));
+  } else if (found.origin === "deal" && lineIds.length > 0) {
     try {
       const w = await priceAwardedRows(r, { rfq, lineIds, requested, fallback, today, rfqStaleDays: cfg.price_valid_days, validityDays: priceValidityDays(config as Parameters<typeof priceValidityDays>[0]), email: ctx.email });
       priced = w.priced; skipped = w.skipped;
@@ -442,7 +451,7 @@ export async function awardAndPrice(r: CostingRequest, body: AwardBody): Promise
       skipped = lineIds.map((id) => ({ rfq_line_id: id, reason: e instanceof Error ? e.message : "The BOQ row could not be priced" }));
     }
   }
-  return { ok: true, results, priced, skipped, markup_pct: requested, bid_locked: bidIsLocked(opp.stage) };
+  return { ok: true, results, priced, skipped, markup_pct: requested, bid_locked: bidIsLocked(opp.stage), ...(closed && lineIds.length > 0 ? { notice: awardKeptText(closed) } : {}) };
 }
 
 /**

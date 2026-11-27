@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_TENDER_STAGES, type TenantFeatures } from "@/lib/constants";
 import { parseSent, type TenderDecision, type TenderFields } from "./rules";
 import { parseBondStatus, type BondStatus } from "./bond";
+import { closedOutcome, type ClosedTenderOutcome } from "./closedPrices";
 import { readAllPages } from "@/lib/pagedRead";
 
 // Server-side helpers for tender deals (migration 0220). Every query is tenant-scoped on the admin client
@@ -127,6 +128,14 @@ export async function ensureTenderDealType(admin: SupabaseClient, tenantId: stri
 export async function accountInTenant(admin: SupabaseClient, tenantId: string, accountId: string): Promise<boolean> {
   const { data } = await admin.from("accounts").select("id").eq("id", accountId).eq("tenant_id", tenantId).maybeSingle();
   return !!data;
+}
+
+/** The outcome of a tender deal that is closed (its prices are frozen), or null: still open, not a tender, or not this workspace's. */
+export async function closedTenderOutcome(admin: SupabaseClient, tenantId: string, opportunityId: string): Promise<ClosedTenderOutcome | null> {
+  const { data } = await admin.from("opportunities").select("outcome").eq("id", opportunityId).eq("tenant_id", tenantId).maybeSingle();
+  const closed = closedOutcome((data as { outcome?: string | null } | null)?.outcome);
+  if (!closed) return null;
+  return (await loadTender(admin, tenantId, opportunityId)) ? closed : null;
 }
 
 /** A shared-Inbox message belongs to this workspace? */

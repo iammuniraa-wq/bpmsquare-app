@@ -1013,3 +1013,23 @@ describe("rehearsal fixes", () => {
     });
   });
 });
+
+describe("a closed tender: no estimate is applied, replaced, unlinked or re-priced", () => {
+  it.each(["won", "lost", "dropped"])("%s: 409 with the reason, and nothing is written", async (outcome) => {
+    await price([link("1.3")]);
+    const id = links()[0].id as string;
+    Object.assign(state.db.rows("opportunities").find((o) => o.id === OPP)!, { outcome, stage: "awarded" });
+    const before = snapshot();
+    const answers = [
+      await estPost(json("POST", { items: [link("1.2", { estimate_id: EST_SMALL })] }), ctx()),
+      await linkDelete(json("DELETE", {}), ctx(OPP, { linkId: id })),
+      await repricePost(json("POST", { link_ids: [id] }), ctx()),
+      await pricePost(json("POST", { all: true, markup_pct: 10 }), ctx()),
+    ];
+    for (const res of answers) {
+      expect(res.status).toBe(409);
+      expect((await res.json()).error).toBe(`The tender is ${outcome}, so its prices cannot be changed. Reopen the deal to change them.`);
+    }
+    expect(snapshot()).toBe(before);
+  });
+});

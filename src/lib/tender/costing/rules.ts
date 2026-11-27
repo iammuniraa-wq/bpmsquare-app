@@ -217,6 +217,8 @@ export type CostingData = {
   today: string;
   stage: string;
   bid_locked: boolean;
+  /** Why no row can be re-priced (a won, lost or dropped tender), else null. */
+  prices_locked?: string | null;
 };
 
 // ── The compare and award screen ─────────────────────────────────────────────────────────────────────────────────────────
@@ -257,6 +259,8 @@ export type CompareView = {
   bid_locked: boolean;
   /** An award on a deal RFQ writes the cost, the markup and the source onto the BOQ row; an award on an estimate RFQ goes through the estimate. */
   prices_rows: boolean;
+  /** Set for a won, lost or dropped tender: an award is recorded and no row is priced. */
+  closed_note?: string | null;
 };
 
 /** Standing awards that exist but have not been written onto a BOQ row. */

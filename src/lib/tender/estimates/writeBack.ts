@@ -6,6 +6,7 @@ import { loadOpportunity } from "@/lib/sales/opportunityServer";
 import { lineCost, readOverride } from "@/lib/estimator/overrides";
 import { loadEstimate, refreshTotals } from "@/lib/estimator/server";
 import { tenantHasFeature } from "@/lib/tenant";
+import { closedOutcome, type ClosedTenderOutcome } from "@/lib/tender/closedPrices";
 import { bidIsLocked, isUuid, round4 } from "./rules";
 import { loadLinks, repriceBoqLines } from "./server";
 
@@ -20,7 +21,7 @@ import { loadLinks, repriceBoqLines } from "./server";
 
 export type WriteBackOutcome =
   | { written: false; reason: string }
-  | { written: true; estimate_id: string; estimate_ref: string | null; repriced: number; flagged: number; locked: boolean };
+  | { written: true; estimate_id: string; estimate_ref: string | null; repriced: number; flagged: number; locked: boolean; closed?: ClosedTenderOutcome };
 
 export async function writeAwardedCostToEstimate(
   admin: SupabaseClient,
@@ -75,10 +76,12 @@ export async function writeAwardedCostToEstimate(
   if (links.length === 0) return { written: true, estimate_id: estimate.id, estimate_ref: estimate.ref, repriced: 0, flagged: 0, locked: false };
 
   const note = `${args.rfq.ref ?? "An RFQ"} was awarded${args.supplierName ? ` to ${args.supplierName}` : ""}`.slice(0, 300);
-  if (bidIsLocked(opp.stage)) {
-    await admin.from("tender_boq_estimate_links").update({ needs_review: true, review_note: `${note}. The bid is already in, so the rate was not changed.`.slice(0, 300), updated_at: new Date().toISOString() })
+  const closed = closedOutcome(opp.outcome);
+  if (closed || bidIsLocked(opp.stage)) {
+    const why = closed ? `The tender is ${closed}, so the rate was not changed.` : "The bid is already in, so the rate was not changed.";
+    await admin.from("tender_boq_estimate_links").update({ needs_review: true, review_note: `${note}. ${why}`.slice(0, 300), updated_at: new Date().toISOString() })
       .eq("tenant_id", tenantId).eq("opportunity_id", oppId).eq("estimate_id", estimate.id);
-    return { written: true, estimate_id: estimate.id, estimate_ref: estimate.ref, repriced: 0, flagged: new Set(links.map((l) => l.boq_line_id)).size, locked: true };
+    return { written: true, estimate_id: estimate.id, estimate_ref: estimate.ref, repriced: 0, flagged: new Set(links.map((l) => l.boq_line_id)).size, locked: true, ...(closed ? { closed } : {}) };
   }
   const res = await repriceBoqLines(
     { admin, tenantId, userId: ctx.userId, email: ctx.email, opp } as Parameters<typeof repriceBoqLines>[0],

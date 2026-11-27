@@ -12,6 +12,7 @@ import { rfqConfig } from "@/lib/rfq/types";
 import { openTenderDealRequest, type TenderDealRequest } from "@/lib/tender/dealAccess";
 import { readAllPages } from "@/lib/pagedRead";
 import { isMissingSchema } from "@/lib/tender/server";
+import { pricesLockText } from "@/lib/tender/closedPrices";
 import { defaultMarkupPct } from "@/lib/tender/boq/price";
 import { quotedPrice } from "@/lib/estimator/quoteLines";
 import { bundles, type BoqRequest } from "@/lib/tender/boq/server";
@@ -346,6 +347,8 @@ export async function repriceBoqLines(r: PricingCtx, boqIds: readonly string[], 
   const { admin, tenantId, userId, opp } = r;
   const result: RepriceResult = { repriced: [], failed: [] };
   if (boqIds.length === 0) return result;
+  const lock = pricesLockText(opp.outcome);
+  if (lock) return { repriced: [], failed: boqIds.map((id) => ({ boq_id: id, item: "BOQ line", reason: lock })) };
   const wanted = new Set(boqIds);
   const [{ rows: dealLinks }, b, config, today] = await Promise.all([
     loadLinks(admin, tenantId, opp.id),
@@ -434,6 +437,8 @@ export type ApplyResult = ({ ok: true } & RepriceResult & { linked: number; repl
  */
 export async function applyLinks(r: EstimatesRequest, items: readonly unknown[], opts: { markup?: unknown } = {}): Promise<ApplyResult> {
   const { admin, tenantId, opp, userId } = r;
+  const lock = pricesLockText(opp.outcome);
+  if (lock) return { ok: false, status: 409, error: lock };
   if (items.length === 0) return { ok: false, status: 422, error: "Nothing to link" };
   if (items.length > 2000) return { ok: false, status: 422, error: "At most 2000 lines in one step" };
 
@@ -524,6 +529,8 @@ export async function applyLinks(r: EstimatesRequest, items: readonly unknown[],
 /** Remove one link. The line keeps its rate; with other links left it is priced from them, with none left it becomes a manual rate. */
 export async function removeLink(r: EstimatesRequest, linkId: string): Promise<({ ok: true } & RepriceResult) | ({ ok: false } & Failure)> {
   const { admin, tenantId, opp } = r;
+  const lock = pricesLockText(opp.outcome);
+  if (lock) return { ok: false, status: 409, error: lock };
   if (!isUuid(linkId)) return { ok: false, status: 404, error: "Link not found" };
   const { data, error } = await admin.from("tender_boq_estimate_links").select(LINK_COLS).eq("id", linkId).eq("tenant_id", tenantId).eq("opportunity_id", opp.id).maybeSingle();
   if (error) return { ok: false, status: isMissingSchema(error) ? 503 : 500, error: isMissingSchema(error) ? PENDING_ESTIMATES : error.message };
@@ -582,6 +589,8 @@ export async function markReviewed(r: EstimatesRequest, linkIds: readonly string
 export async function repriceRequest(
   r: EstimatesRequest, body: { link_ids?: unknown; boq_ids?: unknown; all_stale?: unknown; markup_pct?: unknown; confirm_quantity?: unknown },
 ): Promise<({ ok: true } & RepriceResult) | ({ ok: false } & Failure)> {
+  const lock = pricesLockText(r.opp.outcome);
+  if (lock) return { ok: false, status: 409, error: lock };
   const links = await loadLinks(r.admin, r.tenantId, r.opp.id);
   if (links.pending) return { ok: false, status: 503, error: PENDING_ESTIMATES };
   const boq = new Set<string>();
