@@ -530,9 +530,40 @@ export async function removeLink(r: EstimatesRequest, linkId: string): Promise<(
   if (del.error) return { ok: false, status: 500, error: del.error.message };
   const left = await loadLinks(admin, tenantId, opp.id, [link.boq_line_id]);
   if (left.rows.length > 0) return { ok: true, ...(await repriceBoqLines(r, [link.boq_line_id])) };
-  await admin.from("tender_boq_lines").update({ price_source: "manual", price_source_ref: null, unit_cost: null, markup_pct: null, updated_at: new Date().toISOString() })
-    .eq("id", link.boq_line_id).eq("tenant_id", tenantId).eq("opportunity_id", opp.id).eq("price_source", "estimate");
+  await revertEstimatePrice(r, link.boq_line_id);
   return { ok: true, repriced: [], failed: [] };
+}
+
+/**
+ * The last estimate link of a line is gone, so the estimate no longer prices it. The line goes back to what the client's file said (a
+ * rate in the file: that rate and "BOQ rate" as its source) or, with nothing there, to unpriced with the source cleared. Nothing keeps
+ * the price that was there before an estimate took over, so the file is the only "before" there is. A line another source has priced
+ * since is left alone.
+ */
+async function revertEstimatePrice(r: Pick<EstimatesRequest, "admin" | "tenantId" | "userId" | "opp">, boqLineId: string): Promise<void> {
+  const { admin, tenantId, userId, opp } = r;
+  const [b, config, today] = await Promise.all([bundles({ ...r, supabase: admin, role: "member" } as unknown as BoqRequest, boqLineId), loadConfig(admin, tenantId), tenantToday(tenantId)]);
+  const item = b?.items.find((x) => x.boq.id === boqLineId);
+  if (!b || !item || item.boq.price_source !== "estimate") return;
+  const { boq, line } = item;
+  const fromFile = boq.file_rate != null && Number(boq.file_rate) > 0 && Number(boq.file_rate) <= MAX_RATE;
+  const rate = fromFile ? round2(Number(boq.file_rate)) : 0;
+  const amount = round2(Number(line.qty) * rate * (1 - Number(line.discount_pct ?? 0) / 100));
+  const now = new Date().toISOString();
+  const lineUp = await admin.from("opportunity_lines").update({ rate, amount }).eq("id", line.id).eq("tenant_id", tenantId).eq("opportunity_id", opp.id);
+  if (lineUp.error) return;
+  await admin.from("tender_boq_lines").update(
+    fromFile
+      ? { price_source: "boq_rate", price_source_ref: b.source.file_name.slice(0, 200), price_as_of: today, stale_accepted: false, unit_cost: null, markup_pct: null, priced_by: userId, priced_at: now, updated_at: now }
+      : { price_source: null, price_source_ref: null, price_as_of: null, stale_accepted: false, unit_cost: null, markup_pct: null, priced_by: null, priced_at: null, updated_at: now },
+  ).eq("id", boq.id).eq("tenant_id", tenantId).eq("opportunity_id", opp.id).eq("price_source", "estimate");
+  await refreshOpportunityDerived(admin, tenantId, opp.id, opportunityStages(config as Parameters<typeof opportunityStages>[0]));
+  const user = await getAuthUser();
+  await logChange(admin, {
+    tenantId, objectType: "opportunity_tenders", objectId: opp.id, objectLabel: `${opp.ref ?? ""} ${opp.title}`.trim(), action: "update",
+    actorId: user?.id ?? userId, actorEmail: user?.email ?? null,
+    changes: [{ field: `BOQ rate ${boq.item_no ?? `row ${boq.row_no}`}`, from: Number(line.rate), to: rate }, { field: "BOQ rate source", from: "estimate", to: fromFile ? "boq_rate" : null }],
+  });
 }
 
 /** "Reviewed": a person looked at lines an RFQ award re-priced by itself. */

@@ -35,7 +35,7 @@ import { tenderSteps } from "@/lib/tender/steps";
 import { approvalUrl, reloadAfterSave } from "@/components/tender/refreshAfterSave";
 import { amountText, amountValue } from "@/lib/tender/amountText";
 import TenderStepper from "@/components/tender/TenderStepper";
-import { resolveTenderTab, type TenderTabId } from "@/lib/tender/tabs";
+import { resolveTenderTab, tabHref, type TenderTabId } from "@/lib/tender/tabs";
 import { TENDER_TIPS } from "@/lib/tender/tips";
 import type { BoqFilter } from "@/lib/tender/boq/table";
 import type { TenderView } from "@/lib/tender/views";
@@ -62,7 +62,7 @@ import { editorUom } from "@/lib/sales/uom";
 // The deal page (§4.5): the record-page look (header with one primary step and
 // the "..." menu, facts, tabs) built client-side, because the Lines editor and
 // the header form keep unsaved state across tab switches -- so the tabs here
-// are state, not ?tab=. A standard deal: Overview · Lines · Quotes · Related · Activity.
+// are state, mirrored into ?tab= with replaceState (no remount, Back is not spammed). A standard deal: Overview · Lines · Quotes · Related · Activity.
 // A TENDER deal (docs/design/gcc-tender-deals.md section 26): Overview · Bill of quantities · Costing · Bid · Room · Competitors, a
 // primary header button that follows the stage, and History in the "..." menu (a side panel, a bottom sheet on a phone).
 
@@ -155,7 +155,7 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
     : [];
   const resolved = tender ? resolveTenderTab(initialTab, tenderTabs) : null;
   const startTab: Tab | undefined = tender ? resolved!.tab : (initialTab as string | undefined) === "tender" ? "overview" : (initialTab as Tab | undefined);
-  const [tab, setTab] = useState<Tab>(startTab ?? (tender ? "overview" : initialLines.length === 0 && quotes.length === 0 ? "overview" : "lines"));
+  const [tab, setTabState] = useState<Tab>(startTab ?? (tender ? "overview" : initialLines.length === 0 && quotes.length === 0 ? "overview" : "lines"));
   const [historyOpen, setHistoryOpen] = useState(!!resolved?.history);
   const [decisionOpen, setDecisionOpen] = useState(false);
   // The bid decision as the page last knew it. A proposal, an approval or a withdrawal re-reads it at once (the marker and the primary button
@@ -171,6 +171,10 @@ export default function OpportunityDetailClient({ opp, accountName, contacts, in
   const [bidStart, setBidStart] = useState(0);
   const [boqRequest, setBoqRequest] = useState<{ filter: BoqFilter; n: number } | undefined>(undefined);
   const boqAsks = useRef(0);
+  function setTab(next: Tab) {
+    setTabState(next);
+    try { window.history.replaceState(window.history.state, "", tabHref(window.location.href, next)); } catch { /* the URL is a convenience; the tab still switches */ }
+  }
   function openTab(next: Tab) {
     setTab(next);
     if (next !== "boq") setBoqRequest(undefined);
