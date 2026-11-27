@@ -46,6 +46,8 @@ import RevisionActions from "./RevisionActions";
 import RevisionsPanel from "./RevisionsPanel";
 import { REVISION_TIPS } from "@/lib/revisions/tips";
 import type { ClauseSectionData, ScopeMatrixData } from "@/lib/types";
+import StandardQuoteLinesTotals from "@/components/StandardQuoteLinesTotals";
+import { quoteTaxLabel } from "@/lib/standardQuoteTotals";
 
 // The page hand-renders every standard field; only the tenant's own (cf_) fields come from ObjectSections.
 const STANDARD_FIELD_KEYS = FIELD_REGISTRY.standard_quote.fields.map((f) => f.key);
@@ -304,7 +306,7 @@ export default async function StandardQuoteDetailPage({
                 { label: "Disc %", align: "right", cellStyle: { color: c.muted }, render: (l) => (l.discount_pct > 0 ? `${l.discount_pct}%` : "—") },
                 { label: "Amount", align: "right", cellStyle: { fontWeight: 500 }, render: (l) => inr(l.amount) },
               ]}
-              footer={<div style={{ fontSize: 14, fontWeight: 700 }}>Total: {inr(quote.total)}</div>}
+              footer={<StandardQuoteLinesTotals quote={quote} lines={lines} taxLabel={quoteTaxLabel(tenant?.company_info, tenant?.config?.tax)} money={inr} />}
             />
           ),
         },

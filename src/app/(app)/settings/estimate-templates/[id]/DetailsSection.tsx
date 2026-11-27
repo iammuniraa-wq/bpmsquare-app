@@ -8,6 +8,7 @@ import { GEOMETRY_KEYS, getGeometry } from "@/lib/estimator/geometry";
 import { ROLE_LABEL, inferVisualMapping } from "@/lib/estimator/visual";
 import { VISUAL_TIPS } from "@/lib/estimator/visualTips";
 import type { TemplateDraft } from "@/components/estimator/templateDraft";
+import { layoutName } from "@/components/estimator/workspace/layoutKind";
 import { VISUAL_ROLES } from "@/lib/estimator/types";
 import type { QuoteGranularity, TemplateInput } from "@/lib/estimator/types";
 
@@ -44,7 +45,7 @@ export default function DetailsSection({
         <Field label="Name" required>
           <Input value={draft.name} onChange={(e) => onChange({ name: e.target.value })} maxLength={120} />
         </Field>
-        <Field label="Description" hint="Shown to people choosing a template. Say if it is illustrative.">
+        <Field label="Description" hint="Shown to people choosing a template.">
           <Textarea value={draft.description} onChange={(e) => onChange({ description: e.target.value })} rows={3} maxLength={2000} />
         </Field>
         <div className="fg2">
@@ -94,7 +95,7 @@ export default function DetailsSection({
           <>
             <Field label="Model">
               <Select value={draft.geometry} onChange={(e) => onChange({ geometry: e.target.value })}>
-                {GEOMETRY_KEYS.map((k) => <option key={k} value={k}>{getGeometry(k)?.label ?? k}</option>)}
+                {GEOMETRY_KEYS.map((k) => <option key={k} value={k}>{layoutName(getGeometry(k)?.label ?? k)}</option>)}
               </Select>
             </Field>
             {draft.geometry && !mod && (

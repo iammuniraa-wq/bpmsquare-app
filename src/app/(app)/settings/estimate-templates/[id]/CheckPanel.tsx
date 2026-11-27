@@ -7,6 +7,7 @@ import { moneyFormatter } from "@/lib/currency";
 import { getGeometry, geometryIdentifiers } from "@/lib/estimator/geometry";
 import { templateIdentifiers, type TemplateDraft } from "@/components/estimator/templateDraft";
 import type { CheckState } from "@/components/estimator/useTemplateCheck";
+import { layoutName } from "@/components/estimator/workspace/layoutKind";
 
 function Names({ label, names }: { label: string; names: string[] }) {
   if (names.length === 0) return null;
@@ -67,7 +68,7 @@ export default function CheckPanel({ draft, check }: { draft: TemplateDraft; che
         <Names label="Rates" names={ids.rates} />
         <Names label="Earlier lines (quantity)" names={ids.lines} />
         <Names label="Group subtotals (cost so far)" names={ids.groups} />
-        {mod && <Names label={`Piece totals from ${mod.label}`} names={geometryIdentifiers(mod)} />}
+        {mod && <Names label={`Piece totals from ${layoutName(mod.label)}`} names={geometryIdentifiers(mod)} />}
         <div className="bpm-t-help" style={{ marginTop: 10 }}>
           Operators + - * / ( ), comparisons, and ceil, floor, round(x, n), min, max, abs, if(condition, a, b).
         </div>

@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminSupabase } from "@/lib/supabase-server";
+import { customerFigures, quotedPrice } from "./quoteLines";
 
 // The customer-safe view of an estimate for the v1 API, /api/v1/ask and the
 // report builder: ref, name, status, who it is for, which template, the price
@@ -8,14 +9,14 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 // DELIBERATELY NOT SELECTED, anywhere on these surfaces: unit_cost, cost_total,
 // margin_pct, the totals' cost breakdown (cost_total, margin_amount, by_group,
 // by_component), `params`, `model` and the lines themselves. Those are the
-// estimator's internal cost data. The price comes from two json paths
-// (totals->price, totals->price_incl_vat), so the rest of `totals` never leaves
-// the database for this query. Keep it that way: add a column here only after
+// estimator's internal cost data. The price comes from three json paths
+// (totals->price, totals->price_incl_vat, totals->vat_pct), so the rest of `totals`
+// never leaves the database for this query. Keep it that way: add a column here only after
 // asking whether a customer could see it.
 
 const SELECT =
   "id, ref, name, status, currency, custom_data, created_at, updated_at, " +
-  "quoted_total:totals->price, quoted_total_incl_vat:totals->price_incl_vat, " +
+  "quoted_total:totals->price, quoted_total_incl_vat:totals->price_incl_vat, quoted_vat_pct:totals->vat_pct, " +
   "accounts(id, ref, name), contacts(id, ref, name), estimate_templates(name)";
 
 type Related = { id?: string; ref?: string | null; name?: string | null } | null;
@@ -27,14 +28,17 @@ export function shapeEstimateRow(raw: Record<string, unknown>): Record<string, u
   const acc = one(raw.accounts);
   const con = one(raw.contacts);
   const tpl = one(raw.estimate_templates);
+  const price = num(raw.quoted_total);
+  const vatPct = num(raw.quoted_vat_pct);
+  const figures = price !== null && vatPct !== null ? customerFigures(price, vatPct) : null;
   return {
     id: raw.id,
     ref: raw.ref ?? null,
     name: raw.name,
     status: raw.status,
     currency: raw.currency ?? null,
-    quoted_total: num(raw.quoted_total),
-    quoted_total_incl_vat: num(raw.quoted_total_incl_vat),
+    quoted_total: price === null ? null : quotedPrice(price),
+    quoted_total_incl_vat: figures ? figures.total : num(raw.quoted_total_incl_vat),
     account: acc ? { id: acc.id ?? null, ref: acc.ref ?? null, name: acc.name ?? null } : null,
     contact: con ? { id: con.id ?? null, ref: con.ref ?? null, name: con.name ?? null } : null,
     template: tpl ? { name: tpl.name ?? null } : null,

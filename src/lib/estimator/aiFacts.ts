@@ -5,6 +5,7 @@
 import type { Estimate, EstimateLine, EstimateTemplate } from "@/lib/types";
 import type { ReviewFacts } from "./ai";
 import { groupNameOf, templateGroupNames } from "./lines";
+import { quotedPrice } from "./quoteLines";
 
 export function buildReviewFacts(
   estimate: Pick<Estimate, "name" | "params" | "totals" | "model" | "margin_pct">,
@@ -26,7 +27,7 @@ export function buildReviewFacts(
     totals: {
       cost_total: t?.cost_total ?? 0,
       margin_pct: estimate.margin_pct,
-      price: t?.price ?? 0,
+      price: quotedPrice(t?.price ?? 0),
       vat_pct: t?.vat_pct ?? 0,
       by_component: Object.fromEntries(Object.entries(t?.by_component ?? {}).map(([k, v]) => [k, v ?? 0])),
     },

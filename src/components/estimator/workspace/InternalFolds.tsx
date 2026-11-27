@@ -6,6 +6,7 @@ import { moneyFormatter } from "@/lib/currency";
 import type { TemplateRate, TemplateRule } from "@/lib/estimator/types";
 import { getGeometry } from "@/lib/estimator/geometry";
 import Collapsible from "./Collapsible";
+import { hasBuildSchedule } from "./layoutKind";
 import PriceBuilt from "./PriceBuilt";
 import ScheduleRiskSection from "../simulation/ScheduleRiskSection";
 import type { ShownData } from "./types";
@@ -34,7 +35,7 @@ export function ScheduleRiskPanel({ shown, rules, rates, geometry, record }: {
     <ScheduleRiskSection
       key={t?.margin_pct ?? 0}
       model={shown.model} lines={shown.lines} rules={rules} rates={rates}
-      hasLayout={!!getGeometry(geometry)} record={record}
+      hasLayout={hasBuildSchedule(geometry) && !!getGeometry(geometry)} record={record}
       price={t?.price ?? 0} marginPct={t?.margin_pct ?? 0} vatPct={t?.vat_pct ?? 0} currency={cur}
     />
   );

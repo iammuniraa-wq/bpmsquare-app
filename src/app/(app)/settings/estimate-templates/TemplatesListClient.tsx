@@ -116,15 +116,15 @@ export default function TemplatesListClient({ templates, illustrativeCount = 0 }
       </SettingsHeaderActions>
       {illustrativeCount > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }} data-guide="rate.sheet.illustrative">
-          <StatusPill label={`${illustrativeCount} illustrative rate${illustrativeCount === 1 ? "" : "s"}`} tone="amber" />
-          <InfoTip label="Illustrative rates">{RATE_SHEET_TIPS.illustrative}</InfoTip>
+          <StatusPill label={`${illustrativeCount} rate${illustrativeCount === 1 ? "" : "s"}`} tone="amber" />
+          <InfoTip label="Placeholder rates">{RATE_SHEET_TIPS.illustrative}</InfoTip>
         </div>
       )}
       <RecordList
         empty={
           <EmptyState
             title="No estimate templates yet"
-            text="Start from the illustrative precast villa starter and reshape it, or build one from scratch with + New template."
+            text="Start from the precast villa starter and reshape it, or build one from scratch with + New template."
             action={<StarterButton />}
           />
         }

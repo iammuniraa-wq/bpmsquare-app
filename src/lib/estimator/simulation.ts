@@ -32,6 +32,7 @@
 import { formulaIdentifiers, parseFormula } from "./formula";
 import type { FormulaAst } from "./formula";
 import { DEFAULT_DENSITY_T_M3 } from "./geometry";
+import { customerFigures, priceForCost, quotedPrice } from "./quoteLines";
 import { DEFAULT_LOAD_CAPACITY_T, LOAD_CAPACITY_RATE_KEY, SIM_CAPACITY_RATES } from "./simRates";
 import type { SimCapacityKey } from "./simRates";
 import { ESTIMATE_COMPONENTS } from "./types";
@@ -323,7 +324,7 @@ export type WhatIfResult = {
   price_delta: number;
 };
 
-/** The user's multipliers and margin applied: price = cost x (1 + margin %), VAT on the price. */
+/** The user's multipliers and margin applied: price = cost x (1 + margin %), shown with VAT as a customer would be quoted it. */
 export function whatIf(
   model: CostModel,
   multipliers: Multipliers,
@@ -331,12 +332,12 @@ export function whatIf(
 ): WhatIfResult {
   const { cost, by_component } = costWithMultipliers(model, multipliers);
   const margin = Number.isFinite(opts.margin_pct) && opts.margin_pct >= 0 ? opts.margin_pct : 0;
-  const price = cost * (1 + margin / 100);
+  const { price, total } = customerFigures(priceForCost(cost, margin), opts.vat_pct);
   return {
     cost, by_component, margin_pct: margin, price,
-    price_incl_vat: price * (1 + (Number.isFinite(opts.vat_pct) ? opts.vat_pct : 0) / 100),
+    price_incl_vat: total,
     cost_delta: cost - model.base_cost,
-    price_delta: price - opts.base_price,
+    price_delta: price - quotedPrice(opts.base_price),
   };
 }
 

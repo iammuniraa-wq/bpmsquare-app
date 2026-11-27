@@ -26,6 +26,14 @@ export function computeStandardQuoteTotals(
   return { subtotal, discountAmount, taxableAmount, taxAmount, shipping: shippingAmount, total };
 }
 
+/** The name beside the tax line: the same override and workspace setting the invoice and quotation prints read, else "Tax". */
+export function quoteTaxLabel(
+  companyInfo: { tax_label?: string } | null | undefined,
+  tax: { label?: string } | null | undefined
+): string {
+  return companyInfo?.tax_label?.trim() || tax?.label?.trim() || "Tax";
+}
+
 /** Clamp/parse a client-supplied percentage into a safe 0-100 number. */
 export function clampPct(v: unknown): number {
   const n = typeof v === "number" ? v : parseFloat(String(v));

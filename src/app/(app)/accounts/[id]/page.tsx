@@ -381,7 +381,7 @@ export default async function AccountHubPage({
           { label: "Name", render: (e) => <span style={{ fontWeight: 600, color: c.ink }}>{e.name}</span> },
           { label: "Template", cellStyle: { color: c.muted, fontSize: 13 }, render: (e) => e.template_name ?? "—" },
           { label: "Status", render: (e) => <StatusPill label={e.status.charAt(0).toUpperCase() + e.status.slice(1)} tone={e.status === "won" ? "green" : e.status === "lost" ? "red" : e.status === "quoted" ? "amber" : "blue"} /> },
-          { label: "Price incl. VAT", align: "right", render: (e) => <span style={{ fontWeight: 600, color: c.ink }}>{e.price_incl_vat === null ? "—" : fmtMoney(e.price_incl_vat)}</span> },
+          { label: "Price incl. VAT", align: "right", render: (e) => <span style={{ fontWeight: 600, color: c.ink }}>{e.price_incl_vat === null ? "—" : formatMoney(e.price_incl_vat, cur)}</span> },
         ]}
       />
     ),

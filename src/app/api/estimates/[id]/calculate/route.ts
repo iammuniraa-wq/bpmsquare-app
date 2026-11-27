@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { logChange } from "@/lib/changeLog";
 import { isUuid } from "@/lib/estimator/requests";
+import { quotedPrice } from "@/lib/estimator/quoteLines";
 import { estimatorAccess, errorResponse, pendingResponse, loadEstimate, recomputeEstimate } from "@/lib/estimator/server";
 
 // POST /api/estimates/[id]/calculate  { reprice?: boolean }
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await logChange(ctx.supabase, {
       tenantId: ctx.tenantId, objectType: "estimates", objectId: id, objectLabel: before.data.ref ?? before.data.name,
       action: "update", actorId: ctx.userId, actorEmail: ctx.email,
-      changes: [{ field: "calculation", from: before.data.totals?.price ?? null, to: r.totals.price }],
+      changes: [{ field: "calculation", from: before.data.totals ? quotedPrice(before.data.totals.price) : null, to: quotedPrice(r.totals.price) }],
     });
     return NextResponse.json({ estimate: r.estimate, lines: r.lines, totals: r.totals, warnings: r.totals.warnings ?? [] });
   } catch (e) {

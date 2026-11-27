@@ -9,7 +9,7 @@ export const RATE_SHEET_TIPS = {
   match: "A row matches on its SKU first, then on its name. A close name is only offered: you decide before anything is changed.",
   choice: "Update puts the rate on the catalogue item you pick. Add creates a new item, and Skip leaves the row out.",
   stale: "The price is older than the validity days in Settings, RFQ. It is still imported, and it shows as stale wherever it is used.",
-  illustrative: "The starter templates price from placeholder costs marked illustrative. An item stops being illustrative when a rate sheet sets its rate.",
+  illustrative: "Catalogue items still priced from a starter template's placeholder cost. Import a rate sheet to set your own rates.",
   currency: "A row in another currency is not applied, because the catalogue works in one currency. Convert the rates and import again.",
   history: "The rate a new one replaces is kept on the item and in the change history, with the date and where the new one came from.",
   notApplied: "A row in another currency, a repeat of an earlier row, or a currency that is not a three-letter code. Fix the sheet and import again.",

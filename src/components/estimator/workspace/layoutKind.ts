@@ -2,6 +2,9 @@
 // The page was written for the precast villa; a fence (or tiles, or a cabin) must not read
 // "About the villa", so the few words that name the subject come from here.
 
+import { rangedRates } from "@/lib/estimator/simulation";
+import type { TemplateRate } from "@/lib/estimator/types";
+
 export type LayoutWords = {
   /** Heading of the inputs card. */
   about: string;
@@ -39,10 +42,18 @@ const GENERIC: LayoutWords = {
 
 export const wordsFor = (geometry: string | null | undefined): LayoutWords => (geometry && WORDS[geometry]) || GENERIC;
 
+/** A layout module's name as a screen shows it, without the module's own "(illustrative)" suffix. */
+export const layoutName = (label: string): string => label.replace(/ \(illustrative\)$/i, "");
+
 /** Layout modules whose pieces the build-schedule and risk run understands (the precast erection sequence). */
 const HAS_BUILD_SCHEDULE = new Set<string | null>([null, "precast_villa"]);
 
-export const hasBuildSchedule = (geometry: string | null | undefined): boolean => HAS_BUILD_SCHEDULE.has(geometry ?? null);
+// A template with no layout is stored as null or as "" (the SQL starter seeds write ""): both mean the same thing.
+export const hasBuildSchedule = (geometry: string | null | undefined): boolean => HAS_BUILD_SCHEDULE.has(geometry || null);
+
+/** The "Schedule & risk" tab: for a build schedule, or for rates with a range, which give the risk run something to move. */
+export const hasScheduleRiskTab = (template: { geometry?: string | null; rates?: readonly TemplateRate[] | null } | null | undefined): boolean =>
+  hasBuildSchedule(template?.geometry) || rangedRates(template?.rates ?? []).length > 0;
 
 /** Which preview a template draws: its bespoke module's, else the picture built from its inputs ("generic"), else nothing. */
 export type PreviewKind = "fence" | "pieces" | "generic" | "none";

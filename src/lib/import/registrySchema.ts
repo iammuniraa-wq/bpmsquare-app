@@ -91,7 +91,7 @@ export const REFERENCE_FIELDS: Partial<Record<ImportObjectId, ReferenceFieldDef[
   // Estimates are born with a template (it decides the inputs and rules), so
   // import resolves one by name; account/contact are optional.
   estimates: [
-    { key: "template_name", label: "Template", hint: "Name of an active estimate template in this workspace, e.g. Precast villa (illustrative)", target: "estimate_templates", required: true },
+    { key: "template_name", label: "Template", hint: "Name of an active estimate template in this workspace, spelled exactly as in Settings", target: "estimate_templates", required: true },
     { key: "account_name", label: "Account", hint: "Optional customer account this estimate is for", target: "accounts" },
     { key: "contact_name", label: "Contact", hint: "Optional contact at that account", target: "contacts" },
   ],

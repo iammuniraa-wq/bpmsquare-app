@@ -53,6 +53,24 @@ const roundPrice = (x: number): number => roundHalfAway(x, QUOTE_PRICE_DP);
 /** The price a customer is quoted for an estimate's price: the estimate's own, in whole units. */
 export const quotedPrice = roundPrice;
 
+export type CustomerFigures = { price: number; vat: number; total: number };
+
+/**
+ * The one derivation of what a customer pays for an estimate: the stored price in whole units, then VAT and total from that
+ * rounded price, as the Standard Quote works them out. Every screen that shows a customer price reads it from here, never
+ * `totals.price` or `totals.price_incl_vat` directly, so estimates saved earlier agree without being calculated again.
+ */
+export function customerFigures(price: number, vat_pct: number): CustomerFigures {
+  const net = quotedPrice(price);
+  const vat = roundMoney((net * (Number.isFinite(vat_pct) ? vat_pct : 0)) / 100);
+  return { price: net, vat, total: roundMoney(net + vat) };
+}
+
+/** The same figures as the quote screens print them (whole units), for text that has no money formatter of its own. */
+export function printedFigures(f: CustomerFigures): CustomerFigures {
+  return { price: f.price, vat: roundPrice(f.vat), total: roundPrice(f.total) };
+}
+
 const fmtQty = (n: number): string => String(roundQty(n));
 
 /** The price an estimate shows for a cost: same arithmetic as summariseLines. */

@@ -72,7 +72,7 @@ export default async function NewEstimatePage({ searchParams }: { searchParams: 
         <Card padding={0}>
           <EmptyState
             title="There is no estimate template yet"
-            text="An estimate starts from a template: its inputs, rates and rules decide the bill of materials and the cost. Start from the illustrative precast villa starter, then reshape it in Settings."
+            text="An estimate starts from a template: its inputs, rates and rules decide the bill of materials and the cost. Start from the precast villa starter, then reshape it in Settings."
             action={
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
                 <StarterButton />

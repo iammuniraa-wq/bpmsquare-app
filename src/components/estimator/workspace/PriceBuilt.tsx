@@ -3,6 +3,7 @@ import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import { ESTIMATE_COMPONENTS, ESTIMATE_COMPONENT_LABEL, type EstimateComponent } from "@/lib/estimator/types";
 import type { EstimateTotals } from "@/lib/types";
+import { quotedPrice } from "@/lib/estimator/quoteLines";
 import AiReviewCard from "../AiReviewCard";
 
 const TONE: Record<EstimateComponent, PillarKey> = {
@@ -71,7 +72,7 @@ export default function PriceBuilt({ totals, money, estimateId, canReview = fals
         <div style={{ marginTop: parts.length > 0 ? 8 : 0 }}>
           <Row label="Cost" value={money(totals.cost_total)} />
           <Row label={`Margin (${totals.margin_pct}% on cost)`} value={money(totals.margin_amount)} />
-          <Row label="Price before VAT" value={money(totals.price)} strong />
+          <Row label="Price before VAT" value={money(quotedPrice(totals.price))} strong />
         </div>
       </Card>
 

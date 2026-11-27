@@ -10,6 +10,7 @@ import { loadRevisionSnapshot } from "@/lib/revisions/server";
 import { printedRevisionNo, revisionsActive } from "@/lib/revisions/state";
 import { snapshotForPrint } from "@/lib/revisions/snapshot";
 import type { StandardQuoteTemplate } from "@/lib/types";
+import { quoteTaxLabel } from "@/lib/standardQuoteTotals";
 
 export default async function StandardQuotePrintPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ pdf?: string; rev?: string }> }) {
   const { id } = await params;
@@ -18,6 +19,7 @@ export default async function StandardQuotePrintPage({ params, searchParams }: {
   if (!data || !tenant?.features?.standard_quotes) notFound();
 
   const { quote, lines, account, contact, template } = data;
+  const taxLabel = quoteTaxLabel(tenant.company_info, tenant.config?.tax);
 
   // Revision history (0252): an issued quotation, or "?rev=N", prints from what that revision froze, through the frame as it was.
   const active = revisionsActive(tenant.config, quote);
@@ -32,7 +34,7 @@ export default async function StandardQuotePrintPage({ params, searchParams }: {
       return (
         <StandardQuoteFramedPrint
           quote={printed.quote} lines={printed.lines} account={printed.account} contact={printed.contact} blocks={snap.template.blocks} docSections={snap.quote.doc_sections}
-          currency={snap.currency} pdfMode={pdf === "1"} rev={wanted}
+          currency={snap.currency} taxLabel={taxLabel} pdfMode={pdf === "1"} rev={wanted}
           frame={{ bodyCss: snapFrame.bodyCss, fontFaceCss: snapFrame.fontFaceCss, previewHeaderHtml: snapFrame.previewHeaderHtml, previewFooterHtml: snapFrame.previewFooterHtml, marginsMm: snapFrame.marginsMm, pageFormat: snapFrame.pageFormat }}
         />
       );
@@ -42,7 +44,7 @@ export default async function StandardQuotePrintPage({ params, searchParams }: {
         quote={printed.quote} lines={printed.lines} account={printed.account} contact={printed.contact}
         companyInfo={snap.frame.company_info} logoUrl={snap.frame.logo_url}
         template={{ id: snap.template.id ?? "", tenant_id: quote.tenant_id, name: snap.template.name ?? "", is_default: false, accent_color: snap.template.accent_color, logo_position: snap.template.logo_position, blocks: snap.template.blocks, created_at: "", updated_at: "" } as StandardQuoteTemplate}
-        currency={snap.currency} pdfHref={`/api/standard-quotes/${quote.id}/pdf?rev=${wanted}`}
+        currency={snap.currency} taxLabel={taxLabel} pdfHref={`/api/standard-quotes/${quote.id}/pdf?rev=${wanted}`}
       />
     );
   }
@@ -54,7 +56,7 @@ export default async function StandardQuotePrintPage({ params, searchParams }: {
     return (
       <StandardQuoteFramedPrint
         quote={quote} lines={lines} account={account} contact={contact} blocks={blocks} docSections={quote.doc_sections ?? null}
-        currency={currency.code} pdfMode={pdf === "1"}
+        currency={currency.code} taxLabel={taxLabel} pdfMode={pdf === "1"}
         frame={{ bodyCss: frame.bodyCss, fontFaceCss: frame.fontFaceCss, previewHeaderHtml: frame.previewHeaderHtml, previewFooterHtml: frame.previewFooterHtml, marginsMm: frame.marginsMm, pageFormat: frame.pageFormat }}
       />
     );
@@ -70,6 +72,7 @@ export default async function StandardQuotePrintPage({ params, searchParams }: {
       logoUrl={tenant?.logo_url ?? null}
       template={template}
       currency={currency.code}
+      taxLabel={taxLabel}
     />
   );
 }

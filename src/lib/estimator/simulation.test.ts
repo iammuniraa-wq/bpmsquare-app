@@ -151,10 +151,10 @@ describe("what-if", () => {
   it("applies multipliers and margin, price = cost x (1 + margin)", () => {
     const w = whatIf(model, { concrete_cost_m3: 1.1 }, { margin_pct: 20, vat_pct: 15, base_price: base.summary.price });
     expect(w.cost).toBeGreaterThan(model.base_cost);
-    expect(w.price).toBeCloseTo(w.cost * 1.2, 6);
+    expect(w.price).toBe(Math.round(w.cost * 1.2));
     expect(w.price_incl_vat).toBeCloseTo(w.price * 1.15, 6);
     expect(w.cost_delta).toBeCloseTo(w.cost - model.base_cost, 6);
-    expect(w.price_delta).toBeCloseTo(w.price - base.summary.price, 6);
+    expect(w.price_delta).toBe(w.price - Math.round(base.summary.price));
   });
   it("no change gives zero cost delta", () => {
     expect(whatIf(model, {}, { margin_pct: 18, vat_pct: 15, base_price: base.summary.price }).cost_delta).toBeCloseTo(0, 6);

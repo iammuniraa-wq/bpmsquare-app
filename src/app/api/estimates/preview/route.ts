@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { validateTemplate } from "@/lib/estimator/template";
 import { parsePreviewRequest } from "@/lib/estimator/requests";
+import { customerFigures } from "@/lib/estimator/quoteLines";
 import {
   estimatorAccess, errorResponse, pendingResponse, loadTemplate, templateBody, loadTenantMeta, computeAndPrice,
 } from "@/lib/estimator/server";
@@ -37,6 +38,7 @@ export async function POST(req: NextRequest) {
     });
     if (!out.ok) return NextResponse.json({ error: out.issues[0]?.message ?? "These inputs do not compute.", issues: out.issues }, { status: 422 });
 
+    const figures = customerFigures(out.result.summary.price, meta.vat_pct);
     return NextResponse.json({
       unit_costs: out.pricing.unit_costs,
       sources: out.pricing.sources,
@@ -44,8 +46,8 @@ export async function POST(req: NextRequest) {
       unpriced: out.pricing.unpriced,
       warnings: [...out.result.warnings, ...out.pricing.warnings],
       vat_pct: meta.vat_pct,
-      price: out.result.summary.price,
-      price_incl_vat: out.result.summary.price_incl_vat,
+      price: figures.price,
+      price_incl_vat: figures.total,
     });
   } catch (e) {
     return errorResponse(e);

@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { canViewWorkcenter, type PermissionSet } from "@/lib/permissions";
 import { loadEstimateBundle } from "@/lib/estimator/server";
 import { unpricedCodes } from "@/lib/estimator/lines";
+import { customerFigures, printedFigures } from "@/lib/estimator/quoteLines";
 import { promptText } from "./promptSafe";
 import { findRecords } from "./sources";
 
@@ -16,20 +17,22 @@ export const EXPLAIN_ESTIMATE_TOOL = "explain_estimate";
 export const ESTIMATE_PROMPT_RULE =
   "\n16. ESTIMATES: you cannot create or change an estimate from this chat, and you never say you did. Estimates are made in the Estimator: the person picks a template, enters the quantities and the price is built there. " +
   "When asked to create or start one, say that in one or two plain sentences and call navigate with the New Estimate target from NAVIGATION; never write that it was created, started or done. " +
-  "The only estimate step you can do is tender_action estimate on a tender deal, and that shows a card. " +
-  "To explain how an estimate's price is built call explain_estimate and use only the figures it returns.";
+  "The only estimate step you can do is tender_action estimate on a tender deal, and that shows a card. Never bring up a tender the person did not ask about. " +
+  "To explain how an estimate's price is built call explain_estimate and use only the figures it returns. Its price figures are the ones the customer is quoted; never work out another price from the cost and the margin.";
 
 export const ESTIMATE_CREATE_ANSWER =
   "Estimates are made in the Estimator, not from this chat: pick a template, enter the quantities and the price is built there. I can't create one for you.";
 
-const CREATE_ASK = /\b(?:create|make|build|prepare|draft|start|set\s*up|add|raise|generate|new)\b[^.?!\n]{0,60}\bestimates?\b/i;
-const DONE_CLAIM = /\b(?:created|made|added|started|drafted|prepared|generated|set up|done|here you go|here it is)\b/i;
+// The words between the verb and "estimate" may describe it, but may not point at something else ("a quote from the estimate",
+// "add a line to the estimate") or at one that already exists ("make this estimate cheaper").
+const OTHER_THING = "(?:from|of|on|to|in|with|for|about|this|that|these|those|quotes?|quotations?|lines?|notes?|tasks?|reports?|charts?|emails?|reminders?|activity|accounts?|contacts?|leads?|deals?|cases?|rfqs?|invoices?|orders?|templates?)";
+const GAP = `(?:\\s+(?!${OTHER_THING}\\b)[^\\s.?!;:,]+){0,5}?`;
+const NOT_THE_ESTIMATE = "(?!['\u2019]s\\b|\\s+(?:templates?|list|margin|total|status|cheaper|lines?)\\b)";
+const CREATE_ASK = new RegExp(`(?:\\b(?:create|make|build|prepare|draft|start|set\\s*up|add|raise|generate|need|want)\\b${GAP}|^\\s*(?:a\\s+)?new(?:\\s+cost)?)\\s+estimates?\\b${NOT_THE_ESTIMATE}`, "i");
+const LOOKUP_ASK = /^\s*(?:how|where|which|what|show|list|find|open|explain|did|have|has|who|when|why|is|are|was|were)\b/i;
 
-/** The person asked for an estimate to be made. */
-export const isEstimateCreateAsk = (question: string): boolean => CREATE_ASK.test(question);
-
-/** The model's text says something was done, and does not send the person to the Estimator. */
-export const claimsEstimateDone = (text: string): boolean => DONE_CLAIM.test(text) && !/estimator/i.test(text);
+/** The person asked for an estimate to be made (not a question about estimates that exist). */
+export const isEstimateCreateAsk = (question: string): boolean => !LOOKUP_ASK.test(question) && CREATE_ASK.test(question);
 
 export const estimateAccess = (a: { features: Record<string, boolean | undefined>; perms: PermissionSet }): boolean =>
   a.features.estimator === true && canViewWorkcenter(a.perms, "estimates");
@@ -78,6 +81,7 @@ export async function runExplainEstimate(input: unknown, env: ExplainEnv): Promi
   const { estimate: e, lines, template, account, quote } = bundle;
   const t = e.totals;
   const unpriced = unpricedCodes(lines);
+  const quoted = t && money(t.price) !== null ? printedFigures(customerFigures(t.price, money(t.vat_pct) ?? 0)) : null;
   const facts = {
     reference: e.ref,
     name: promptText(e.name, 120),
@@ -89,9 +93,10 @@ export async function runExplainEstimate(input: unknown, env: ExplainEnv): Promi
     cost_by_section: t ? t.by_group.map((g) => ({ section: promptText(g.name, 80), cost: money(g.cost) })) : [],
     cost_total: t ? money(t.cost_total) : null,
     margin_pct: t ? money(t.margin_pct) : money(e.margin_pct),
-    price_before_vat: t ? money(t.price) : null,
+    price_before_vat: quoted?.price ?? null,
     vat_pct: t ? money(t.vat_pct) : null,
-    price_including_vat: t ? money(t.price_incl_vat) : null,
+    vat_amount: quoted?.vat ?? null,
+    price_including_vat: quoted?.total ?? null,
     lines: lines.length,
     lines_without_price: unpriced.length,
     lines_without_price_codes: unpriced.slice(0, 10).map((c) => promptText(c, 60)),

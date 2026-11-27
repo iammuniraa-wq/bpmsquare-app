@@ -104,7 +104,7 @@ describe("step 2: the preview", () => {
     expect(out).toContain("Update Steel pipe DN300 (illustrative) (EST-PIPE-STEEL-300)");
     expect(out).toContain("Add as a new item");
     expect(out).toContain(">Skip<");
-    expect(out).toContain("Now 340, no date · illustrative placeholder");
+    expect(out).toContain("Now 340, no date · placeholder");
   });
 
   it("a stale price is labelled with its age; a price in another currency is shown as not applied, with the reason, and has no choice", () => {
