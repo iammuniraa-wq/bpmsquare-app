@@ -271,6 +271,14 @@
       "doc": "Formats the quote print \"Subject:\" line from the quote's short name."
     },
     {
+      "name": "standardQuotePrintStyle",
+      "doc": "Which layout the Standard Quote print page and PDF use when the workspace has no page frame."
+    },
+    {
+      "name": "standardQuotePrintDefaults",
+      "doc": "Defaults for the modern layout; ignored by the classic one."
+    },
+    {
       "name": "beforeSaveAccount",
       "doc": "Called before an account is saved (create or update)."
     },
