@@ -150,6 +150,8 @@ export type DockAward = {
   /** A tender award stores the cost and adds the markup; a plain RFQ award stores the cost only. */
   pricesRows: boolean;
   markupDefaultPct: number | null;
+  /** Which markup the rates on the card use and where each comes from. Absent on a card that adds no markup. */
+  markupNote?: string | null;
   needsReason: boolean;
   needsReplace: boolean;
   /** Anything that is not a clean pass, in words. Blocking ones set `blocked`. */
@@ -162,6 +164,10 @@ export type DockAward = {
   /** Suppliers on the card whose newest saved Supplier check is Check first or Concerning. The press asks again; the person types the reason. */
   supplierChecks?: AwardCheck[];
 };
+
+export type AwardDone = { awarded: number; of: number; partial?: boolean; error?: string; stoppedAt?: string; next: NextStep[]; warnings: string[] };
+/** How an award card in the chat ended (see CardSettled in assistant/cards.ts). */
+export type AwardSettled = { kind: "awarded"; done: AwardDone } | { kind: "cancelled" };
 
 export type PriceCheckRow = {
   item: string;

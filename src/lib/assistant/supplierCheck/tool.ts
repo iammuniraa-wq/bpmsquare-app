@@ -53,6 +53,8 @@ export type DockSupplierCheck = {
   web: { searches: number; consent: { id: string; token: string } } | null;
   /** Present when this person may save the check (the assistant's actions are on and they may edit suppliers): proof this server computed `result`. */
   saveToken: string | null;
+  /** Set by the dock once "Save to supplier" has been pressed, so the card drawn again cannot be pressed twice. */
+  saved?: boolean;
   /** The newest check already saved on the record, so the card can say so. */
   lastSaved: { checkedAt: string; verdict: Verdict } | null;
   notice: string | null;

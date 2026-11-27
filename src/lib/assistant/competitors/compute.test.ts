@@ -233,6 +233,34 @@ describe("cost, price and dates", () => {
     expect(c.risks.find((r) => r.id === "partial_cost")!.text).toContain("3 of 10 lines have no recorded cost");
   });
 
+  it("cost on 8 of 43 lines: no margin is stated, nothing is priced from the missing cost, and one plain line says why", () => {
+    // The live case: 8 costed lines carry 11.5M of a 39.4M tender. Counting the rest as free read as a 76.9% margin.
+    const c = computeAnalysis(input({ deal: { ...DEAL, price: 39_400_000, cost: 9_100_000, costedAmount: 11_500_000, costedLines: 8, totalLines: 43 } }));
+    expect(c.deal.marginPct).toBeNull();
+    expect(c.deal.cost).toBeNull();
+    expect(c.risks.find((r) => r.id === "margin_hidden")!.text).toBe("Margin not shown: cost known for 8 of 43 lines.");
+    expect(c.ladder.rows.every((r) => r.price === null && r.profit === null && r.expected === null)).toBe(true);
+    expect(c.ladder.rows.some((r) => r.current)).toBe(false);
+    expect(c.ladder.rows.map((r) => r.marginPct)).toEqual(ladderMargins(null));
+  });
+
+  it("cost on 80% or more of the priced amount: the margin is over the costed lines only, and no amount is built from part of the cost", () => {
+    const c = computeAnalysis(input({ deal: { ...DEAL, cost: 1_440_000, costedAmount: 1_600_000, costedLines: 7 } }));
+    expect(c.deal.marginPct).toBe(10);
+    expect(c.deal.cost).toBeNull();
+    expect(c.ladder.rows.every((r) => r.price === null && r.expected === null)).toBe(true);
+    expect(computeAnalysis(input({ deal: { ...DEAL, cost: 1_439_100, costedAmount: 1_599_000, costedLines: 7 } })).deal.marginPct).toBeNull();
+  });
+
+  it("a past bid with too little of it costed adds no margin to the history or the ladder", () => {
+    expect(bidMargin(1000, 180, 200)).toBeNull();
+    expect(bidMargin(1000, 810, 900)).toBe(10);
+    const c = computeAnalysis(input({ past: [...WON, ...LOST].map((p) => ({ ...p, ourCost: (p.ourCost as number) * 0.2, ourCostedAmount: (p.ourBid as number) * 0.2 })) }));
+    expect(c.history).toMatchObject({ withMargin: 0, avgMarginWinPct: null, avgMarginLossPct: null });
+    expect(c.ladder.basis).toBe("prior");
+    expect(c.decidedWithoutCost).toBe(12);
+  });
+
   it("a person who may not see costs gets the starting assumption, no amounts and no margin", () => {
     const c = computeAnalysis(input({ costVisible: false }));
     expect(c.ladder.basis).toBe("prior");

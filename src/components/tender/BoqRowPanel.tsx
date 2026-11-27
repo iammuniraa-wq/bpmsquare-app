@@ -53,7 +53,7 @@ function Fold({ id, title, tip, count, guide, children }: { id: string; title: s
   );
 }
 
-export default function BoqRowPanel({ base, row, links, canEdit, markup, validityDays, onClose, onChanged, onError, onNotice, onOpenCosting, initialCandidates, opportunityId, estimates, wbs, onSplit }: {
+export default function BoqRowPanel({ base, row, links, canEdit, priceLock, markup, validityDays, onClose, onChanged, onError, onNotice, onOpenCosting, initialCandidates, opportunityId, estimates, wbs, onSplit }: {
   /** /api/opportunities/[id]/boq */
   base: string;
   /** With `estimates`: the two row-level estimate actions ("Price from estimate", "Build up this rate") are offered under the cost block. */
@@ -64,6 +64,8 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
   /** The deal's estimate links for this row. */
   links: readonly LinkView[];
   canEdit: boolean;
+  /** Why quantity, rate, cost and price sources cannot be changed (a closed tender). The texts and the WBS stay editable. */
+  priceLock?: string | null;
   /** The toolbar's markup, used when a cost source is chosen from the list. */
   markup: number;
   validityDays: number;
@@ -82,6 +84,7 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
   onSplit?: (rowId: string) => void;
 }) {
   const { confirm } = useFeel();
+  const priceEdit = canEdit && !priceLock;
   const [description, setDescription] = useState(row.description);
   const [details, setDetails] = useState(row.details ?? "");
   const [moreDetails, setMoreDetails] = useState(false);
@@ -240,12 +243,13 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
             </Field>
           )
         )}
+        {priceLock && <div role="note" data-guide="boq.row.locked" style={{ fontSize: 12.5, color: "var(--amberink)" }}>{priceLock}</div>}
         <div className="fg2">
           <Field label={`Quantity${row.uom ? ` (${row.uom})` : ""}`} guide="boq.row.qty">
-            <Input type="number" min={0} step="any" inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value)} disabled={!canEdit} style={{ minHeight: 44 }} />
+            <Input type="number" min={0} step="any" inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value)} disabled={!priceEdit} style={{ minHeight: 44 }} />
           </Field>
           <Field label="Rate" info={BOQ_TABLE_TIPS.rate} guide="boq.row.rate">
-            <Input type="number" min={0} step="0.01" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} disabled={!canEdit} style={{ minHeight: 44 }} />
+            <Input type="number" min={0} step="0.01" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} disabled={!priceEdit} style={{ minHeight: 44 }} />
           </Field>
         </div>
 
@@ -264,7 +268,7 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
             {row.stale && <div style={{ color: "var(--amberink)", fontWeight: 600 }}>{row.stale_text}{row.stale_accepted ? ", accepted knowingly" : ""}</div>}
           </div>
           {breakdown && <div style={small}>Cost {money(breakdown.cost)} + {breakdown.markup}% markup = rate {money(breakdown.rate)}</div>}
-          {canEdit && (
+          {priceEdit && (
             <div data-guide="boq.row.cost_edit" className="fg2" style={{ alignItems: "flex-end" }}>
               <Field label="Cost / unit" info={BOQ_TABLE_TIPS.editCost}>
                 <Input type="number" min={0} step="0.01" inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} style={{ minHeight: 44 }} />
@@ -280,7 +284,7 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
               {l.stale && !l.waiting && <div style={{ color: "var(--amberink)", fontWeight: 600 }}>The estimate changed, re-price it in Costing</div>}
               {l.quantity?.note && !l.broken && <div role="alert" data-guide="boq.row.quantity" style={{ color: "var(--amberink)", fontWeight: 600 }}>{l.quantity.note}</div>}
               {l.needs_review && <div style={{ color: "var(--amberink)", fontWeight: 600 }}>{l.review_note ?? "Re-priced from a supplier award, check it"}</div>}
-              {canEdit && opportunityId && estimates && (
+              {priceEdit && opportunityId && estimates && (
                 <PanelLinkActions
                   l={l} base={`/api/opportunities/${opportunityId}/tender/estimates`} canEdit bidLocked={estimates.bid_locked}
                   onPick={setPick} onChanged={onChanged} onError={onError} onNotice={onNotice}
@@ -311,7 +315,7 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
           </Fold>
         )}
 
-        {canEdit && estimates && opportunityId && row.linked && (
+        {priceEdit && estimates && opportunityId && row.linked && (
           <div data-guide="boq.row.estimate_actions">
             <LineEstimates
               key={pick ?? "none"} initialOpen={pick ? "price" : null} initialEstimateId={pick ?? undefined}
@@ -322,7 +326,7 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
           </div>
         )}
 
-        {canEdit && row.linked && (
+        {priceEdit && row.linked && (
           <div data-guide="boq.row.sources" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <Button variant="quiet" onClick={() => void openList()} style={{ minHeight: 44 }} data-guide="boq.price_line" aria-expanded={listOpen}>{listOpen ? "Hide price sources" : "Choose a price source"}</Button>

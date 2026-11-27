@@ -24,7 +24,7 @@ export function priceAccess(g: { features: Record<string, boolean | undefined>; 
 export const PRICE_COMPARE_PROMPT_RULE =
   "\nPRICE COMPARISON: when the person asks to compare supplier quotes or prices, who is cheapest, or which supplier to award, call compare_quotes with the RFQ or deal reference they gave (ask which one if it is unclear). " +
   "The app works out every figure and draws the card, so after it write ONE short sentence and repeat none of its figures. " +
-  "When they ask to award, call propose_award: it only shows a card and nothing is awarded until they press the button on it, so never say it was awarded. " +
+  "When they ask to award, call propose_award: it only shows a card and nothing is awarded until they press the button on it, so never say it was awarded. It can award the whole RFQ or only the lines they named (pass their words as lines). " +
   "When they ask whether a tender's BOQ rates are in line with our own history, call price_check.";
 
 export function priceTools(access: PriceAccess, o: { webHistory?: boolean } = {}): Anthropic.Tool[] {
@@ -61,13 +61,15 @@ export function priceTools(access: PriceAccess, o: { webHistory?: boolean } = {}
       name: AWARD_TOOL,
       description:
         "Show a confirm card to award the lines of one RFQ (Award and price): to ONE supplier, or each line to its cheapest valid supplier. It awards nothing: the person reads the lines, the cost, the markup and any warning, and presses the button. " +
-        "Use it only when the person asks to award or to propose the award. Pass the RFQ reference and, for mode single, the supplier's name as the person wrote it.",
+        "Use it only when the person asks to award or to propose the award. Pass the RFQ reference and, for mode single, the supplier's name as the person wrote it. " +
+        "A single line or a few lines CAN be awarded: when the person named lines (\"the geotextile line\"), pass their words as lines and the card holds only those.",
       input_schema: {
         type: "object",
         properties: {
           reference: { type: "string", description: "RFQ-0014, or OPP-0034 when that deal has one RFQ." },
           mode: { type: "string", enum: ["single", "split"], description: "single = every line to one supplier; split = each line to its cheapest valid supplier." },
           supplier: { type: "string", description: "Mode single only: the supplier's name." },
+          lines: { type: "string", description: "Only when the person named particular lines: their own words or the item numbers, e.g. \"geotextile\" or \"2\"." },
         },
         required: ["reference", "mode"],
       },
@@ -79,7 +81,7 @@ export function priceTools(access: PriceAccess, o: { webHistory?: boolean } = {}
 const text = (v: unknown, max: number): string => (typeof v === "string" ? promptText(v, max) : "");
 
 export type CompareInput = { reference: string; suppliers: string[] };
-export type AwardInput = { reference: string; mode: "single" | "split"; supplier: string };
+export type AwardInput = { reference: string; mode: "single" | "split"; supplier: string; lines?: string };
 export type CheckInput = { deal: string };
 
 export const parseCompareInput = (raw: unknown): CompareInput => {
@@ -88,7 +90,8 @@ export const parseCompareInput = (raw: unknown): CompareInput => {
 };
 export const parseAwardInput = (raw: unknown): AwardInput => {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-  return { reference: text(r.reference, 80), mode: r.mode === "split" ? "split" : "single", supplier: text(r.supplier, 80) };
+  const lines = text(r.lines, 80);
+  return { reference: text(r.reference, 80), mode: r.mode === "split" ? "split" : "single", supplier: text(r.supplier, 80), ...(lines ? { lines } : {}) };
 };
 export const parseCheckInput = (raw: unknown): CheckInput => {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;

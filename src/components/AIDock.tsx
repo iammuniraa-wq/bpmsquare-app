@@ -14,7 +14,7 @@ import { parsePageContext } from "@/lib/assistant/objects";
 import { isInternalPath } from "@/lib/assistant/navTargets";
 import { ASSISTANT_TIPS, usageTip } from "@/lib/assistant/tips";
 import type { Suggestion } from "@/lib/assistant/suggestions";
-import type { ConfirmCard } from "@/lib/assistant/cards";
+import type { CardSettled, ConfirmCard } from "@/lib/assistant/cards";
 import ConfirmCardView from "@/components/assistant/ConfirmCardView";
 import { AnalysisConsentRow, CreateDetailsRow, WebConsentRow, WebSources, type CreateDetailsMode, type CreateDetailsState } from "@/components/assistant/WebResearch";
 import AnalysisCardView from "@/components/analysis/AnalysisCardView";
@@ -28,7 +28,7 @@ import type { DockCompetitors } from "@/lib/assistant/competitors/types";
 import CompetitorCardView from "@/components/assistant/CompetitorCardView";
 import type { DockReport, ReportSaveTarget } from "@/lib/assistant/reportTool";
 import PriceCardView from "@/components/assistant/PriceCards";
-import { priceDigest, type PriceCard } from "@/lib/assistant/priceCompare/types";
+import { priceDigest, type AwardSettled, type PriceCard } from "@/lib/assistant/priceCompare/types";
 import type { DockSupplierCheck } from "@/lib/assistant/supplierCheck/tool";
 import SupplierCheckPanel from "@/components/suppliers/SupplierCheckPanel";
 import { WEB_TAINT_WINDOW, applyChoice, settleOnNewAsk, type ConsentState, type WebAllow, type WebChoice } from "@/lib/assistant/webConsent";
@@ -44,6 +44,9 @@ type Msg = {
   from: "bot" | "me"; text: string; report?: ReportPayload; cards?: Card[]; guide?: GuideReply;
   /** A create the assistant proposes: the confirm card. */
   confirm?: ConfirmCard;
+  /** How the confirm card or the award card on this message ended, once it has. */
+  settled?: CardSettled;
+  awardSettled?: AwardSettled;
   /** The assistant asked to search the web, or to analyse a company with web research; answered with the chips. */
   consent?: {
     kind: "web_search" | "analyse_company" | "create_research" | "research_report"; query: string; subject?: string; state: ConsentState; token: string;
@@ -260,6 +263,11 @@ export default function AIDock({ liftForTabBar = false }: {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
+
+  /** Keeps what a card's press did on its message, so it survives the panel closing and a reload. */
+  function keepOnMessage(at: number, patch: (m: Msg) => Partial<Msg>) {
+    setMessages((prev) => prev.map((x, k) => (k === at ? { ...x, ...patch(x) } : x)));
+  }
 
   function go(href: string) {
     if (!isInternalPath(href)) return;
@@ -691,13 +699,28 @@ ${m.companyReport.digest}` : m.text,
                   </button>
                 ))}
                 {m.clarify && <CreateDetailsRow state={m.clarify.state} disabled={busy} onChoice={(mode) => answerClarify(i, mode)} />}
-                {m.confirm && <ConfirmCardView card={m.confirm} onOpen={go} onAsk={ask} modelLocked={!!m.fromWeb && messages.length - 1 - i < WEB_TAINT_WINDOW} />}
-                {m.price && <PriceCardView card={m.price} onOpen={go} onAsk={(q) => ask(q)} busy={busy} />}
+                {m.confirm && (
+                  <ConfirmCardView
+                    key={m.confirm.id} card={m.confirm} onOpen={go} onAsk={ask} modelLocked={!!m.fromWeb && messages.length - 1 - i < WEB_TAINT_WINDOW}
+                    settled={m.settled} onSettled={(settled) => keepOnMessage(i, () => ({ settled }))}
+                  />
+                )}
+                {m.price && (
+                  <PriceCardView
+                    key={m.price.id} card={m.price} onOpen={go} onAsk={(q) => ask(q)} busy={busy}
+                    settled={m.awardSettled} onSettled={(awardSettled) => keepOnMessage(i, () => ({ awardSettled }))}
+                  />
+                )}
                 {m.competitors && <CompetitorCardView data={m.competitors} busy={busy} onOpen={go} onAsk={ask} />}
                 {m.analysis && (
                   <AnalysisCardView data={m.analysis} busy={busy} onOpen={go} onRefresh={() => refreshAnalysis(m.analysis!)} onAsk={(q) => ask(q)} />
                 )}
-                {m.supplierCheck && <SupplierCheckPanel supplierId={m.supplierCheck.supplierId} seed={m.supplierCheck} />}
+                {m.supplierCheck && (
+                  <SupplierCheckPanel
+                    supplierId={m.supplierCheck.supplierId} seed={m.supplierCheck}
+                    onSaved={(result) => keepOnMessage(i, (x) => (x.supplierCheck ? { supplierCheck: { ...x.supplierCheck, result, saveToken: null, saved: true } } : {}))}
+                  />
+                )}
                 {m.progress && <ReportProgressRows parts={m.progress.parts} subject={m.progress.subject} />}
                 {m.companyReport && (
                   <ReportCardView

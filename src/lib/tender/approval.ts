@@ -123,6 +123,7 @@ export function stageGuard(args: { from: string; to: string; effective: { propos
     return "A no-go needs a manager's approval first. Propose it from Bid decision at the top of the deal";
   }
   if (BID_STAGES.includes(to) && !BID_STAGES.includes(from) && effective?.proposed_value !== "go") {
+    if (to === "bid_lost") return "To record a lost or dropped bid the tender must first have an approved Go decision. To walk away without bidding, propose No-go (no bid) from Bid decision at the top of the deal: once approved, the tender moves to No-bid";
     return "Bidding needs a manager's approval first. Propose the go decision from Bid decision at the top of the deal";
   }
   return null;

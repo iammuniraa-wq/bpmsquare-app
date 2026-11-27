@@ -102,6 +102,15 @@ export function chooseLines(a: {
   return { picks, left };
 }
 
+/** One sentence on the markup behind the card's rates: the figure, and whether it is the BOQ row's own or the workspace's default. */
+export function markupNote(rows: readonly { item: string; pct: number; own: boolean }[]): string | null {
+  if (!rows.length) return null;
+  const from = (own: boolean) => (own ? "set on the BOQ row" : "the workspace default");
+  const same = rows.every((r) => r.pct === rows[0].pct && r.own === rows[0].own);
+  if (same) return `Markup ${rows[0].pct}%, ${from(rows[0].own)}.`;
+  return `Markup differs between lines: ${rows.map((r) => `item ${r.item} ${r.pct}% (${from(r.own)})`).join("; ")}.`;
+}
+
 /** The checks on an award that are not a clean pass, as plain sentences. Nothing here blocks: the card shows them and the person decides. */
 export function awardNotices(picks: readonly LineChoice[], o: { staleDays: number; money: (n: number) => string; mode: "single" | "split"; supplier?: string; coverage?: { quoted: number; asked: number } }): string[] {
   const out: string[] = [];

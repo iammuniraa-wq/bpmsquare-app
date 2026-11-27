@@ -29,7 +29,7 @@ vi.mock("@/lib/ai/structured", () => ({ allowanceFor: vi.fn(), logUsage: vi.fn()
 vi.mock("@/lib/tender/bids/server", () => ({ currentSnapshot: vi.fn(async () => ({ total: 2_000_000, line_count: 10, lines: [], source_ids: [] })) }));
 vi.mock("@/lib/tender/bids/costServer", async (orig) => ({
   ...(await orig<typeof import("@/lib/tender/bids/costServer")>()),
-  currentCostSummary: vi.fn(async () => ({ total: 1_800_000, costedLines: 10 })),
+  currentCostSummary: vi.fn(async () => ({ cost: 1_800_000, costedAmount: 2_000_000, costedLines: 10, pricedLines: 10 })),
 }));
 
 import { askAssistant, WEB_LOCKED_TOOLS, type AssistantAskCtx } from "@/lib/ai/assistant";
@@ -69,8 +69,8 @@ function seed(tenantId: string, dealId: string, ref: string, idBase: number): Re
     opportunities.push({ id, tenant_id: tenantId, ref: `OLD-${idBase + i}`, title: "Old", outcome: p.outcome, stage: p.outcome === "open" ? "estimating" : "awarded", currency: p.currency });
     tenders.push({ opportunity_id: id, tenant_id: tenantId, closing_at: null, award_value: p.awardValue, winning_bidder: p.winner });
     p.competitors.forEach((n, j) => comps.push({ id: `p-${tenantId}-${i}-${j}`, opportunity_id: id, tenant_id: tenantId, name: n, status: "accepted" }));
-    if (p.ourBid !== null) versions.push({ opportunity_id: id, tenant_id: tenantId, version_no: 1, total: p.ourBid });
-    if (p.ourCost !== null) costs.push({ opportunity_id: id, tenant_id: tenantId, version_no: 1, total_cost: p.ourCost });
+    if (p.ourBid !== null) versions.push({ opportunity_id: id, tenant_id: tenantId, version_no: 1, total: p.ourBid, lines: [{ key: "a", description: "Works", qty: 1, rate: p.ourBid, amount: p.ourBid }] });
+    if (p.ourCost !== null) costs.push({ opportunity_id: id, tenant_id: tenantId, version_no: 1, total_cost: p.ourCost, snapshot: { v: 1, warnings: [], lines: [{ key: "a", lines: [{ description: "Works", qty: 1, unit_cost: p.ourCost }] }] } });
   });
   return { opportunities, opportunity_tenders: tenders, opportunity_competitors: comps, tender_bid_versions: versions, tender_bid_version_costs: costs };
 }

@@ -18,7 +18,7 @@ vi.mock("@/lib/supabase-server", () => ({
 }));
 vi.mock("@/lib/permissions", async (orig) => ({ ...(await orig<typeof import("@/lib/permissions")>()), resolvePermissions: async () => state.perms }));
 vi.mock("@/lib/changeLog", () => ({
-  logChange: async (_c: unknown, p: (typeof state.changes)[number]) => { state.changes.push(p); },
+  logChange: async (_c: unknown, p: (typeof state.changes)[number]) => { state.changes.push({ ...p, via: (await import("@/lib/actions/via")).currentVia() } as (typeof state.changes)[number]); },
   diffForLog: () => [],
 }));
 vi.mock("@/lib/suppliers/check/research", async (orig) => ({
@@ -193,6 +193,7 @@ describe("POST /api/suppliers/[id]/check/save (the dock's Save to supplier)", ()
     expect(r.status).toBe(200);
     expect(state.db.rows("supplier_checks")).toEqual([expect.objectContaining({ tenant_id: "t1", supplier_id: SID.wadi, verdict: "looks_genuine" })]);
     expect(state.changes).toHaveLength(1);
+    expect(state.changes[0]).toMatchObject({ via: "assistant" });
   });
 
   it("refuses a result the client edited, a token for another supplier, and a workspace whose actions are off", async () => {

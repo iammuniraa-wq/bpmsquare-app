@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { rfqAccess, errorResponse } from "@/lib/rfq/server";
 import { awardWithDecision, AwardError, type AwardTarget } from "@/lib/rfq/awards";
 import { rfqConfig, type Rfq } from "@/lib/rfq/types";
+import { closedTenderOutcome } from "@/lib/tender/server";
+import { awardKeptText } from "@/lib/tender/closedPrices";
 import type { TenantConfig } from "@/lib/constants";
 
 // POST { line_id, response_id | null, fx_rate?, reason?, replace? }   -- award one line (null = no award)
@@ -40,9 +42,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       rfq: rfq as Rfq, targets, reason: body.reason, replace: body.replace === true, fxRate: body.fx_rate, staleDays: cfg.price_valid_days,
       supplierCheck: { reason: body.supplier_check_reason, ack: body.supplier_check_ack },
     });
+    const awarded = results.some((x) => x.status === "awarded");
+    const closed = !awarded ? null
+      : rfq.origin_type === "opportunity" && rfq.origin_id ? await closedTenderOutcome(ctx.admin, ctx.tenantId, rfq.origin_id as string)
+      : results.map((x) => (x.estimate?.written ? x.estimate.closed : undefined)).find((x) => !!x) ?? null;
     // The single-line shape the screen has always read stays at the top level.
     const first = results[0];
-    return NextResponse.json({ ok: true, ...(results.length === 1 ? first : {}), results });
+    return NextResponse.json({ ok: true, ...(results.length === 1 ? first : {}), results, ...(closed ? { notice: awardKeptText(closed) } : {}) });
   } catch (e) {
     if (e instanceof AwardError) return NextResponse.json({ error: e.message, ...e.extra }, { status: e.status });
     return errorResponse(e);

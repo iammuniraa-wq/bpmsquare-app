@@ -488,3 +488,63 @@ describe("the files that go out", () => {
     expect(lines()).toHaveLength(201);
   });
 });
+
+describe("a won tender keeps its prices", () => {
+  const deal = () => state.db.rows("opportunities").find((o) => o.id === OPP)!;
+  const prices = () => JSON.stringify([lines(), boqRows(), deal(), state.db.rows("tender_boq_sources")]);
+  const LOCK = "The tender is won, so its prices cannot be changed. Reopen the deal to change them.";
+  const patchRow = async (body: unknown) => {
+    const { PATCH } = await import("./[id]/boq/lines/[boqId]/route");
+    return PATCH(jpost(body), { params: Promise.resolve({ id: OPP, boqId: boqByItem("B.1").id as string }) });
+  };
+  const rate = (v: number) => pricePost(jpost({ line: boqByItem("B.1").id, source: "manual", rate: v }), ctx());
+  beforeEach(async () => {
+    await applyFirst();
+    expect((await rate(100)).status).toBe(200);
+    Object.assign(deal(), { outcome: "won", stage: "awarded" });
+  });
+
+  it("Price all, a typed rate, a typed cost, a quantity, a re-upload and the Lines save are refused with 409, and nothing moves", async () => {
+    const { PUT } = await import("./[id]/lines/route");
+    const before = prices();
+    const answers = [
+      await pricePost(jpost({ all: true, markup_pct: 10 }), ctx()),
+      await rate(120),
+      await pricePost(jpost({ line: boqByItem("B.1").id, source: "manual", cost: 90, markup_pct: 20 }), ctx()),
+      await patchRow({ qty: 999 }),
+      await boqPost(upload(xlsx(await messyWorkbook())), ctx()),
+      await PUT(jpost({ lines: [{ description: "Replaced", qty: "1", rate: "1" }] }), ctx()),
+    ];
+    for (const res of answers) {
+      expect(res.status).toBe(409);
+      expect((await res.json()).error).toBe(LOCK);
+    }
+    expect(prices()).toBe(before);
+    expect((await (await boqGet(get(), ctx())).json()).locked).toBe(LOCK);
+  });
+
+  it("a description is not a price and can still be corrected", async () => {
+    expect((await patchRow({ description: "Corrected wording" })).status).toBe(200);
+    expect(lineOf("B.1")).toMatchObject({ description: "Corrected wording", rate: 100 });
+  });
+
+  it("whatever else saves, the deal amount stays what it was won at", async () => {
+    const { refreshOpportunityDerived } = await import("@/lib/sales/opportunityServer");
+    deal().amount = 39_393_318;
+    await refreshOpportunityDerived(state.db as never, T1, OPP, []);
+    expect(deal().amount).toBe(39_393_318);
+  });
+
+  it("a closed standard deal is derived from its lines as before", async () => {
+    const { refreshOpportunityDerived } = await import("@/lib/sales/opportunityServer");
+    Object.assign(state.db.rows("opportunities").find((o) => o.id === OPP_STD)!, { outcome: "won", stage: "won", amount: 500 });
+    const out = await refreshOpportunityDerived(state.db as never, T1, OPP_STD, [{ value: "won", label: "Won", color: "#000000", is_closed: true, outcome: "won" }]);
+    expect(out?.amount).toBe(0);
+  });
+
+  it("reopened, it can be priced again", async () => {
+    Object.assign(deal(), { outcome: "open", stage: "clarifications" });
+    expect((await rate(120)).status).toBe(200);
+    expect(Number(lineOf("B.1").rate)).toBe(120);
+  });
+});

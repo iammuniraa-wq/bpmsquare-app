@@ -7,6 +7,8 @@ import { opportunityStages } from "@/lib/sales/opportunity";
 import { loadOpportunity, loadOpportunityLines, refreshOpportunityDerived } from "@/lib/sales/opportunityServer";
 import { linesVersion } from "@/lib/sales/dealLines";
 import { boqOrderedLines, dealHasBoq, restoreBoqLinks, snapshotBoqLinks } from "@/lib/tender/boq/lineSync";
+import { pricesLockText } from "@/lib/tender/closedPrices";
+import { tenderForDeal } from "@/lib/tender/server";
 
 // PUT: replace a deal's lines (§4.3) -- the same shape and the same
 // guards as the Standard Quote line save: products verified against the
@@ -28,6 +30,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const admin = createAdminSupabase();
   const opp = await loadOpportunity(admin, tenantId, id);
   if (!opp) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const lock = pricesLockText(opp.outcome);
+  if (lock && (await tenderForDeal(admin, tenantId, (await getTenant())?.features, id))) {
+    return NextResponse.json({ error: lock, code: "tender_closed" }, { status: 409 });
+  }
 
   const body = await request.json().catch(() => ({}));
   type RawLine = {

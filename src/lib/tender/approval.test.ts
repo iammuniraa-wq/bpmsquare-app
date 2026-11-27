@@ -86,6 +86,15 @@ describe("the decision that stands, and the stage guard", () => {
     expect(stageGuard({ from: "no_bid", to: "estimating", effective: null })).toMatch(/approval/);
   });
 
+  it("recording a loss before a go decision says what is needed and names the way to walk away", () => {
+    const said = stageGuard({ from: "received", to: "bid_lost", effective: null })!;
+    expect(said).toContain("To record a lost or dropped bid the tender must first have an approved Go decision");
+    expect(said).toContain("No-go (no bid) from Bid decision");
+    expect(said).not.toContain("Bidding needs");
+    expect(stageGuard({ from: "received", to: "bid_lost", effective: go })).toBeNull();
+    expect(stageGuard({ from: "submitted", to: "bid_lost", effective: null })).toBeNull();
+  });
+
   it("any stage to No-bid needs an approved no-go", () => {
     expect(stageGuard({ from: "bid_no_bid", to: "no_bid", effective: null })).toMatch(/no-go/);
     expect(stageGuard({ from: "bid_no_bid", to: "no_bid", effective: go })).toMatch(/no-go/);

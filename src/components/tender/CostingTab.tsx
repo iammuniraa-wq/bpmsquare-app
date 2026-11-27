@@ -121,6 +121,7 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
   async function reprice(estimateId: string) {
     const item = estimates.find((x) => x.id === estimateId);
     if (!item || item.kind !== "estimate" || item.stale_link_ids.length === 0) return;
+    if (data?.prices_locked) { onError(data.prices_locked); return; }
     if (data?.bid_locked && !(await confirm({ title: "The bid is already in", body: "Re-pricing changes the rate on the deal's rows. The submitted bid version is kept as it was.", confirmLabel: "Re-price" }))) return;
     setBusy(true); onError("");
     try {
@@ -141,6 +142,7 @@ export default function CostingTab({ opportunityId, canEdit, onError, onNotice, 
       {data.pending_estimates && <div role="alert" data-guide="costing.pending_estimates" style={{ fontSize: 13, color: "var(--amberink)" }}>{PENDING_EST}</div>}
       {data.pending_rfqs && <div role="alert" data-guide="costing.pending_rfqs" style={{ fontSize: 13, color: "var(--amberink)" }}>{PENDING_RFQ}</div>}
       {loadError && <div role="alert" style={{ fontSize: 13, color: "var(--redink)" }}>{loadError}</div>}
+      {data.prices_locked && <div role="note" data-guide="costing.locked" style={{ fontSize: 13, color: "var(--amberink)" }}>{data.prices_locked}</div>}
 
       <StatStrip guide="costing.strip">
         <StatTile tone={t.unpriced === 0 && data.boq.rows > 0 && rateOnly === 0 ? "good" : "info"} label="Rows priced" info={COSTING_TIPS.rowsPriced} value={String(t.priced)}

@@ -103,15 +103,18 @@ export default function CompareAward({ opportunityId, rfqId, onClose, onChanged,
             Awarding needs a database update (migration 0224). The comparison works; ask your administrator to apply it.
           </div>
         )}
-        {view.bid_locked && view.can_award && (
+        {view.closed_note && view.can_award && (
+          <div role="note" data-guide="costing.compare.closed" style={{ fontSize: 12.5, color: "var(--amberink)" }}>{view.closed_note} An award is still recorded.</div>
+        )}
+        {!view.closed_note && view.bid_locked && view.can_award && (
           <div data-guide="costing.compare.locked" style={{ fontSize: 12.5, color: "var(--amberink)" }}>The bid is already in. A new rate does not change a version you submitted.</div>
         )}
-        {!view.prices_rows && view.can_award && (
+        {!view.closed_note && !view.prices_rows && view.can_award && (
           <div data-guide="costing.compare.estimate_rfq" style={{ fontSize: 12.5, color: c.muted }}>
             This RFQ was raised for an estimate. The awarded cost goes into the estimate line and re-prices the rows that estimate prices.
           </div>
         )}
-        {view.prices_rows && view.can_award && waiting > 0 && (
+        {!view.closed_note && view.prices_rows && view.can_award && waiting > 0 && (
           <div data-guide="costing.compare.waiting" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", fontSize: 13, color: "var(--amberink)" }}>
             <span>{waiting} awarded line{waiting === 1 ? "" : "s"} not on {waiting === 1 ? "its" : "their"} BOQ row yet</span>
             <Button variant="secondary" size="sm" onClick={() => setPanel({ applyOnly: true })} style={{ minHeight: 44 }} data-guide="costing.compare.price_awarded">Price {waiting === 1 ? "it" : "them"}</Button>
@@ -164,7 +167,7 @@ export default function CompareAward({ opportunityId, rfqId, onClose, onChanged,
                   <StatusPill label={`Awarded · ${money(l.awarded_unit_cost ?? award.landed_unit, view.tenant_currency)}`} tone="green" />
                   <span style={{ color: c.muted }}>{awardedTo} · {award.chosen_by_name ?? "a team member"} · {ageText(award.chosen_at, view.today)}</span>
                   {award.applied_rate != null && <span style={{ color: c.ink }}>On the row at <b style={{ fontVariantNumeric: "tabular-nums" }}>{money(award.applied_rate)}</b></span>}
-                  {view.prices_rows && !award.applied_to_deal_at && <span style={{ color: "var(--amberink)" }}>Not on the row yet</span>}
+                  {!view.closed_note && view.prices_rows && !award.applied_to_deal_at && <span style={{ color: "var(--amberink)" }}>Not on the row yet</span>}
                   {award.not_lowest && <span style={{ color: "var(--amberink)" }}>Not the lowest valid price: {award.reason}</span>}
                 </div>
               )}
@@ -199,7 +202,7 @@ export default function CompareAward({ opportunityId, rfqId, onClose, onChanged,
                           {view.can_award && !r.is_awarded && (
                             <div>
                               <Button variant={cell.lowestValid ? "primary" : "secondary"} size="sm" style={{ minHeight: 44 }} data-guide="costing.compare.award"
-                                onClick={() => setPanel({ supplierId: s.id, picks: [{ line: l, resp }] })}>Award and price</Button>
+                                onClick={() => setPanel({ supplierId: s.id, picks: [{ line: l, resp }] })}>{view.closed_note ? "Award" : "Award and price"}</Button>
                             </div>
                           )}
                         </>
@@ -257,7 +260,8 @@ function AwardPanel({ view, base, panel, onClose, onDone }: {
   const needReason = rows.some((r) => r.d?.notLowest);
   const replacing = rows.filter((r) => r.replaces);
   const missingFx = foreign && !(fxN && fxN > 0);
-  const needsMarkup = view.prices_rows;
+  const needsMarkup = view.prices_rows && !view.closed_note;
+  const verb = view.closed_note ? "Award" : "Award and price";
   const ready = !busy && !missingFx && gate.ready && (!needsMarkup || markupN !== null) && (!needReason || reason.trim().length >= MIN_REASON_CHARS) && rows.length > 0;
   const nameOf = (rsId: string) => view.suppliers.find((s) => s.id === rsId)?.name ?? "another supplier";
 
@@ -275,23 +279,24 @@ function AwardPanel({ view, base, panel, onClose, onDone }: {
       if (!res.ok) { setError(j.error ?? "Could not award"); setBusy(false); return; }
       const priced = (j.priced ?? []) as { item: string; to: number }[];
       const skipped = (j.skipped ?? []) as { reason: string }[];
-      const warning = (j.warning as string | undefined) ?? (j.results as { warning?: string }[] | undefined)?.find((x) => x.warning)?.warning ?? (skipped[0] ? `Not priced: ${skipped[0].reason}` : undefined);
+      const notice = j.notice as string | undefined;
+      const warning = (j.warning as string | undefined) ?? (j.results as { warning?: string }[] | undefined)?.find((x) => x.warning)?.warning ?? (!notice && skipped[0] ? `Not priced: ${skipped[0].reason}` : undefined);
       const awardedCount = applyOnly ? priced.length : picks.length;
       const lead = applyOnly ? "" : picks.length === 1 ? `Awarded to ${supplier?.name ?? "the supplier"}. ` : `Awarded ${awardedCount} lines to ${supplier?.name ?? "the supplier"}. `;
-      onDone(`${lead}${priced.length > 0 ? `${priced.length} row${priced.length === 1 ? "" : "s"} priced.` : view.prices_rows ? "" : "The estimate was updated."}`.trim(), warning);
+      onDone(notice ?? `${lead}${priced.length > 0 ? `${priced.length} row${priced.length === 1 ? "" : "s"} priced.` : view.prices_rows ? "" : "The estimate was updated."}`.trim(), warning);
     } catch { setError("Network error. Try again."); setBusy(false); }
   }
 
   return (
     <SidePanel
-      title={applyOnly ? "Price the awarded rows" : picks.length === 1 ? `Award and price · ${picks[0].line.rows[0] ?? picks[0].line.sl_no}` : `Award ${picks.length} lines to ${supplier?.name ?? "the supplier"}`}
-      subtitle={supplier?.name} onClose={onClose} label="Award and price"
+      title={applyOnly ? "Price the awarded rows" : picks.length === 1 ? `${verb} · ${picks[0].line.rows[0] ?? picks[0].line.sl_no}` : `Award ${picks.length} lines to ${supplier?.name ?? "the supplier"}`}
+      subtitle={supplier?.name} onClose={onClose} label={verb}
       footer={
         <>
           <InfoTip label="Award and price">{COSTING_TIPS.award}</InfoTip>
           <Button variant="secondary" onClick={onClose} disabled={busy} style={{ minHeight: 44 }} data-guide="costing.award.cancel">Cancel</Button>
           <Button variant="primary" loading={busy} disabled={!ready} onClick={() => void submit()} style={{ minHeight: 44 }} data-guide="costing.award.confirm">
-            {applyOnly ? "Price the rows" : replacing.length ? "Replace and price" : "Award and price"}
+            {applyOnly ? "Price the rows" : replacing.length ? (view.closed_note ? "Replace the award" : "Replace and price") : verb}
           </Button>
         </>
       }

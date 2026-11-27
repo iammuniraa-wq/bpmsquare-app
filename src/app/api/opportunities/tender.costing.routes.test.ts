@@ -586,3 +586,45 @@ describe("the Supplier check warning on Award and price", () => {
     expect((await award({ line_id: L1, response_id: rA1 })).status).toBe(200);
   });
 });
+
+describe("a closed tender keeps the prices it was bid and won with", () => {
+  const close = (outcome: string, stage: string) => Object.assign(state.db.rows("opportunities").find((o) => o.id === OPP)!, { outcome, stage, amount: 39_393_318 });
+  const prices = () => JSON.stringify([state.db.rows("opportunity_lines"), state.db.rows("tender_boq_lines"), state.db.rows("opportunities")]);
+
+  it.each([["won", "awarded"], ["lost", "bid_lost"], ["dropped", "no_bid"]])("%s: the award is recorded on the RFQ, no row and no amount moves, and one line says so", async (outcome, stage) => {
+    close(outcome, stage);
+    const before = prices();
+    const r = await award({ line_id: L1, response_id: rA1 });
+    expect(r.status).toBe(200);
+    expect(r.json.notice).toBe(`Award saved. The tender is ${outcome}, so its prices were not changed.`);
+    expect(r.json.priced).toEqual([]);
+    expect(r.json.skipped).toEqual([{ rfq_line_id: L1, reason: `The tender is ${outcome}, so its prices were not changed.` }]);
+    expect(current()).toHaveLength(1);
+    expect(current()[0].applied_to_deal_at ?? null).toBeNull();
+    expect(prices()).toBe(before);
+  });
+
+  it("writing a standing award onto its row afterwards is refused with 409", async () => {
+    close("won", "awarded");
+    await award({ line_id: L1, response_id: rA1 });
+    const before = prices();
+    const r = await award({ apply_only: true });
+    expect(r.status).toBe(409);
+    expect(r.json.error).toBe("The tender is won, so its prices cannot be changed. Reopen the deal to change them.");
+    expect(prices()).toBe(before);
+  });
+
+  it("the screens are told: the compare screen has the note and the Costing tab the reason", async () => {
+    close("won", "awarded");
+    expect((await compare(RFQ)).json).toMatchObject({ can_award: true, closed_note: "The tender is won, so its prices were not changed." });
+    expect((await list()).json.prices_locked).toContain("The tender is won");
+  });
+
+  it("an open tender that was already submitted is still priced by an award (bid revisions are normal)", async () => {
+    Object.assign(state.db.rows("opportunities").find((o) => o.id === OPP)!, { stage: "submitted" });
+    const r = await award({ line_id: L1, response_id: rA1 });
+    expect(r.json.notice).toBeUndefined();
+    expect(r.json.priced).toHaveLength(1);
+    expect(dealLine(DL1)).toMatchObject({ rate: 115 });
+  });
+});

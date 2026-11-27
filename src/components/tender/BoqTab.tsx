@@ -51,6 +51,8 @@ type State = {
   unpriced: { item: string; reason: string }[];
   /** The tender's WBS (migration 0243). Absent in an older answer: the screen has no WBS view. */
   wbs?: WbsState;
+  /** Why the prices cannot be changed (a won, lost or dropped tender), else null or absent. */
+  locked?: string | null;
 };
 
 export type BoqScreenState = State;
@@ -244,6 +246,8 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
   }
 
   const hasBoq = !!data.source;
+  const locked = data.locked ?? null;
+  const priceEdit = canEdit && !locked;
   const links = est?.links ?? [];
   const counts = filterCounts(data.lines, links);
   const rows = sourceFilter ? filterRows(data.lines, "all").filter((l) => sourceGroupOf(l) === sourceFilter) : filterRows(data.lines, filter, links);
@@ -271,8 +275,8 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
   return (
     <div data-guide="boq.tab" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div data-guide="boq.toolbar" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-        {canEdit && hasBoq && upload.button}
-        {canEdit && !hasBoq && (
+        {priceEdit && hasBoq && upload.button}
+        {priceEdit && !hasBoq && (
           <>
             {upload.input}
             <AddMenu
@@ -286,28 +290,29 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
           <>
             <label data-guide="boq.markup" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, fontSize: 13, color: c.ink }}>
               Markup on cost
-              <Input type="number" min={0} step="0.5" inputMode="decimal" value={markup} onChange={(e) => changeMarkup(e.target.value)} style={{ width: 72, minHeight: 44 }} />
+              <Input type="number" min={0} step="0.5" inputMode="decimal" value={markup} disabled={!!locked} onChange={(e) => changeMarkup(e.target.value)} style={{ width: 72, minHeight: 44 }} />
               %
               <InfoTip label="Markup">{BOQ_TABLE_TIPS.markup}</InfoTip>
             </label>
-            <Button variant="primary" loading={busy} disabled={total.unpriced === 0} onClick={() => void priceAll()} style={{ minHeight: 44 }} data-guide="boq.price_all">Price all lines</Button>
+            <Button variant="primary" loading={busy} disabled={!!locked || total.unpriced === 0} onClick={() => void priceAll()} style={{ minHeight: 44 }} data-guide="boq.price_all">Price all lines</Button>
             <InfoTip label="Price all">{TENDER_TIPS.boqPriceAll}</InfoTip>
           </>
         )}
       </div>
       {upload.panel}
+      {locked && <div role="note" data-guide="boq.locked" style={{ fontSize: 13, color: "var(--amberink)" }}>{locked}</div>}
 
       {!hasBoq && !upload.open && (dealLines?.length ?? 0) === 0 && (
         <Card>
           <div data-guide="boq.empty" style={{ fontSize: 13, color: c.ink }}>
-            {canEdit ? "No lines yet. Use Add to upload the client's Excel or type a line." : "No Bill of quantities has been uploaded for this tender yet."}
+            {priceEdit ? "No lines yet. Use Add to upload the client's Excel or type a line." : "No Bill of quantities has been uploaded for this tender yet."}
           </div>
         </Card>
       )}
 
       {!hasBoq && !upload.open && dealLines && (
         <DealLinesBoq
-          opportunityId={opportunityId} lines={dealLines} version={dealLinesVersion ?? ""} canEdit={canEdit} cards={cards}
+          opportunityId={opportunityId} lines={dealLines} version={dealLinesVersion ?? ""} canEdit={priceEdit} cards={cards}
           onError={onError} onNotice={onNotice} onChanged={() => onLinesChanged?.()} addRequest={addLine}
         />
       )}
@@ -387,7 +392,7 @@ export default function BoqTab({ opportunityId, canEdit, onError, onNotice, onLi
 
       {openRow && (
         <BoqRowPanel
-          key={openRow.id} base={base} row={openRow} links={links} opportunityId={opportunityId} estimates={est} canEdit={canEdit} markup={markupPct} validityDays={data.validity_days}
+          key={openRow.id} base={base} row={openRow} links={links} opportunityId={opportunityId} estimates={est} canEdit={canEdit} priceLock={locked} markup={markupPct} validityDays={data.validity_days}
           onClose={() => setOpenId(null)} onChanged={changed} onError={onError} onNotice={onNotice} onOpenCosting={onOpenCosting}
           wbs={data.wbs ? { base: wbsBase, pending: data.wbs.pending, items: wbsItems } : undefined}
           onSplit={(id) => { setOpenId(null); setSplitFor(id); }}

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ConfirmCardView from "./ConfirmCardView";
@@ -148,5 +150,29 @@ describe("the tender step card", () => {
     const needs = draw({ ...step, fields: [{ key: "revision_reason", label: "Why the bid is revised", value: "", required: true, widget: "textarea" }] });
     expect(needs).toContain("Fill in: Why the bid is revised");
     expect(needs).toMatch(/<button[^>]*disabled=""[^>]*>Submit bid<\/button>/);
+  });
+});
+
+describe("a card that has already ended, drawn again (panel reopened, reload)", () => {
+  const redraw = (settled: Parameters<typeof ConfirmCardView>[0]["settled"]) => renderToStaticMarkup(createElement(ConfirmCardView, { card, onOpen: () => {}, onAsk: () => {}, settled }));
+
+  it("a pressed card shows what was done and has no button to press it again", () => {
+    const out = redraw({ kind: "done", record: { id: "r1", href: "/accounts/r1", label: "Tesla Germany" }, next: [] });
+    expect(out).toContain("Created Tesla Germany");
+    expect(out).not.toContain("Create account");
+    expect(out).not.toContain('data-guide="assistant.card.primary"');
+  });
+
+  it("a cancelled card stays cancelled", () => {
+    const out = redraw({ kind: "cancelled" });
+    expect(out).toContain("Cancelled. Nothing was created.");
+    expect(out).not.toContain("Create account");
+  });
+
+  it("the dock keeps how each card ended on its message and gives it back to the card", () => {
+    const dock = readFileSync(path.join(__dirname, "../AIDock.tsx"), "utf8");
+    expect(dock).toContain("settled={m.settled}");
+    expect(dock).toContain("settled={m.awardSettled}");
+    expect(dock).toContain("keepOnMessage(i, () => ({ settled }))");
   });
 });

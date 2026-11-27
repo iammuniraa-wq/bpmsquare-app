@@ -10,7 +10,7 @@ export { AWARD_TOOL, CHECK_TOOL, COMPARE_TOOL, PRICE_COMPARE_PROMPT_RULE, PRICE_
 export type { PriceEnv } from "./env";
 export type { PriceCard } from "./types";
 
-export type PriceOutcome = { out: string; card?: PriceCard };
+export type PriceOutcome = { out: string; card?: PriceCard; say?: string };
 
 /** One door for the three price tools: the name picks the function, and each function re-checks the caller's rights before reading anything. */
 export async function runPriceTool(name: string, input: unknown, env: PriceEnv): Promise<PriceOutcome> {

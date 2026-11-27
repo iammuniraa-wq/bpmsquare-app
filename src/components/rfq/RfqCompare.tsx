@@ -317,7 +317,7 @@ function AwardDialog({ b, id, call, today, stale, picks, supplier, all, awards, 
         ? await call(`/api/rfqs/${id}/award`, json("POST", { rfq_supplier_id: supplier.id, all: true, ...common }))
         : await call(`/api/rfqs/${id}/award`, json("POST", { line_id: rows[0].line.id, response_id: rows[0].resp.id, ...common }));
       const warning = (j.warning as string | undefined) ?? (j.results as { warning?: string }[] | undefined)?.find((x) => x.warning)?.warning;
-      onDone(all ? `Awarded ${rows.length} line${rows.length === 1 ? "" : "s"} to ${supplier.suppliers?.name}.` : `Line ${rows[0].line.sl_no} awarded to ${supplier.suppliers?.name}.`, warning);
+      onDone((j.notice as string | undefined) ?? (all ? `Awarded ${rows.length} line${rows.length === 1 ? "" : "s"} to ${supplier.suppliers?.name}.` : `Line ${rows[0].line.sl_no} awarded to ${supplier.suppliers?.name}.`), warning);
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);

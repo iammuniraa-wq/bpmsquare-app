@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logChange } from "@/lib/changeLog";
+import type { ClosedTenderOutcome } from "@/lib/tender/closedPrices";
 import { tenantToday } from "@/lib/tenantClock";
 import { awardLine, isMissingRelation } from "./server";
 import { awardDecision, cleanReason, MIN_REASON_CHARS, type CompareResponse } from "./comparison";
@@ -65,7 +66,7 @@ export type AwardOutcome = {
   not_lowest: boolean;
   warning?: string;
   /** Only for an RFQ raised for an estimate: what the award did to the estimate line and the BOQ lines priced from it. */
-  estimate?: { written: true; repriced: number; flagged: number; locked: boolean } | { written: false; reason: string };
+  estimate?: { written: true; repriced: number; flagged: number; locked: boolean; closed?: ClosedTenderOutcome } | { written: false; reason: string };
 };
 
 type Ctx = { tenantId: string; userId: string; email: string | null };
@@ -235,7 +236,7 @@ export async function awardWithDecision(admin: SupabaseClient, ctx: Ctx, args: {
           rfq: { id: rfq.id, ref: rfq.ref, origin_type: rfq.origin_type, origin_id: rfq.origin_id }, rfqLineId: p.line.id, unitCost: Number(cost),
           supplierName: (sup as { name?: string } | null)?.name ?? null,
         });
-        estimate = wb.written ? { written: true, repriced: wb.repriced, flagged: wb.flagged, locked: wb.locked } : { written: false, reason: wb.reason };
+        estimate = wb.written ? { written: true, repriced: wb.repriced, flagged: wb.flagged, locked: wb.locked, ...(wb.closed ? { closed: wb.closed } : {}) } : { written: false, reason: wb.reason };
       } catch (e) {
         estimate = { written: false, reason: e instanceof Error ? e.message : "the estimate could not be updated" };
         warning = `${warning ? `${warning} ` : ""}Awarded, but the cost could not be written to the estimate.`;

@@ -29,7 +29,8 @@ export type Writer = {
   /** The CHANGEABLE / TENDER STEPS blocks of the stable prompt. */
   catalog: string;
   has: (toolName: string) => boolean;
-  run: (toolName: string, input: unknown, page: PageRef) => Promise<{ out: string; card?: ConfirmCard }>;
+  /** `final`: words the person gets as they are, so that nothing is added to them. */
+  run: (toolName: string, input: unknown, page: PageRef) => Promise<{ out: string; card?: ConfirmCard; final?: string }>;
 };
 
 export function changeRecordTool(updates: UpdateActionDef[]): Anthropic.Tool {
@@ -71,6 +72,7 @@ export function tenderActionTool(verbs: VerbActionDef[]): Anthropic.Tool {
         revision_reason: { type: "string", description: "submit_bid step: why the bid is revised (from the second version)." },
         note: { type: "string", description: "submit_bid step: an optional note." },
         suppliers: { type: "array", items: { type: "string" }, description: "rfq step: supplier names or references." },
+        lines: { type: "string", description: "rfq step: only when the person named particular lines, their own words for them, e.g. \"geotextile\". Leave it out for every line without a price." },
         title: { type: "string", description: "rfq step: an optional title." },
         respond_by: { type: "string", description: "rfq step: the date suppliers reply by, yyyy-mm-dd." },
         template: { type: "string", description: "estimate step: the estimate template's name." },
@@ -107,7 +109,7 @@ export async function changeCatalog(supabase: SupabaseClient, tenantId: string, 
 const STEP_LINE: Record<VerbActionDef["verb"], string> = {
   decision: "decision: propose go or no-go on the bid. Inputs: decision (go|no_go), reason (the person's own words; leave it out if they gave none)",
   submit_bid: "submit_bid: submit the bid as the next version. Inputs: revision_reason (from version 2), note",
-  rfq: "rfq: a draft RFQ from the lines that have no price. Inputs: suppliers (their names)",
+  rfq: "rfq: a draft RFQ from the lines that have no price. Inputs: suppliers (their names), lines (only when the person named particular lines)",
   estimate: "estimate: an estimate on the tender from a named template. Inputs: template, inputs ({input label: value}), name, margin_pct",
   match: "match: link the strong catalog matches on the BOQ. No inputs",
   price: "price: price the BOQ lines that have no price. Inputs: markup_pct",
@@ -192,7 +194,7 @@ export async function makeWriter(ctx: WriterCtx): Promise<Writer | null> {
             summary: typeof input.summary === "string" ? input.summary : undefined,
           },
         );
-        if (!built.ok) return { out: built.reason };
+        if (!built.ok) return { out: built.reason, final: built.final ? built.say : undefined };
         const { card } = built;
         return {
           card,

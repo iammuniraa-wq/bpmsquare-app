@@ -78,3 +78,8 @@ export type ActResult = {
 export function missingRequired(fields: Pick<CardField, "key" | "required" | "value">[], values: Record<string, string>): string[] {
   return fields.filter((f) => f.required && !(values[f.key] ?? "").trim()).map((f) => f.key);
 }
+
+/** How a card in the chat ended. Kept on its message, so a card that is drawn again (the panel reopened, a reload) cannot be pressed twice. */
+export type CardSettled =
+  | { kind: "done"; record: { id: string; href: string; label: string; message?: string; details?: string[] }; next: NextStep[]; message?: string; details?: string[] }
+  | { kind: "cancelled" };

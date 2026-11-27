@@ -1,4 +1,5 @@
 import { sameCompany } from "@/lib/tender/competitors/rules";
+import { marginHiddenText, marginIsStated } from "@/lib/tender/bids/marginCoverage";
 import { moneyText, pctText, plural, round } from "./format";
 import type {
   CompetitorRow, DealFigures, ExpectedPrice, HistorySummary, Ladder, LadderRow, Recommended, Risk, ValueBand,
@@ -41,8 +42,12 @@ export type DealInput = {
   closingAt: string | null;
   currency: string | null;
   price: number | null;
+  /** The recorded cost of the priced lines that have one. */
   cost: number | null;
+  /** The priced amount of those lines. */
+  costedAmount: number;
   costedLines: number;
+  /** The priced lines. */
   totalLines: number;
   state: "open" | "won" | "lost" | "dropped";
 };
@@ -68,6 +73,8 @@ export type PastTender = {
   ourBid: number | null;
   /** The recorded cost behind that bid; null when none was recorded or the person may not see costs. */
   ourCost: number | null;
+  /** The part of the bid that cost covers, when some lines had none. Absent = the whole bid. */
+  ourCostedAmount?: number | null;
   /** On a lost tender, the winning price. */
   awardValue: number | null;
   winner: string | null;
@@ -125,12 +132,23 @@ export function daysUntil(iso: string | null, now: Date): number | null {
 
 const decidedOutcome = (p: Pick<PastTender, "outcome">): p is { outcome: "won" | "lost" } => p.outcome === "won" || p.outcome === "lost";
 
-/** Margin on price, in percent, of one past bid; null when the price or the cost is not recorded or the figure is not believable. */
-export function bidMargin(bid: number | null, cost: number | null): number | null {
+/** Margin on price, in percent, of one past bid over the part its cost covers; null when too little of it has a cost or the figure is not believable. */
+export function bidMargin(bid: number | null, cost: number | null, costedAmount?: number | null): number | null {
   if (bid == null || cost == null || !(bid > 0) || !(cost > 0)) return null;
-  const m = round(((bid - cost) / bid) * 100, 2);
+  const covered = costedAmount ?? bid;
+  if (!marginIsStated(bid, covered)) return null;
+  const m = round(((covered - cost) / covered) * 100, 2);
   return m >= LADDER.marginMin && m <= LADDER.marginMax ? m : null;
 }
+
+/** The tender's margin as it stands, or null when it cannot be stated: no price, no cost, or cost on too little of the priced amount. */
+export function dealMarginPct(deal: Pick<DealInput, "price" | "cost" | "costedAmount">): number | null {
+  if (deal.price == null || deal.cost == null || !(deal.cost > 0) || !marginIsStated(deal.price, deal.costedAmount)) return null;
+  return round(((deal.costedAmount - deal.cost) / deal.costedAmount) * 100, 1);
+}
+
+/** The tender's whole cost, known only when every priced line has one: a part of the cost never builds a price or a profit. */
+const wholeCost = (deal: DealInput): number | null => (dealMarginPct(deal) !== null && deal.costedLines >= deal.totalLines ? deal.cost : null);
 
 /** How far above the winning price our bid sat, in percent of the winning price (negative: we were below it). */
 export function winGap(ourBid: number | null, winning: number | null): number | null {
@@ -146,7 +164,7 @@ function marginSample(past: readonly PastTender[]): Sample[] {
   const out: Sample[] = [];
   for (const p of past) {
     if (!decidedOutcome(p)) continue;
-    const m = bidMargin(p.ourBid, p.ourCost);
+    const m = bidMargin(p.ourBid, p.ourCost, p.ourCostedAmount);
     if (m !== null) out.push({ margin: m, won: p.outcome === "won" });
   }
   return out;
@@ -223,9 +241,8 @@ export function buildLadder(args: { past: readonly PastTender[]; deal: DealInput
   const base = baseRate(wins, decided.length);
   const center = sample.length ? mean(sample.map((s) => s.margin)) as number : LADDER.defaultCenter;
   const basis = sample.length >= LADDER.minBids ? "history" : "prior";
-  const cost = args.costVisible && deal.cost != null && deal.cost > 0 ? deal.cost : null;
-  const currentMargin = args.costVisible && deal.price != null && deal.cost != null && deal.price > 0 && deal.cost > 0
-    ? round(((deal.price - deal.cost) / deal.price) * 100, 1) : null;
+  const cost = args.costVisible ? wholeCost(deal) : null;
+  const currentMargin = args.costVisible ? dealMarginPct(deal) : null;
 
   const margins = ladderMargins(currentMargin);
   const raw = margins.map((m) => {
@@ -345,8 +362,10 @@ export function buildRisks(a: {
     out.push({ id: "cost_hidden", level: "info", text: "Costs are not shown for your role, so the ladder uses the starting assumption and shows no amounts." });
   } else if (input.deal.cost === null) {
     out.push({ id: "no_cost", level: "warn", text: "No cost is recorded on this tender yet, so the ladder shows chances and expected profit per 100 of cost, not amounts." });
+  } else if (input.deal.price !== null && !marginIsStated(input.deal.price, input.deal.costedAmount)) {
+    out.push({ id: "margin_hidden", level: "warn", text: `${marginHiddenText({ costedLines: input.deal.costedLines, pricedLines: input.deal.totalLines })}.` });
   } else if (input.deal.costedLines < input.deal.totalLines) {
-    out.push({ id: "partial_cost", level: "warn", text: `${input.deal.totalLines - input.deal.costedLines} of ${input.deal.totalLines} lines have no recorded cost, so the margin may read too high.` });
+    out.push({ id: "partial_cost", level: "warn", text: `${input.deal.totalLines - input.deal.costedLines} of ${input.deal.totalLines} lines have no recorded cost. The margin is over the other lines only, and the ladder shows no amounts.` });
   }
   if (input.deal.price === null) out.push({ id: "no_price", level: "warn", text: "This tender has no priced lines yet, so there is no current margin to compare." });
   const stale = rows.filter((r) => r.web.researchedAt && Date.parse(r.web.researchedAt) < input.now.getTime() - LADDER.staleDays * DAY);
@@ -359,7 +378,7 @@ export function buildRisks(a: {
 
 export function buildSharpen(c: Pick<Computed, "decidedWithoutCost" | "lostWithoutWinnerPrice" | "decidedWithoutCompetitors"> & { costVisible: boolean; decided: number }): string[] {
   const out: string[] = [];
-  if (c.costVisible && c.decidedWithoutCost > 0) out.push(`Record the cost behind each submitted bid: ${plural(c.decidedWithoutCost, "decided tender")} ${c.decidedWithoutCost === 1 ? "has" : "have"} none.`);
+  if (c.costVisible && c.decidedWithoutCost > 0) out.push(`Record the cost behind each submitted bid: ${plural(c.decidedWithoutCost, "decided tender")} ${c.decidedWithoutCost === 1 ? "has" : "have"} no cost, or too little of it.`);
   if (c.lostWithoutWinnerPrice > 0) out.push(`Record the winning price on lost tenders: ${c.lostWithoutWinnerPrice} ${c.lostWithoutWinnerPrice === 1 ? "has" : "have"} none.`);
   if (c.decidedWithoutCompetitors > 0) out.push(`List the competitors on each tender: ${plural(c.decidedWithoutCompetitors, "decided tender")} list none.`);
   if (c.decided < 10) out.push("Close out each tender as won or lost, so the history grows.");
@@ -375,12 +394,12 @@ export function computeAnalysis(input: AnalysisInput): Computed {
   const daysLeft = daysUntil(input.deal.closingAt, input.now);
   const deal: DealFigures = {
     ref: input.deal.ref, title: input.deal.title, href: input.deal.href, closingAt: input.deal.closingAt, daysLeft,
-    currency: input.deal.currency, price: input.deal.price, cost: input.costVisible ? input.deal.cost : null, marginPct: currentMargin,
+    currency: input.deal.currency, price: input.deal.price, cost: input.costVisible ? wholeCost(input.deal) : null, marginPct: currentMargin,
     costedLines: input.costVisible ? input.deal.costedLines : 0, totalLines: input.deal.totalLines,
   };
   const decided = input.past.filter(decidedOutcome);
   const base = {
-    decidedWithoutCost: decided.filter((p) => bidMargin(p.ourBid, p.ourCost) === null).length,
+    decidedWithoutCost: decided.filter((p) => bidMargin(p.ourBid, p.ourCost, p.ourCostedAmount) === null).length,
     lostWithoutWinnerPrice: decided.filter((p) => p.outcome === "lost" && winGap(p.ourBid, p.awardValue) === null).length,
     decidedWithoutCompetitors: decided.filter((p) => p.competitors.length === 0 && !p.winner).length,
   };

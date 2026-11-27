@@ -12,6 +12,7 @@ import { linesVersion } from "@/lib/sales/dealLines";
 import { safeFileName, sniffAttachment } from "@/lib/inbox/rules";
 import type { OpportunityLine } from "@/lib/types";
 import { isMissingSchema, loadTender, type TenderRow } from "../server";
+import { pricesLockText } from "../closedPrices";
 import { BOQ_LIMITS, DETAILS_MAX, detectColumns, dropConflictingColumns, detectLayout, extractLines, multilineText, planColumns, sameLayout, type BoqLine, type ClientData, type ColumnMap, type ColumnPlan, type HeaderInfo, type ParsedBoq, type SkippedRow } from "./parse";
 import { diffBoq, relinkPlan, type BoqDiff, type ExistingLine } from "./diff";
 import { defaultMarkupPct, isStale, pickAuto, priceValidityDays, rateFor, refuseCandidate, staleText, type Candidate, type PriceSource } from "./price";
@@ -50,6 +51,12 @@ export type Failure = { status: number; error: string };
 
 /** Who is asking, already resolved: the session, and what the caller's roles let them do in the Pipeline. */
 export type BoqCtx = { supabase: SupabaseClient; tenantId: string; userId: string; role: "admin" | "member"; perms: PermissionSet };
+
+/** Every writer of a rate, a quantity or the set of lines asks this first (closedPrices.ts). */
+function closedFailure(r: BoqRequest): ({ ok: false } & Failure) | null {
+  const error = pricesLockText(r.opp.outcome);
+  return error ? { ok: false, status: 409, error } : null;
+}
 
 export async function openBoqRequest(opportunityId: string, write: boolean): Promise<{ ok: true; req: BoqRequest } | ({ ok: false } & Failure)> {
   let ctx;
@@ -194,6 +201,8 @@ export type BoqState = {
   lines_version: string;
   /** The tender's WBS: items in tree order, each item's roll-up, the total. `pending` while migration 0243 is not applied (then the BOQ tab shows no WBS view). */
   wbs: WbsState;
+  /** Why the prices cannot be changed (a won, lost or dropped tender), else null. */
+  locked: string | null;
 };
 
 export async function buildBoqState(r: BoqRequest): Promise<BoqState> {
@@ -201,7 +210,7 @@ export async function buildBoqState(r: BoqRequest): Promise<BoqState> {
   const [{ source, pending }, config, today] = await Promise.all([loadCurrentSource(admin, tenantId, opp.id), loadConfig(admin, tenantId), tenantToday(tenantId)]);
   const validity = priceValidityDays(config);
   const markupDefault = defaultMarkupPct(config);
-  const empty: BoqState = { pending, source: null, lines: [], validity_days: validity, today, default_markup_pct: markupDefault, totals: { lines: 0, priced: 0, unpriced: 0, stale: 0, amount: 0, no_product: 0 }, lines_version: "", wbs: EMPTY_WBS };
+  const empty: BoqState = { pending, source: null, lines: [], validity_days: validity, today, default_markup_pct: markupDefault, totals: { lines: 0, priced: 0, unpriced: 0, stale: 0, amount: 0, no_product: 0 }, lines_version: "", wbs: EMPTY_WBS, locked: pricesLockText(opp.outcome) };
   if (pending || !source) return empty;
 
   const dealLines = await loadOpportunityLines(admin, tenantId, opp.id);
@@ -238,6 +247,7 @@ export async function buildBoqState(r: BoqRequest): Promise<BoqState> {
     },
     lines_version: linesVersion(dealLines),
     wbs,
+    locked: pricesLockText(opp.outcome),
   };
 }
 
@@ -374,6 +384,8 @@ export async function applyBoqLines(
   source: { id: string; fileLabel: string; previous: { file_name: string; version: number } | null; logField?: string; keepMissing?: boolean },
 ): Promise<AppliedLines> {
   const { admin, tenantId, userId, opp } = r;
+  const closed = closedFailure(r);
+  if (closed) return closed;
   const sourceId = source.id;
   const fileLabel = source.fileLabel;
   const previous = source.previous;
@@ -473,6 +485,8 @@ export async function applyBoqLines(
 
 export async function applyUpload(r: BoqRequest, input: UploadInput): Promise<ApplyResult> {
   const { admin, tenantId, userId, opp } = r;
+  const closed = closedFailure(r);
+  if (closed) return closed;
   const a = await analyseUpload(r, input);
   if (!a.ok) return a;
   if (a.view.needs_mapping || !a.view.header_row) return { ok: false, status: 422, error: "Pick the header row and the Description and Quantity columns first" };
@@ -524,6 +538,8 @@ export async function applyUpload(r: BoqRequest, input: UploadInput): Promise<Ap
  */
 export async function insertDwSource(r: BoqRequest, input: { fileName: string; lineCount: number }): Promise<{ ok: true; sourceId: string; fileLabel: string; previous: { file_name: string; version: number } | null } | ({ ok: false } & Failure)> {
   const { admin, tenantId, userId, opp } = r;
+  const closed = closedFailure(r);
+  if (closed) return closed;
   const { source: previous, pending } = await loadCurrentSource(admin, tenantId, opp.id);
   if (pending) return { ok: false, status: 503, error: "The BOQ needs a database update (migration 0223)" };
   if (previous) {
@@ -586,6 +602,8 @@ const cleanMarkup = (v: unknown) => (typeof v === "number" && Number.isFinite(v)
 
 export async function priceOneLine(r: BoqRequest, boqLineId: string, body: PriceBody): Promise<{ ok: true; rate: number; amount: number } | ({ ok: false } & Failure)> {
   const { admin, tenantId, userId, opp } = r;
+  const closed = closedFailure(r);
+  if (closed) return closed;
   const b = await bundles(r, boqLineId);
   if (!b || b.items.length === 0) return { ok: false, status: 404, error: "Line not found" };
   const { boq, line } = b.items[0];
@@ -679,6 +697,9 @@ export async function editBoqLines(r: BoqRequest, edits: { boqId: string; body: 
         if (qty !== Number(line.qty)) { patch.qty = qty; lineChanges.push({ field: `BOQ quantity ${label}`, from: Number(line.qty), to: qty }); }
       }
     }
+    // A quantity moves the amount; a description, a code or the details do not, so those stay editable on a closed tender.
+    const closed = patch.qty !== undefined ? closedFailure(r) : null;
+    if (closed) { outcomes.push({ boqId, ok: false, status: closed.status, error: closed.error }); continue; }
     if (!failure && body.description !== undefined) {
       const d = typeof body.description === "string" ? body.description.trim() : "";
       if (!d) failure = "A line needs a description";
@@ -755,6 +776,8 @@ export type PriceAllResult = { ok: true; priced: number; left: { id: string; ite
 /** Prices the lines that have no rate, from fresh sources only, in a fixed order. Lines that already have a rate are never touched. */
 export async function priceAllLines(r: BoqRequest, markupInput: unknown): Promise<PriceAllResult | ({ ok: false } & Failure)> {
   const { admin, tenantId, userId, opp } = r;
+  const closed = closedFailure(r);
+  if (closed) return closed;
   const b = await bundles(r);
   if (!b) return { ok: false, status: 404, error: "Upload a BOQ first" };
   const todo = b.items.filter((x) => !(Number(x.line.rate) > 0));

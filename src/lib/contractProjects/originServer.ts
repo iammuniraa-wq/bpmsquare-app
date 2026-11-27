@@ -75,7 +75,7 @@ export async function loadAfterAwardView(
       estimates: estimates.slice(0, 50),
     },
     bidAgainstBudget: !winning ? null : winning.cost
-      ? { available: true, version_no: winning.version_no, figures: bidVsBudget({ bidPrice: winning.total, bidCost: snapshotCostTotal(winning.cost), budget: args.budgetTotal, contractValue: project.contract_value }) }
+      ? { available: true, version_no: winning.version_no, figures: bidVsBudget({ bidPrice: winning.total, bidCost: snapshotCostTotal(winning.cost), budget: args.budgetTotal, contractValue: project.contract_value, coverage: winning.coverage }) }
       : { available: false, version_no: winning.version_no },
   };
 }
