@@ -1,18 +1,55 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
 import type { ScheduleSimulation } from "@/lib/estimator/simulation";
+import type { ScheduleGap } from "./scheduleState";
+
+const GAP_TEXT: Record<ScheduleGap, string> = {
+  no_layout: "This template has no layout to take a concrete volume from, so it has no build schedule. The risk run below still works from its rates.",
+  calculate: "The schedule is built from the concrete volume of the model, which this estimate does not have stored yet.",
+  locked: "This estimate has a quote or is read-only, so its model cannot be calculated again here.",
+  unsaved: "The schedule is built from the concrete volume of the model. Fill in the details on the Estimate tab first.",
+};
+
+function Calculate({ estimateId }: { estimateId: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function run() {
+    setBusy(true); setError("");
+    try {
+      const res = await fetch(`/api/estimates/${estimateId}/calculate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(json.error ?? "Could not calculate the estimate."); return; }
+      router.refresh();
+    } catch {
+      setError("Could not reach the server.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div style={{ display: "grid", gap: 8, justifyItems: "center" }}>
+      <Button variant="primary" size="sm" loading={busy} onClick={run}>Calculate</Button>
+      {error && <div role="alert" className="bpm-t-help" style={{ color: "var(--err-ink)" }}>{error}</div>}
+    </div>
+  );
+}
 
 // Bars carry their own text (days and day range) and a distinct fill, so the
 // chart never relies on colour alone.
 const FILL: Record<string, string> = { casting: "var(--accent)", transport: "var(--amberc)", erection: "var(--teal)" };
 
-export default function ScheduleCard({ schedule, volume }: { schedule: ScheduleSimulation; volume: number }) {
+export default function ScheduleCard({ schedule, volume, gap, estimateId }: { schedule: ScheduleSimulation; volume: number; gap: ScheduleGap; estimateId?: string }) {
   if (!schedule.available) {
     return (
       <Card title="Schedule" padding={16}>
-        <EmptyState title="Nothing to schedule yet" text="The schedule is built from the concrete volume of the model. Calculate the estimate first." />
+        <EmptyState title={gap === "no_layout" ? "No build schedule for this template" : "Nothing to schedule yet"} text={GAP_TEXT[gap]}
+          action={gap === "calculate" && estimateId ? <Calculate estimateId={estimateId} /> : undefined} />
       </Card>
     );
   }

@@ -22,6 +22,7 @@ const td: React.CSSProperties = { padding: "9px 12px", fontSize: 13, verticalAli
 const numCell: React.CSSProperties = { ...td, textAlign: "right", whiteSpace: "nowrap" };
 
 const fmtQty = (n: number) => n.toLocaleString("en-GB", { maximumFractionDigits: 3 });
+const fmtWaste = (n: number) => n.toLocaleString("en-GB", { maximumFractionDigits: 2 });
 const fmtUnit = (n: number | null) => (n === null ? "—" : n.toLocaleString("en-GB", { maximumFractionDigits: 4 }));
 
 /** One BOM line: read-only, or editing quantity and unit cost in place. */
@@ -111,7 +112,9 @@ export default function BomRow({
           {editing
             ? <Input type="number" step="any" min={0} value={qty} onChange={(e) => setQty(e.target.value)} aria-label="Quantity" style={{ width: 100 }} />
             : fmtQty(line.qty)}
+          {line.waste_pct > 0 && <span className="bom-waste-inline bpm-t-help">+{fmtWaste(line.waste_pct)}% waste</span>}
         </td>
+        <td className="bom-waste" style={{ ...numCell, color: line.waste_pct > 0 ? c.ink : c.hint }}>{fmtWaste(line.waste_pct)}</td>
         <td style={numCell}>
           {editing
             ? <Input type="number" step="any" min={0} value={unit} onChange={(e) => setUnit(e.target.value)} aria-label="Unit cost" style={{ width: 110 }} />
@@ -136,13 +139,13 @@ export default function BomRow({
       </tr>
       {parts && line.product && (
         <tr>
-          <td colSpan={editable ? 6 : 5} style={{ ...td, paddingTop: 0 }}>
+          <td colSpan={editable ? 7 : 6} style={{ ...td, paddingTop: 0 }}>
             <KitComponents estimateId={estimateId} lineId={line.id} unit={line.uom} linkable={line.product.linkable} productId={line.product.id} money={money} />
           </td>
         </tr>
       )}
       {error && (
-        <tr><td colSpan={editable ? 6 : 5} style={{ ...td, paddingTop: 0 }}><div role="alert" className="bpm-t-help" style={{ color: "var(--err-ink)" }}>{error}</div></td></tr>
+        <tr><td colSpan={editable ? 7 : 6} style={{ ...td, paddingTop: 0 }}><div role="alert" className="bpm-t-help" style={{ color: "var(--err-ink)" }}>{error}</div></td></tr>
       )}
     </>
   );

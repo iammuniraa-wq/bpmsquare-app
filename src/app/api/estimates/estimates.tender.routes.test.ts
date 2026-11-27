@@ -20,6 +20,10 @@ const TPL = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb01";
 const OPP = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
 const OPP_STD = "cccccccc-cccc-4ccc-8ccc-ccccccccccc2";
 const OPP_T2 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc3";
+const ACC = "dddddddd-dddd-4ddd-8ddd-ddddddddddd1";
+const CON = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1";
+const ACC_T2 = "dddddddd-dddd-4ddd-8ddd-ddddddddddd2";
+const CON_T2 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2";
 
 vi.mock("@/lib/supabase-server", () => {
   const client = () => ({ from: (t: string) => state.db.from(t), auth: state.db.auth });
@@ -85,6 +89,53 @@ beforeEach(() => {
     ],
   });
   vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+describe("an estimate made for a tender deal: its customer", () => {
+  const dealWith = (account_id: string | null, contact_id: string | null) => {
+    const opp = state.db.rows("opportunities").find((o) => o.id === OPP)!;
+    opp.account_id = account_id; opp.contact_id = contact_id;
+  };
+  beforeEach(() => {
+    state.db.rows("accounts").push({ id: ACC, tenant_id: T1, name: "Client" }, { id: ACC_T2, tenant_id: T2, name: "Other" });
+    state.db.rows("contacts").push({ id: CON, tenant_id: T1, name: "Buyer", account_id: ACC }, { id: CON_T2, tenant_id: T2, name: "Spy", account_id: ACC_T2 });
+  });
+
+  it("takes the deal's account and contact", async () => {
+    dealWith(ACC, CON);
+    const r = await create(ask({ opportunity_id: OPP }));
+    expect(r.status).toBe(201);
+    expect(estimates().find((e) => e.id === r.body.id)).toMatchObject({ account_id: ACC, contact_id: CON });
+  });
+
+  it("keeps a customer the request names", async () => {
+    dealWith(ACC, CON);
+    const r = await create(ask({ opportunity_id: OPP, account_id: ACC }));
+    expect(estimates().find((e) => e.id === r.body.id)).toMatchObject({ account_id: ACC });
+  });
+
+  it("never copies an account or contact that is another workspace's", async () => {
+    dealWith(ACC_T2, CON_T2);
+    const r = await create(ask({ opportunity_id: OPP }));
+    expect(r.status).toBe(201);
+    const row = estimates().find((e) => e.id === r.body.id)!;
+    expect(row.account_id ?? null).toBeNull();
+    expect(row.contact_id ?? null).toBeNull();
+  });
+
+  it("drops a contact of another workspace but keeps the deal's own account", async () => {
+    dealWith(ACC, CON_T2);
+    const r = await create(ask({ opportunity_id: OPP }));
+    const row = estimates().find((e) => e.id === r.body.id)!;
+    expect(row.account_id).toBe(ACC);
+    expect(row.contact_id ?? null).toBeNull();
+  });
+
+  it("an estimate with no deal takes no customer from anywhere", async () => {
+    dealWith(ACC, CON);
+    const r = await create(ask());
+    expect(estimates().find((e) => e.id === r.body.id)?.account_id ?? null).toBeNull();
+  });
 });
 
 describe("an estimate made for a tender deal", () => {

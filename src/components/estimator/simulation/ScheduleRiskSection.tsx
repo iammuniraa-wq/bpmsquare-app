@@ -11,6 +11,7 @@ import type { SimLine } from "@/lib/estimator/simulation";
 import type { AllocLine } from "@/lib/estimator/pieceInfo";
 import type { TemplateRate, TemplateRule } from "@/lib/estimator/types";
 import ScheduleCard from "./ScheduleCard";
+import { scheduleGap } from "./scheduleState";
 import RiskSection from "./RiskSection";
 
 export type ScheduleRiskProps = {
@@ -22,6 +23,10 @@ export type ScheduleRiskProps = {
   marginPct: number;
   vatPct: number;
   currency: CurrencyDef;
+  /** The template has a layout module, so a model (and a schedule) can exist. */
+  hasLayout: boolean;
+  /** The estimate is saved: its id (for Calculate), and whether it can still be recalculated or already has a quote. */
+  record?: { id: string; canEdit: boolean; locked: boolean; hasQuote: boolean };
 };
 
 /**
@@ -46,15 +51,19 @@ export default function ScheduleRiskSection(p: ScheduleRiskProps) {
   const result = useMemo(() => whatIf(cost, mult, { margin_pct: margin, vat_pct: p.vatPct, base_price: p.price }), [cost, mult, margin, p.vatPct, p.price]);
   const risk = useMemo(() => runRisk(cost, { price: p.price, target_margin_pct: target, multipliers: mult }), [cost, p.price, target, mult]);
 
+  const gap = scheduleGap({
+    hasLayout: p.hasLayout, saved: !!p.record, canEdit: p.record?.canEdit ?? false, locked: p.record?.locked ?? false,
+  });
+
   if (p.lines.length === 0) {
     return <Card padding={0}><EmptyState title="Nothing to schedule yet" text="The schedule and the risk run read the estimate's lines and model. Fill in the details above first." /></Card>;
   }
   return (
     <>
-      <ScheduleCard schedule={schedule.sim} volume={schedule.volume} />
+      <ScheduleCard schedule={schedule.sim} volume={schedule.volume} gap={gap} estimateId={p.record?.id} />
       <RiskSection
         model={cost} risk={risk} result={result} money={money} compact={compact}
-        mult={mult} margin={margin} baseMargin={p.marginPct} target={target} price={p.price}
+        mult={mult} margin={margin} baseMargin={p.marginPct} target={target} price={p.price} hasQuote={p.record?.hasQuote ?? false}
         onMult={(k, v) => setMult((m) => ({ ...m, [k]: v }))} onMargin={setMargin} onTarget={setTarget}
         onReset={() => { setMult({}); setMargin(p.marginPct); setTarget(defaultTargetMargin(p.marginPct)); }}
       />

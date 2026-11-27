@@ -7,11 +7,13 @@
 // unit, a quantity, a rate and an amount -- never a unit cost, a cost total or
 // the margin. Cost + margin is collapsed into the price here, once.
 //
-// Rounding: the quote must add up to exactly the price the estimate shows
-// (`summariseLines`: price = round(cost_total + round(cost_total * margin%))).
-// Group prices are rounded one by one, so their sum can drift by a few cents;
-// the difference is put on the largest line so the quote's subtotal equals the
-// estimate's price to the cent.
+// Rounding: every Standard Quote screen and its PDF show money in whole units,
+// so a customer line is priced in whole units, once, at line level (rate x qty
+// is its amount, nothing is rounded again on the way to the total). The quote's
+// price is the estimate's price (`summariseLines`: round(cost_total +
+// round(cost_total * margin%))) rounded the same way, and the few units the
+// individual roundings drift by are put on the largest line, so the lines add
+// up to the subtotal and the total exactly as printed.
 
 import { roundHalfAway } from "./formula";
 import { roundMoney, roundQty } from "./compute";
@@ -43,6 +45,13 @@ export type QuoteLineDraft = {
 export type QuoteLinesResult =
   | { ok: true; lines: QuoteLineDraft[]; price: number }
   | { ok: false; problems: string[] };
+
+/** Decimal places of a customer line price: the whole units every quote screen and the PDF print. */
+export const QUOTE_PRICE_DP = 0;
+const roundPrice = (x: number): number => roundHalfAway(x, QUOTE_PRICE_DP);
+
+/** The price a customer is quoted for an estimate's price: the estimate's own, in whole units. */
+export const quotedPrice = roundPrice;
 
 const fmtQty = (n: number): string => String(roundQty(n));
 
@@ -81,7 +90,7 @@ export function buildQuoteLines(
   }
 
   const totalCost = roundMoney(live.reduce((a, l) => a + (l.cost_total as number), 0));
-  const target = priceForCost(totalCost, opts.margin_pct);
+  const target = roundPrice(priceForCost(totalCost, opts.margin_pct));
   if (target <= 0) return { ok: false, problems: ["The estimate prices to zero; there is nothing to quote."] };
 
   type Draft = { description: string; cost: number };
@@ -104,7 +113,7 @@ export function buildQuoteLines(
 
   // A line that costs nothing (a free supply) has no place on the quote.
   const priced = drafts
-    .map((d) => ({ description: d.description, amount: priceForCost(d.cost, opts.margin_pct) }))
+    .map((d) => ({ description: d.description, amount: roundPrice(priceForCost(d.cost, opts.margin_pct)) }))
     .filter((d) => d.amount > 0);
   if (priced.length === 0) return { ok: false, problems: ["Every line prices to zero; there is nothing to quote."] };
   const amounts = allocateRemainder(priced.map((d) => d.amount), target);

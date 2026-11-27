@@ -50,8 +50,8 @@ export const previewKindFor = (geometry: string | null | undefined, hasGenericPi
   geometry === "chainlink_fence" ? "fence" : geometry ? "pieces" : hasGenericPicture ? "generic" : "none";
 
 /**
- * Layouts whose inputs all have sensible defaults open straight onto a floor, a fence or a cabin and its price. The precast
- * villa keeps opening blank: it has no honest default to price.
+ * Every template opens straight onto its model and price with the default values (a template whose inputs have no default
+ * simply has nothing to price yet). The precast villa keeps opening blank: it has no honest default to price.
  */
-const OPENS_WITH_DEFAULTS = new Set(["chainlink_fence", "tiles_floor", "porta_cabin"]);
-export const opensWithDefaults = (geometry: string | null | undefined): boolean => !!geometry && OPENS_WITH_DEFAULTS.has(geometry);
+const OPENS_BLANK = new Set(["precast_villa"]);
+export const opensWithDefaults = (geometry: string | null | undefined): boolean => !(geometry && OPENS_BLANK.has(geometry));

@@ -47,12 +47,13 @@ export default function BomTab({
               <span style={{ fontSize: 13, fontWeight: 600, color: c.ink }}>{money(g.cost)}</span>
             </div>
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: editable ? 640 : 520 }}>
+              <table className={editable ? "bom-table bom-table-edit" : "bom-table"} style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
                     <th style={th}>Item</th>
                     <th style={th}>Unit</th>
                     <th style={{ ...th, textAlign: "right" }}>Qty</th>
+                    <th className="bom-waste" style={{ ...th, textAlign: "right" }}>Waste %</th>
                     <th style={{ ...th, textAlign: "right" }}>Unit cost</th>
                     <th style={{ ...th, textAlign: "right" }}>Cost</th>
                     {editable && <th style={th}><span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>Actions</span></th>}

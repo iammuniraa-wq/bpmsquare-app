@@ -25,13 +25,13 @@ describe("buildQuoteLines", () => {
     line({ description: "Crane", group: "Erection", group_key: "erection", cost_total: 50.05, uom: "day" }),
   ];
 
-  it("one line per group by default, adding up to the estimate's price to the cent", () => {
+  it("one line per group by default, adding up to the estimate's price in whole units", () => {
     const r = buildQuoteLines(lines, { granularity: "group", margin_pct: 18 });
     if (!r.ok) throw new Error("expected ok");
     expect(r.lines.map((l) => l.description)).toEqual(["Walls", "Slabs", "Erection"]);
     const summary = summariseLines(lines.map((l) => ({ group: l.group, group_key: l.group_key, component: "materials" as const, cost_total: l.cost_total })), { margin_pct: 18 });
-    expect(r.price).toBe(summary.price);
-    expect(r.lines.reduce((a, l) => Math.round((a + l.amount) * 100) / 100, 0)).toBe(summary.price);
+    expect(r.price).toBe(Math.round(summary.price));
+    expect(r.lines.reduce((a, l) => a + l.amount, 0)).toBe(r.price);
   });
 
   it("one line per estimate line at line granularity", () => {
@@ -39,7 +39,7 @@ describe("buildQuoteLines", () => {
     if (!r.ok) throw new Error("expected ok");
     expect(r.lines).toHaveLength(4);
     expect(r.lines[0].description).toBe("Wall panels (4 m3)");
-    expect(r.lines.reduce((a, l) => Math.round((a + l.amount) * 100) / 100, 0)).toBe(r.price);
+    expect(r.lines.reduce((a, l) => a + l.amount, 0)).toBe(r.price);
   });
 
   it("states the gross quantity (net plus waste) at line granularity", () => {
@@ -83,8 +83,50 @@ describe("buildQuoteLines", () => {
     if (!res.ok) throw new Error(JSON.stringify(res.issues));
     const q = buildQuoteLines(res.lines.map((l) => ({ description: l.description, uom: l.uom, qty: l.qty, waste_pct: l.waste_pct, group: l.group, group_key: l.group_key, cost_total: l.cost_total })), { granularity: "group", margin_pct: 18 });
     if (!q.ok) throw new Error(JSON.stringify(q));
-    expect(q.price).toBe(res.summary.price);
-    expect(q.lines.reduce((a, l) => Math.round((a + l.amount) * 100) / 100, 0)).toBe(res.summary.price);
+    expect(q.price).toBe(Math.round(res.summary.price));
+    expect(q.lines.reduce((a, l) => a + l.amount, 0)).toBe(q.price);
+  });
+});
+
+describe("customer lines are whole units that add up exactly", () => {
+  const five = [
+    line({ description: "Excavation", group: "A", group_key: "a", cost_total: 6500.4 }),
+    line({ description: "Backfill", group: "B", group_key: "b", cost_total: 5883.3 }),
+    line({ description: "Disposal", group: "C", group_key: "c", cost_total: 12650.4 }),
+    line({ description: "Compaction", group: "D", group_key: "d", cost_total: 2503.6 }),
+    line({ description: "Plant", group: "E", group_key: "e", cost_total: 7937.5 }),
+  ];
+
+  it("rate x qty is the amount, every amount is a whole number, and the lines add to the price", () => {
+    const r = buildQuoteLines(five, { granularity: "group", margin_pct: 17.8 });
+    if (!r.ok) throw new Error("expected ok");
+    for (const l of r.lines) {
+      expect(Number.isInteger(l.amount)).toBe(true);
+      expect(l.rate * l.qty).toBe(l.amount);
+    }
+    expect(r.lines.reduce((a, l) => a + l.amount, 0)).toBe(r.price);
+    expect(Number.isInteger(r.price)).toBe(true);
+  });
+
+  it("holds for any mix of costs and margins, group or line granularity", () => {
+    let seed = 7;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    for (let n = 0; n < 200; n++) {
+      const rows = Array.from({ length: 2 + Math.floor(rnd() * 7) }, (_, i) =>
+        line({ description: `L${i}`, group: `G${i % 4}`, group_key: `g${i % 4}`, cost_total: Math.round(rnd() * 2000000) / 100 + 0.01 }));
+      for (const granularity of ["group", "line"] as const) {
+        const r = buildQuoteLines(rows, { granularity, margin_pct: Math.round(rnd() * 4000) / 100 });
+        if (!r.ok) continue;
+        expect(r.lines.reduce((a, l) => a + l.amount, 0)).toBe(r.price);
+        for (const l of r.lines) expect(l.rate * l.qty).toBe(l.amount);
+      }
+    }
+  });
+
+  it("stays within a unit of the estimate's own price", () => {
+    const r = buildQuoteLines(five, { granularity: "group", margin_pct: 17.8 });
+    if (!r.ok) throw new Error("expected ok");
+    expect(Math.abs(r.price - priceForCost(35475.2, 17.8))).toBeLessThanOrEqual(0.5);
   });
 });
 

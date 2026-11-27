@@ -32,7 +32,7 @@ export default function NewEstimateScreen(props: Omit<WorkspaceProps, "renderInt
       renderInternal={(shown, tpl) => {
         if (!tpl) return null;
         const active = newEstimateTab(tab, hasBuildSchedule(tpl.geometry));
-        if (active === "schedule") return <ScheduleRiskPanel shown={shown} rules={tpl.rules} rates={tpl.rates} />;
+        if (active === "schedule") return <ScheduleRiskPanel shown={shown} rules={tpl.rules} rates={tpl.rates} geometry={tpl.geometry} />;
         return shown.totals ? <PriceBuiltFold shown={shown} fold={{ open: priceOpen, onToggle: setPriceOpen }} /> : null;
       }}
     />

@@ -75,7 +75,7 @@ export default async function EstimatePage({
       backLabel={tenderCtx ? "Back to the tender" : "All estimates"}
       title={estimate.name}
       reference={estimate.ref}
-      meta={[account?.name, template?.name].filter(Boolean).join(" · ") || undefined}
+      meta={[account?.name, contact?.name, template?.name].filter(Boolean).join(" · ") || undefined}
       status={<EstimateStatusPill status={estimate.status} />}
       menu={
         <RecordMoreMenu
