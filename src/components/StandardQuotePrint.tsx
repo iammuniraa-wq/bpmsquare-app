@@ -1,15 +1,24 @@
 "use client";
 
 import StandardQuotePrintDocument, { type StandardQuotePrintDocumentProps } from "./StandardQuotePrintDocument";
+import StandardQuoteModernDocument, { MODERN_QUOTE_CSS } from "./StandardQuoteModernDocument";
+import type { QuotePrintDefaults } from "@/extensions/types";
 
-type Props = StandardQuotePrintDocumentProps & { /** A revision's own PDF; absent = the record's current PDF, as always. */ pdfHref?: string };
+type Props = StandardQuotePrintDocumentProps & {
+  /** A revision's own PDF; absent = the record's current PDF, as always. */
+  pdfHref?: string;
+  /** The layout the workspace's extension asked for; absent = the classic one. */
+  variant?: "classic" | "modern";
+  brandColor?: string | null;
+  defaults?: QuotePrintDefaults;
+};
 
-export default function StandardQuotePrint({ pdfHref, ...props }: Props) {
+export default function StandardQuotePrint({ pdfHref, variant = "classic", brandColor, defaults, ...props }: Props) {
   const { quote } = props;
 
   return (
     <>
-      <style>{`
+      {variant === "modern" ? <style>{MODERN_QUOTE_CSS}</style> : <style>{`
         /* block, not swap: the only reason this font is self-hosted is the
            Rupee glyph the render host's own fonts lack. With swap, a Ctrl+P
            fired during the fallback window prints the document in a font
@@ -26,7 +35,7 @@ export default function StandardQuotePrint({ pdfHref, ...props }: Props) {
         .doc { background: #fff; max-width: 800px; margin: 0 auto; }
         table { border-collapse: collapse; width: 100%; }
         td, th { vertical-align: top; }
-      `}</style>
+      `}</style>}
 
       <div className="no-print" style={{ background: "#152233", padding: "10px 24px", display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, zIndex: 10, flexWrap: "wrap" }}>
         <a
@@ -41,7 +50,7 @@ export default function StandardQuotePrint({ pdfHref, ...props }: Props) {
         <button onClick={() => window.close()} style={{ background: "transparent", color: "#aebccd", border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>Close</button>
       </div>
 
-      <StandardQuotePrintDocument {...props} />
+      {variant === "modern" ? <StandardQuoteModernDocument {...props} brandColor={brandColor} defaults={defaults} /> : <StandardQuotePrintDocument {...props} />}
     </>
   );
 }

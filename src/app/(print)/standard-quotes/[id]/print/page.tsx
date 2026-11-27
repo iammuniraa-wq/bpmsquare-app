@@ -11,6 +11,7 @@ import { printedRevisionNo, revisionsActive } from "@/lib/revisions/state";
 import { snapshotForPrint } from "@/lib/revisions/snapshot";
 import type { StandardQuoteTemplate } from "@/lib/types";
 import { quoteTaxLabel } from "@/lib/standardQuoteTotals";
+import { getExtension } from "@/extensions/registry";
 
 export default async function StandardQuotePrintPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ pdf?: string; rev?: string }> }) {
   const { id } = await params;
@@ -20,6 +21,9 @@ export default async function StandardQuotePrintPage({ params, searchParams }: {
 
   const { quote, lines, account, contact, template } = data;
   const taxLabel = quoteTaxLabel(tenant.company_info, tenant.config?.tax);
+  const extension = await getExtension(tenant.slug);
+  const variant = extension.standardQuotePrintStyle?.() ?? "classic";
+  const printDefaults = extension.standardQuotePrintDefaults?.();
 
   // Revision history (0252): an issued quotation, or "?rev=N", prints from what that revision froze, through the frame as it was.
   const active = revisionsActive(tenant.config, quote);
@@ -45,6 +49,7 @@ export default async function StandardQuotePrintPage({ params, searchParams }: {
         companyInfo={snap.frame.company_info} logoUrl={snap.frame.logo_url}
         template={{ id: snap.template.id ?? "", tenant_id: quote.tenant_id, name: snap.template.name ?? "", is_default: false, accent_color: snap.template.accent_color, logo_position: snap.template.logo_position, blocks: snap.template.blocks, created_at: "", updated_at: "" } as StandardQuoteTemplate}
         currency={snap.currency} taxLabel={taxLabel} pdfHref={`/api/standard-quotes/${quote.id}/pdf?rev=${wanted}`}
+        variant={variant} brandColor={tenant.accent_color} defaults={printDefaults}
       />
     );
   }
@@ -73,6 +78,8 @@ export default async function StandardQuotePrintPage({ params, searchParams }: {
       template={template}
       currency={currency.code}
       taxLabel={taxLabel}
+      variant={variant}
+      brandColor={tenant.accent_color} defaults={printDefaults}
     />
   );
 }

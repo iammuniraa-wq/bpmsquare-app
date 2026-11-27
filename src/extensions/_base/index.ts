@@ -9,6 +9,7 @@ const base: TenantExtension = {
   quoteSignatureSlot: () => null,
   quoteExtraSection: () => null,
   quoteSubject: (name) => name,
+  standardQuotePrintStyle: () => "classic",
   beforeSaveAccount: () => ({ ok: true }),
   beforeSaveContact: () => ({ ok: true }),
   beforeSaveAsset: () => ({ ok: true }),

@@ -31,6 +31,16 @@ export type ObjectType = "account" | "contact" | "asset" | "case" | "work_order"
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 
+// What the modern quote layout shows for a quote that has no template of its own. A template always wins.
+export type QuotePrintDefaults = {
+  /** #rrggbb */
+  accent?: string;
+  /** Opening line, used when the quote has no intro text of its own. */
+  intro?: string;
+  /** Print the two signature boxes (company and customer acceptance). */
+  signature?: boolean;
+};
+
 // ─── The full extension interface ───────────────────────────────────────────
 
 export interface TenantExtension {
@@ -61,6 +71,15 @@ export interface TenantExtension {
    * override this instead of that wording living in the standard print doc.
    */
   quoteSubject?(quoteName: string): string;
+
+  /**
+   * Which layout the Standard Quote print page and PDF use when the workspace has no page frame.
+   * "classic" is the standard product layout.
+   */
+  standardQuotePrintStyle?(): "classic" | "modern";
+
+  /** Defaults for the modern layout; ignored by the classic one. */
+  standardQuotePrintDefaults?(): QuotePrintDefaults;
 
   /**
    * Called before an account is saved (create or update).
