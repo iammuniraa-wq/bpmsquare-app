@@ -203,3 +203,15 @@ describe("the award card on a flagged supplier", () => {
     expect(o).not.toMatch(press);
   });
 });
+
+describe("an award card that has already ended, drawn again", () => {
+  const redraw = (settled: Parameters<typeof PriceCardView>[0]["settled"]) =>
+    renderToString(createElement(PriceCardView, { card: awardCard({ markupNote: "Markup 20%, set on the BOQ row." }), onOpen: () => {}, onAsk: () => {}, settled })).replace(/<!-- -->/g, "");
+
+  it("an awarded card has no Award button left; a fresh one shows the markup note", () => {
+    const out = redraw({ kind: "awarded", done: { awarded: 2, of: 2, next: [], warnings: [] } });
+    expect(out).toContain("Awarded 2 of 2 lines on RFQ-0014.");
+    expect(out).not.toContain("assistant.price.award.press");
+    expect(redraw(undefined)).toContain("Markup 20%, set on the BOQ row.");
+  });
+});

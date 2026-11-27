@@ -5,15 +5,16 @@ import { canEditWorkcenter } from "@/lib/permissions";
 import { signToken, hashOf } from "@/lib/actions/token";
 import { awardMarkup, awardRate, roundMoney, tenderMarkupDefault } from "@/lib/tender/costing/rules";
 import { promptText } from "@/lib/assistant/promptSafe";
+import { lineLabel, linesNamed, namesLines } from "@/lib/assistant/lineWords";
 import { buildComparison, dealsVisible } from "./compare";
 import { currencyView, moneyOf, type PriceEnv } from "./env";
 import { compareHref, tenderDealOf } from "./link";
 import { resolveRfq } from "./load";
-import { AWARD_ACT, MAX_AWARD_LINES, awardNotices, canonicalPlan, chooseLines, matchSupplier, type LineChoice } from "./plan";
+import { AWARD_ACT, MAX_AWARD_LINES, awardNotices, canonicalPlan, chooseLines, markupNote, matchSupplier, type LineChoice } from "./plan";
 import { parseAwardInput } from "./tools";
 import { flaggedOf } from "@/lib/suppliers/check/awardGate";
 import { loadAwardChecks } from "@/lib/suppliers/check/awardGateServer";
-import type { AwardLineView, AwardPlan, DockAward } from "./types";
+import type { AwardLineView, AwardPlan, Comparison, DockAward } from "./types";
 
 // propose_award: a confirm card for "Award and price", never an award. It shows the lines, the cost, the markup the screen would add and every
 // check that is not a pass, and signs a plan the press (press.ts) must present unchanged. The award itself is the existing award route.
@@ -42,22 +43,66 @@ const view = (p: LineChoice, rate: number | null, markupPct: number | null): Awa
   qty: p.qty, markupPct, rate, needsReason: p.decision.notLowest, validity: p.validity, alreadyAwarded: p.alreadyAwarded,
 });
 
-export async function runProposeAward(raw: unknown, env: PriceEnv): Promise<{ out: string; card?: DockAward }> {
+const itemsNamed = (comparison: Comparison, words: string) => linesNamed(comparison.lines, words);
+
+/** Of a deal's several RFQs, the ones where the named lines were priced by the named supplier. */
+async function rfqsHolding(env: PriceEnv, refs: string[], words: string, supplier: string): Promise<string[]> {
+  const out: string[] = [];
+  for (const ref of refs) {
+    const found = await resolveRfq(env.supabase, env.tenantId, ref, { deals: dealsVisible(env) });
+    if (found.kind !== "ok") continue;
+    const built = await buildComparison(env, found.rfq, []);
+    if ("error" in built) continue;
+    const named = itemsNamed(built.comparison, words);
+    const m = supplier ? matchSupplier(built.comparison.suppliers, supplier) : null;
+    if (named.length && (!m || (m.kind === "ok" && named.some((l) => l.cells[m.index]?.unit != null)))) out.push(ref);
+  }
+  return out;
+}
+
+async function openDealRef(env: PriceEnv): Promise<string> {
+  if (!env.openDealId) return "";
+  const { data } = await env.supabase.from("opportunities").select("ref").eq("id", env.openDealId).eq("tenant_id", env.tenantId).maybeSingle();
+  return (data as { ref?: string | null } | null)?.ref ?? "";
+}
+
+/** `out` is for the model; `say` is a refusal as the person reads it when no model is asked. */
+export async function runProposeAward(raw: unknown, env: PriceEnv): Promise<{ out: string; card?: DockAward; say?: string }> {
   if (!env.access.award || !env.userId) return { out: "Error: awarding from the assistant is not enabled for this person here." };
   const input = parseAwardInput(raw);
-  const found = await resolveRfq(env.supabase, env.tenantId, input.reference, { deals: dealsVisible(env) });
-  if (found.kind !== "ok") return { out: found.message };
+  const reference = input.reference || (await openDealRef(env));
+  let found = await resolveRfq(env.supabase, env.tenantId, reference, { deals: dealsVisible(env) });
+  const words = input.lines ?? "";
+  const only = namesLines(words);
+  if (found.kind === "ask" && only) {
+    const holding = await rfqsHolding(env, found.options.map((o) => o.ref), words, input.mode === "single" ? input.supplier : "");
+    if (holding.length === 1) found = await resolveRfq(env.supabase, env.tenantId, holding[0], { deals: dealsVisible(env) });
+  }
+  if (found.kind !== "ok") return { out: found.message, say: found.message.replace(/ Ask the person which one\.$/, " Which one? Give the RFQ's reference.") };
   const built = await buildComparison(env, found.rfq, []);
-  if ("error" in built) return { out: built.error };
-  const { data, comparison } = built;
+  if ("error" in built) return { out: built.error, say: built.error };
+  const { data } = built;
+  let { comparison } = built;
   const ref = comparison.rfq.ref;
+  if (only) {
+    const named = itemsNamed(comparison, words);
+    if (!named.length) {
+      const say = `No line of ${ref} matches "${lineLabel(words)}". Its lines are: ${comparison.lines.slice(0, 8).map((l) => `${l.item} ${promptText(l.description, 60)}`).join("; ")}.`;
+      return { out: `${say} Tell the person; no card has been shown.`, say };
+    }
+    comparison = { ...comparison, lines: named };
+  }
 
   let supplierIndex: number | null = null;
   if (input.mode === "single") {
     const m = matchSupplier(comparison.suppliers, input.supplier);
-    if (m.kind === "ask") return { out: `Several suppliers match "${input.supplier}": ${m.names.join(", ")}. Ask the person which one.` };
+    if (m.kind === "ask") {
+      const say = `Several suppliers match "${input.supplier}": ${m.names.join(", ")}.`;
+      return { out: `${say} Ask the person which one.`, say: `${say} Which one?` };
+    }
     if (m.kind === "none") {
-      return { out: `${input.supplier ? `No priced supplier on ${ref} matches "${input.supplier}".` : "Which supplier?"} The suppliers with prices are ${comparison.suppliers.map((s) => promptText(s.name, 60)).join(", ")}. Ask the person which one.` };
+      const say = `${input.supplier ? `No priced supplier on ${ref} matches "${input.supplier}".` : "Which supplier?"} The suppliers with prices are ${comparison.suppliers.map((s) => promptText(s.name, 60)).join(", ")}.`;
+      return { out: `${say} Ask the person which one.`, say };
     }
     supplierIndex = m.index;
   }
@@ -91,16 +136,19 @@ export async function runProposeAward(raw: unknown, env: PriceEnv): Promise<{ ou
   }
 
   const coverage = supplierIndex === null ? undefined : { quoted: comparison.suppliers[supplierIndex].quoted, asked: comparison.askedLines };
-  notices.push(...awardNotices(picks, { staleDays: data.staleDays, money, mode: input.mode, supplier: supplierIndex === null ? undefined : comparison.suppliers[supplierIndex].name, coverage }));
+  notices.push(...awardNotices(picks, { staleDays: data.staleDays, money, mode: input.mode, supplier: supplierIndex === null ? undefined : comparison.suppliers[supplierIndex].name, coverage: only ? undefined : coverage }));
+  if (only) notices.push("Only the lines you named are on this card. The others are not changed.");
   const leftNotes = left.filter((l) => !l.reason.startsWith("already awarded"));
   if (leftNotes.length) notices.push(`Left out: ${leftNotes.slice(0, 5).map((l) => `item ${l.item} (${l.reason})`).join("; ")}${leftNotes.length > 5 ? ` and ${leftNotes.length - 5} more` : ""}.`);
   const kept = left.filter((l) => l.reason.startsWith("already awarded"));
   if (kept.length) notices.push(`Item ${kept.map((l) => l.item).join(", ")} already ${kept.length === 1 ? "has" : "have"} this award and ${kept.length === 1 ? "is" : "are"} left as it is.`);
 
+  const markups: { item: string; pct: number; own: boolean }[] = [];
   const lines: AwardLineView[] = picks.map((p) => {
     const row = pricing.get(p.lineId);
     const priced = deal && markupDefault !== null && row && !row.removed;
     const markup = priced ? awardMarkup({ requested: null, rowMarkup: row.markupPct, fallback: markupDefault! }) : null;
+    if (markup !== null) markups.push({ item: p.item, pct: markup, own: (row!.markupPct ?? 0) > 0 });
     return view(p, markup === null ? null : awardRate(p.cost, markup), markup);
   });
   const total = roundMoney(picks.reduce((sum, p) => sum + p.cost * (p.qty !== null && p.qty > 0 ? p.qty : 1), 0));
@@ -119,7 +167,7 @@ export async function runProposeAward(raw: unknown, env: PriceEnv): Promise<{ ou
     title: input.mode === "single" ? `Award ${ref} to ${who}` : `Award ${ref} by line`,
     summary, rfq: { id: found.rfq.id, ref }, plan, lines, left, total,
     pricesRows: route === "tender" && found.rfq.origin_type === "opportunity",
-    markupDefaultPct: markupDefault,
+    markupDefaultPct: markupDefault, markupNote: markupNote(markups),
     needsReason: lines.some((l) => l.needsReason), needsReplace: lines.some((l) => l.alreadyAwarded),
     notices, blocked, primaryLabel: route === "tender" ? "Award and price" : "Award", currency: currencyView(env.currency),
     compareHref: compareHref(found.rfq.id, deal), risk: "write", supplierChecks: flaggedChecks,

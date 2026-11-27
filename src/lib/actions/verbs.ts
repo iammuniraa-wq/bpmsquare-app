@@ -7,6 +7,8 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import type { CardFact, CardField, ConfirmCard, NextStep } from "@/lib/assistant/cards";
 import { CARD_TIPS } from "@/lib/assistant/cardTips";
 import { promptText } from "@/lib/assistant/promptSafe";
+import { lineLabel, linesNamed, namesLines } from "@/lib/assistant/lineWords";
+import { WHICH_TENDER } from "@/lib/assistant/tenderAsk";
 import { redactText } from "@/lib/middleware/redact";
 import { loadOpportunityLines } from "@/lib/sales/opportunityServer";
 import { decidersFor, proposalProblem, stageGuard } from "@/lib/tender/approval";
@@ -48,6 +50,7 @@ export type VerbInput = {
   revision_reason?: string;
   note?: string;
   suppliers?: unknown;
+  lines?: unknown;
   title?: string;
   respond_by?: string;
   template?: string;
@@ -66,9 +69,26 @@ export type VerbCtx = {
   pageRecordId?: string | null;
 };
 
+/** `reason` is for the model; `say` is the same refusal as the person reads it when no model is asked. `final` answers with `say` as it is. */
+type Refusal = { ok: false; reason: string; say: string; final?: boolean };
+
 export type VerbBuild =
   | { ok: true; card: ConfirmCard; notes: string[] }
-  | { ok: false; reason: string };
+  | Refusal;
+
+export const EMPTY_BOQ = "This tender's BOQ is empty. Upload it on the BOQ tab first.";
+
+const no = (say: string, ask = "Tell the person"): Refusal => ({ ok: false, say, reason: `${say} ${ask}; no card has been shown.` });
+const emptyBoq = (): Refusal => ({ ...no(EMPTY_BOQ, "Tell the person exactly that"), final: true });
+const notOne = (noun: string, hint: string | undefined, found: Parameters<typeof notOneMessage>[2]): Refusal => {
+  const said = (hint ?? "").trim();
+  const say = !said && found.kind === "none"
+    ? WHICH_TENDER
+    : found.kind === "many"
+    ? `${found.exact ? `Several ${noun}s are called "${said}":` : `No ${noun} is called exactly "${said}". Closest:`} ${found.hits.map((h) => h.label).join("; ")}. Which one do you mean?`
+    : `I found no ${noun} matching "${said}" in this workspace.`;
+  return { ok: false, reason: notOneMessage(noun, hint, found), say };
+};
 
 const DEAL: RecordTarget = { table: "opportunities", nameColumn: "title", tenderOnly: true };
 const SUPPLIER: RecordTarget = { table: "suppliers", nameColumn: "name" };
@@ -134,18 +154,18 @@ async function fieldsFor(verb: VerbActionDef["verb"], env: Env, tg: Tg, offered:
 // ── building a card ──────────────────────────────────────────────────────────────────────────────────────────────
 
 type Plan = { ok: true; title: string; values: Record<string, string>; facts: CardFact[]; checks: string[]; notices: string[]; tg: Tg; offered?: string[]; summary: string }
-  | { ok: false; reason: string };
+  | Refusal;
 
 async function planDecision(env: Env, input: VerbInput): Promise<Plan> {
   const norm = str(input.decision).toLowerCase().replace(/[^a-z]/g, "");
   const decision = norm === "go" || norm === "bid" ? "go" : norm === "nogo" || norm === "nobid" ? "no_go" : "";
-  if (!decision) return { ok: false, reason: "Is the decision go (bid) or no-go (do not bid)? Ask the person; no card has been shown." };
+  if (!decision) return no("Is the decision go (bid) or no-go (do not bid)?", "Ask the person");
   const { rows, pending } = await loadApprovals(env.admin, env.tenantId, env.dealId);
-  if (pending) return { ok: false, reason: "Approval needs a database update that has not been applied in this workspace. Tell the person; no card has been shown." };
+  if (pending) return no("Approval needs a database update that has not been applied in this workspace.");
   const { approvers, allowSelfApproval } = await loadApprovers(env.admin, env.tenantId, (await tenantConfig(env)) as never);
   const deciders = decidersFor(approvers, env.userId, allowSelfApproval);
   const problem = proposalProblem({ stage: str(env.deal.stage), outcome: str(env.deal.outcome), hasPending: rows.some((r) => r.status === "pending"), deciders });
-  if (problem) return { ok: false, reason: `${problem}. Tell the person in one line; no card has been shown.` };
+  if (problem) return no(`${problem}.`, "Tell the person in one line");
   const label = dealLabel(env.deal);
   return {
     ok: true, title: `Propose bid decision: ${label}`, summary: `Propose ${decision === "go" ? "go" : "no-go"} for ${label}.`,
@@ -162,13 +182,13 @@ async function unpricedFromLines(env: Env): Promise<number> {
 
 async function planSubmitBid(env: Env, input: VerbInput): Promise<Plan> {
   const latest = await latestVersionNo(env.admin, env.tenantId, env.dealId);
-  if (latest.pending) return { ok: false, reason: "Bid versions need a database update that has not been applied in this workspace. Tell the person; no card has been shown." };
+  if (latest.pending) return no("Bid versions need a database update that has not been applied in this workspace.");
   const snap = await currentSnapshot(env.admin, env.tenantId, env.dealId);
   const problem = submitProblem({ stage: str(env.deal.stage), outcome: str(env.deal.outcome), lineCount: snap.line_count });
-  if (problem) return { ok: false, reason: `${problem}. Tell the person in one line; no card has been shown.` };
+  if (problem) return no(`${problem}.`, "Tell the person in one line");
   const standing = await standingDecision(env.admin, env.tenantId, env.dealId);
   const stageProblem = standing.available ? stageGuard({ from: str(env.deal.stage), to: "submitted", effective: standing.effective }) : null;
-  if (stageProblem) return { ok: false, reason: `${stageProblem}. Tell the person in one line; no card has been shown.` };
+  if (stageProblem) return no(`${stageProblem}.`, "Tell the person in one line");
 
   const versionNo = latest.no + 1;
   const config = await tenantConfig(env);
@@ -198,8 +218,13 @@ async function planSubmitBid(env: Env, input: VerbInput): Promise<Plan> {
   };
 }
 
-async function rfqLinesFor(env: Pick<Env, "admin" | "tenantId" | "dealId">) {
-  const lines = (await loadOpportunityLines(env.admin, env.tenantId, env.dealId)) as unknown as (DocLineForRfq & { is_selected?: boolean | null })[];
+type DealLine = DocLineForRfq & { is_selected?: boolean | null };
+
+async function dealLinesFor(env: Pick<Env, "admin" | "tenantId" | "dealId">): Promise<DealLine[]> {
+  return (await loadOpportunityLines(env.admin, env.tenantId, env.dealId)) as unknown as DealLine[];
+}
+
+function rfqLinesOf(lines: DealLine[]) {
   const unpriced = new Set(lines.filter((l) => !(Number(l.rate) > 0)).map((l) => l.id));
   const composed = tenderRfqLines(lines, () => "another RFQ").filter((l) => l.include !== false && l.source_line_id && unpriced.has(l.source_line_id));
   return composed.slice(0, RFQ_LIMITS.maxLines).map((l) => ({
@@ -207,35 +232,62 @@ async function rfqLinesFor(env: Pick<Env, "admin" | "tenantId" | "dealId">) {
   }));
 }
 
+async function rfqLinesFor(env: Pick<Env, "admin" | "tenantId" | "dealId">) {
+  return rfqLinesOf(await dealLinesFor(env));
+}
+
+const lineText = (l: DealLine): string => [String(l.sl_no ?? ""), promptText(l.description, 60)].filter(Boolean).join(" ");
+
 async function planRfq(env: Env, input: VerbInput): Promise<Plan> {
+  const all = await dealLinesFor(env);
+  const live = all.filter((l) => l.is_selected !== false && !l.break_of);
+  if (live.length === 0) return emptyBoq();
+
+  const words = promptText(str(input.lines), 80);
+  const wanted = namesLines(words) ? linesNamed(live.map((l) => ({ description: l.description, item: l.sl_no, line: l })), words).map((x) => x.line) : null;
+  if (wanted && wanted.length === 0) {
+    return no(`No line on this tender's BOQ matches "${lineLabel(words)}". Its lines include: ${live.slice(0, 5).map(lineText).join("; ")}.`);
+  }
+
   const named = (Array.isArray(input.suppliers) ? input.suppliers : []).filter((s): s is string => typeof s === "string" && s.trim() !== "").map((s) => s.trim());
-  if (named.length === 0) return { ok: false, reason: "Which suppliers is the RFQ for? Ask the person to name them; no card has been shown." };
-  if (named.length > RFQ_LIMITS.maxSuppliers) return { ok: false, reason: `An RFQ can go to ${RFQ_LIMITS.maxSuppliers} suppliers at most. Ask the person to name fewer; no card has been shown.` };
+  if (named.length === 0) return no("Which suppliers is the RFQ for?", "Ask the person to name them");
+  if (named.length > RFQ_LIMITS.maxSuppliers) return no(`An RFQ can go to ${RFQ_LIMITS.maxSuppliers} suppliers at most.`, "Ask the person to name fewer");
 
   const picked: { id: string; row: Row }[] = [];
   for (const n of named) {
     const found = await resolveRecord(env.supabase, env.tenantId, SUPPLIER, n);
-    if (found.kind !== "one") return { ok: false, reason: notOneMessage("supplier", n, found) };
+    if (found.kind !== "one") return notOne("supplier", n, found);
     if (!picked.some((p) => p.id === found.id)) picked.push({ id: found.id, row: found.row });
   }
   const allowed = await assertTenderSuppliersAllowed(env.admin, env.tenantId, { origin_type: "opportunity", origin_id: env.dealId }, picked.map((p) => p.id));
-  if (!allowed.ok) return { ok: false, reason: `${promptText(allowed.error, 300)}. Tell the person which suppliers are not allowed on this tender; no card has been shown.` };
+  if (!allowed.ok) return no(`${promptText(allowed.error, 300)}.`, "Tell the person which suppliers are not allowed on this tender");
 
-  const lines = await rfqLinesFor(env);
-  if (lines.length === 0) return { ok: false, reason: "Every line on this tender already has a price or is on an RFQ, so there is nothing to ask suppliers about. Tell the person; no card has been shown." };
+  const only = wanted ? new Set(wanted.map((l) => l.id)) : null;
+  const lines = rfqLinesOf(all).filter((l) => !only || only.has(l.source_line_id ?? ""));
+  if (lines.length === 0) {
+    return no(wanted
+      ? `Every line matching "${lineLabel(words)}" already has a price or is on an RFQ, so there is nothing to ask suppliers about.`
+      : "Every line on this tender already has a price or is on an RFQ, so there is nothing to ask suppliers about.");
+  }
 
   const { unreachable } = splitReachable(picked.map((p) => ({ id: p.id, name: str(p.row.name), email: str(p.row.email) || null, phone: str(p.row.phone) || null })));
   const notices: string[] = [];
   const checks = unreachable.map((u) => `${u.name || "A supplier"} has no email address, so the RFQ cannot be emailed to them until you add one.`);
   const label = dealLabel(env.deal);
+  const ids = lines.map((l) => l.source_line_id ?? "");
+  const leftOut = wanted ? wanted.length - lines.length : 0;
+  if (leftOut > 0) notices.push(`${plural(leftOut, "matching line already has a price or an RFQ and is", "matching lines already have a price or an RFQ and are")} left out.`);
+  const onCard = wanted ? live.filter((l) => ids.includes(l.id)) : [];
   return {
-    ok: true, title: `Create RFQ: ${label}`, summary: `Create an RFQ for the lines of ${label} that have no price, for ${picked.map((p) => str(p.row.name)).join(", ")}.`,
+    ok: true, title: `Create RFQ: ${label}`,
+    summary: `Create an RFQ for the lines of ${label}${wanted ? ` matching "${lineLabel(words)}"` : ""} that have no price, for ${picked.map((p) => str(p.row.name)).join(", ")}.`,
     values: { title: str(input.title).trim(), respond_by: str(input.respond_by).trim() },
     facts: [
       { label: "Suppliers", value: picked.map((p) => str(p.row.name)).join(", ") },
       { label: "Lines without a price", value: String(lines.length) },
+      ...(wanted ? [{ label: "Only these lines", value: `${onCard.slice(0, 5).map(lineText).join("; ")}${onCard.length > 5 ? ` and ${onCard.length - 5} more` : ""}` }] : []),
     ],
-    checks, notices, tg: { id: env.dealId, sup: picked.map((p) => p.id) },
+    checks, notices, tg: { id: env.dealId, sup: picked.map((p) => p.id), ...(wanted ? { only: ids } : {}) },
   };
 }
 
@@ -243,7 +295,7 @@ const norm = (s: string) => s.trim().toLowerCase();
 
 async function planEstimate(env: Env, input: VerbInput): Promise<Plan> {
   const wanted = str(input.template).trim();
-  if (!wanted) return { ok: false, reason: "Which estimate template? Ask the person to name one; no card has been shown." };
+  if (!wanted) return no("Which estimate template?", "Ask the person to name one");
   const { data } = await env.supabase.from("estimate_templates").select("*").eq("tenant_id", env.tenantId).limit(200);
   const all = ((data ?? []) as EstimateTemplate[]).filter((t) => t.is_active !== false);
   const exact = all.filter((t) => norm(t.name) === norm(wanted));
@@ -252,6 +304,7 @@ async function planEstimate(env: Env, input: VerbInput): Promise<Plan> {
     const list = near.length ? near : all;
     return {
       ok: false,
+      say: near.length === 0 ? `No estimate template is called "${promptText(wanted, 80)}".` : `Several templates match "${promptText(wanted, 80)}". Which one?`,
       reason: near.length === 0
         ? `No estimate template is called "${promptText(wanted, 80)}". Templates: ${list.slice(0, 10).map((t) => promptText(t.name, 60)).join("; ") || "none yet"}. Ask which one; no card has been shown.`
         : `Several templates match "${promptText(wanted, 80)}": ${near.slice(0, 6).map((t) => promptText(t.name, 60)).join("; ")}. Ask which one; no card has been shown.`,
@@ -259,7 +312,7 @@ async function planEstimate(env: Env, input: VerbInput): Promise<Plan> {
   }
   const tpl = near[0];
   const valid = validateTemplate({ ...(tpl.geometry ? { geometry: tpl.geometry } : {}), inputs: tpl.inputs ?? [], rates: tpl.rates ?? [], rules: tpl.rules ?? [] } as never);
-  if (!valid.ok) return { ok: false, reason: `The template "${promptText(tpl.name, 60)}" has problems and cannot be used yet. Tell the person; no card has been shown.` };
+  if (!valid.ok) return no(`The template "${promptText(tpl.name, 60)}" has problems and cannot be used yet.`);
 
   const inputs = (tpl.inputs ?? []) as unknown as TemplateInput[];
   const given = input.inputs && typeof input.inputs === "object" && !Array.isArray(input.inputs) ? Object.entries(input.inputs as Record<string, unknown>) : [];
@@ -307,11 +360,13 @@ async function boqFor(env: Env) {
 
 async function planMatch(env: Env): Promise<Plan> {
   const r = await boqFor(env);
-  if (!r.ok) return { ok: false, reason: "The bill of quantities of this tender could not be opened. Tell the person; no card has been shown." };
+  if (!r.ok) return no("The bill of quantities of this tender could not be opened.");
+  const boq = await buildBoqState(r.req);
+  if (!boq.pending && (!boq.source || boq.totals.lines === 0)) return emptyBoq();
   const state = await buildMatchState(r.req);
-  if (!state.enabled) return { ok: false, reason: "The Products module is not on in this workspace, so there is no catalog to match against. Tell the person; no card has been shown." };
-  if (state.rows.length === 0) return { ok: false, reason: "Every line already has a catalog product, or there is no BOQ yet. Tell the person; no card has been shown." };
-  if (state.strong === 0) return { ok: false, reason: `None of the ${state.rows.length} lines without a product has a strong match, so nothing would be linked. Tell the person they can pick products on the BOQ tab; no card has been shown.` };
+  if (!state.enabled) return no("The Products module is not on in this workspace, so there is no catalog to match against.");
+  if (state.rows.length === 0) return no("Every line of the BOQ already has a catalog product.");
+  if (state.strong === 0) return no(`None of the ${state.rows.length} lines without a product has a strong match, so nothing would be linked. You can pick products on the BOQ tab.`);
   const label = dealLabel(env.deal);
   return {
     ok: true, title: `Match to products: ${label}`, summary: `Link the strong product matches on the BOQ of ${label}.`, values: {},
@@ -326,10 +381,11 @@ async function planMatch(env: Env): Promise<Plan> {
 
 async function planPrice(env: Env, input: VerbInput): Promise<Plan> {
   const r = await boqFor(env);
-  if (!r.ok) return { ok: false, reason: "The bill of quantities of this tender could not be opened. Tell the person; no card has been shown." };
+  if (!r.ok) return no("The bill of quantities of this tender could not be opened.");
   const state = await buildBoqState(r.req);
-  if (state.pending || !state.source) return { ok: false, reason: "This tender has no BOQ yet: it is uploaded on the BOQ tab first. Tell the person; no card has been shown." };
-  if (state.totals.unpriced === 0) return { ok: false, reason: "Every line of the BOQ already has a price, and Price all never changes a price that is there. Tell the person; no card has been shown." };
+  if (state.pending) return no("The bill of quantities needs a database update that has not been applied in this workspace.");
+  if (!state.source || state.totals.lines === 0) return emptyBoq();
+  if (state.totals.unpriced === 0) return no("Every line of the BOQ already has a price, and Price all never changes a price that is there.");
   const notices: string[] = [];
   let markup = String(state.default_markup_pct);
   if (input.markup_pct !== undefined && input.markup_pct !== null && input.markup_pct !== "") {
@@ -352,7 +408,7 @@ export async function buildVerbCard(
   ctx: VerbCtx, def: VerbActionDef, input: VerbInput, newId: () => string = () => crypto.randomUUID(),
 ): Promise<VerbBuild> {
   const found = await resolveRecord(ctx.supabase, ctx.tenantId, DEAL, input.deal, ctx.pageRecordId);
-  if (found.kind !== "one") return { ok: false, reason: notOneMessage("tender deal", input.deal, found) };
+  if (found.kind !== "one") return notOne("tender deal", input.deal, found);
   const env: Env = {
     supabase: ctx.supabase, admin: createAdminSupabase(), tenantId: ctx.tenantId, userId: ctx.userId, perms: ctx.perms, isWorkspaceAdmin: ctx.isWorkspaceAdmin,
     dealId: found.id, deal: found.row,
@@ -429,7 +485,9 @@ async function prepare(ctx: ExecCtx, def: VerbActionDef, env: Env, tg: Tg, value
       const sup = Array.isArray(tg.sup) ? tg.sup : [];
       const { data } = await env.supabase.from("suppliers").select("id").eq("tenant_id", env.tenantId).in("id", sup);
       if (((data ?? []) as { id: string }[]).length !== sup.length) return fail(422, "ref", "A supplier on this card was not found in this workspace. Ask me again.");
-      const lines = await rfqLinesFor(env);
+      const only = Array.isArray(tg.only) ? new Set(tg.only) : null;
+      const lines = (await rfqLinesFor(env)).filter((l) => !only || only.has(l.source_line_id ?? ""));
+      if (only && lines.length !== only.size) return fail(409, "stale_record", "The lines on this card have changed since it was shown. Ask me again and I will show the current ones.");
       if (lines.length === 0) return fail(422, "nothing", "Every line already has a price or is on an RFQ now, so there is nothing to ask suppliers about.");
       return {
         ok: true, route, load: () => call({

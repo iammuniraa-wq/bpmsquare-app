@@ -6,7 +6,7 @@ import { formatMoney, type CurrencyDef } from "@/lib/currency";
 import InfoTip from "@/components/ui/InfoTip";
 import { InlineMarkdown } from "./Markdown";
 import { PRICE_TIPS } from "@/lib/assistant/priceCompare/tips";
-import type { CompareCell, DockAward, DockPriceCheck, DockPriceCompare, PriceCard } from "@/lib/assistant/priceCompare/types";
+import type { AwardDone, AwardSettled, CompareCell, DockAward, DockPriceCheck, DockPriceCompare, PriceCard } from "@/lib/assistant/priceCompare/types";
 import type { NextStep } from "@/lib/assistant/cards";
 import { AwardCheckPanel, type AwardGate } from "@/components/suppliers/AwardCheckPanel";
 import { gateBody, gateReady, type AwardCheck } from "@/lib/suppliers/check/awardGate";
@@ -181,9 +181,9 @@ function Figure({ name, value, note }: { name: string; value: string; note: stri
   );
 }
 
-type Done = { awarded: number; of: number; partial?: boolean; error?: string; stoppedAt?: string; next: NextStep[]; warnings: string[] };
+type Done = AwardDone;
 
-export function AwardCardView({ card, onOpen }: { card: DockAward; onOpen: (href: string) => void }) {
+export function AwardCardView({ card, onOpen, settled, onSettled }: { card: DockAward; onOpen: (href: string) => void; settled?: AwardSettled; onSettled?: (s: AwardSettled) => void }) {
   const [reason, setReason] = useState("");
   const [replace, setReplace] = useState(false);
   const [markup, setMarkup] = useState("");
@@ -191,9 +191,11 @@ export function AwardCardView({ card, onOpen }: { card: DockAward; onOpen: (href
   const [error, setError] = useState("");
   const [needReason, setNeedReason] = useState(card.needsReason);
   const [needReplace, setNeedReplace] = useState(card.needsReplace);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(settled?.kind === "cancelled");
   const [allLines, setAllLines] = useState(false);
-  const [done, setDone] = useState<Done | null>(null);
+  const [done, setDone] = useState<Done | null>(settled?.kind === "awarded" ? settled.done : null);
+  const finish = (d: Done) => { setDone(d); onSettled?.({ kind: "awarded", done: d }); };
+  const cancel = () => { setDismissed(true); onSettled?.({ kind: "cancelled" }); };
   const [checks, setChecks] = useState<AwardCheck[]>(card.supplierChecks ?? []);
   const [checkReason, setCheckReason] = useState("");
   const [checkAck, setCheckAck] = useState(false);
@@ -218,10 +220,10 @@ export function AwardCardView({ card, onOpen }: { card: DockAward; onOpen: (href
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok && json.ok) {
-        setDone({ awarded: json.awarded ?? 0, of: json.of ?? card.lines.length, partial: json.partial === true, error: json.error, stoppedAt: json.stopped_at, next: json.next ?? [], warnings: Array.isArray(json.warnings) ? json.warnings : [] });
+        finish({ awarded: json.awarded ?? 0, of: json.of ?? card.lines.length, partial: json.partial === true, error: json.error, stoppedAt: json.stopped_at, next: json.next ?? [], warnings: Array.isArray(json.warnings) ? json.warnings : [] });
         return;
       }
-      if (res.status === 409 && json.code === "already_done") { setDone({ awarded: json.result?.awarded ?? 0, of: json.result?.of ?? card.lines.length, next: [], warnings: [] }); return; }
+      if (res.status === 409 && json.code === "already_done") { finish({ awarded: json.result?.awarded ?? 0, of: json.result?.of ?? card.lines.length, next: [], warnings: [] }); return; }
       if (json.code === "reason_required") setNeedReason(true);
       if (json.code === "already_awarded") setNeedReplace(true);
       if (typeof json.code === "string" && json.code.startsWith("supplier_check") && Array.isArray(json.flagged)) {
@@ -291,6 +293,8 @@ export function AwardCardView({ card, onOpen }: { card: DockAward; onOpen: (href
         </div>
       )}
 
+      {card.markupNote && <div data-testid="award-markup-note" style={{ padding: "8px 12px 0", color: c.muted }}>{card.markupNote}</div>}
+
       {!blocked && (
         <div style={{ padding: "10px 12px 0", display: "flex", flexDirection: "column", gap: 8 }}>
           <AwardCheckPanel gate={gate} />
@@ -320,7 +324,7 @@ export function AwardCardView({ card, onOpen }: { card: DockAward; onOpen: (href
         <button type="button" className="bms-dock-chip" onClick={press} disabled={locked} style={{ ...primary, opacity: locked ? 0.55 : 1 }} data-guide="assistant.price.award.press">
           {busy ? "Awarding…" : card.primaryLabel}
         </button>
-        <button type="button" className="bms-dock-chip" onClick={() => setDismissed(true)} disabled={busy} style={ghost}>Cancel</button>
+        <button type="button" className="bms-dock-chip" onClick={cancel} disabled={busy} style={ghost}>Cancel</button>
         <button type="button" className="bms-dock-chip" onClick={() => onOpen(card.compareHref)} disabled={busy} style={chip}>Open the compare screen</button>
       </div>
       <style>{`@media (max-width: 899px) { .bms-card-input { min-height: 44px !important; } }`}</style>
@@ -363,8 +367,8 @@ export function CheckCardView({ card, onOpen }: { card: DockPriceCheck; onOpen: 
   );
 }
 
-export default function PriceCardView({ card, onOpen, onAsk, busy }: { card: PriceCard; onOpen: (href: string) => void; onAsk: (q: string) => void; busy?: boolean }) {
+export default function PriceCardView({ card, onOpen, onAsk, busy, settled, onSettled }: { card: PriceCard; onOpen: (href: string) => void; onAsk: (q: string) => void; busy?: boolean; settled?: AwardSettled; onSettled?: (s: AwardSettled) => void }) {
   if (card.kind === "compare") return <CompareCardView card={card} onOpen={onOpen} onAsk={onAsk} busy={busy} />;
-  if (card.kind === "award") return <AwardCardView card={card} onOpen={onOpen} />;
+  if (card.kind === "award") return <AwardCardView card={card} onOpen={onOpen} settled={settled} onSettled={onSettled} />;
   return <CheckCardView card={card} onOpen={onOpen} />;
 }

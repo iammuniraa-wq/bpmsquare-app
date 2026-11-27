@@ -5,7 +5,7 @@ import { c, statusInk } from "@/lib/theme";
 import InfoTip from "@/components/ui/InfoTip";
 import { InlineMarkdown } from "./Markdown";
 import { plainText } from "@/lib/assistant/markdown";
-import { missingRequired, type CardDuplicate, type CardField, type ConfirmCard, type NextStep } from "@/lib/assistant/cards";
+import { missingRequired, type CardDuplicate, type CardField, type CardSettled, type ConfirmCard, type NextStep } from "@/lib/assistant/cards";
 
 /**
  * The confirm card: one layout for every record the assistant proposes (label, value, one button named after the
@@ -59,7 +59,7 @@ export function visibleNextSteps(next: NextStep[], recordHref: string, modelLock
   return next.filter((n) => !(n.kind === "navigate" && n.target === recordHref) && !(modelLocked && n.kind === "ask"));
 }
 
-export default function ConfirmCardView({ card, onOpen, onAsk, modelLocked = false }: {
+export default function ConfirmCardView({ card, onOpen, onAsk, modelLocked = false, settled, onSettled }: {
   card: ConfirmCard;
   onOpen: (href: string) => void;
   onAsk: (question: string) => void;
@@ -69,6 +69,9 @@ export default function ConfirmCardView({ card, onOpen, onAsk, modelLocked = fal
    * something is left out rather than shown as a button that answers "ask again later".
    */
   modelLocked?: boolean;
+  /** How this card ended earlier in the chat, and where to keep it when it ends now. */
+  settled?: CardSettled;
+  onSettled?: (s: CardSettled) => void;
 }) {
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(card.fields.map((f) => [f.key, f.value])));
   const [showAll, setShowAll] = useState(false);
@@ -76,8 +79,10 @@ export default function ConfirmCardView({ card, onOpen, onAsk, modelLocked = fal
   const [error, setError] = useState("");
   const [dupes, setDupes] = useState<CardDuplicate[]>(card.duplicates);
   const [ackDupes, setAckDupes] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-  const [done, setDone] = useState<{ record: Done; next: NextStep[]; message?: string; details?: string[] } | null>(null);
+  const [dismissed, setDismissed] = useState(settled?.kind === "cancelled");
+  const [done, setDone] = useState<{ record: Done; next: NextStep[]; message?: string; details?: string[] } | null>(settled?.kind === "done" ? settled : null);
+  const finish = (d: { record: Done; next: NextStep[]; message?: string; details?: string[] }) => { setDone(d); onSettled?.({ kind: "done", ...d }); };
+  const cancel = () => { setDismissed(true); onSettled?.({ kind: "cancelled" }); };
   const creating = card.action === "create";
 
   const missing = useMemo(() => missingRequired(card.fields, values), [card.fields, values]);
@@ -94,9 +99,9 @@ export default function ConfirmCardView({ card, onOpen, onAsk, modelLocked = fal
         body: JSON.stringify({ card_id: card.id, token: card.token, values, confirm_duplicates: ackDupes || undefined }),
       });
       const json = await res.json().catch(() => ({}));
-      if (res.ok && json.ok) { setDone({ record: json.record, next: json.next ?? [], message: json.message, details: json.details }); return; }
+      if (res.ok && json.ok) { finish({ record: json.record, next: json.next ?? [], message: json.message, details: json.details }); return; }
       if (res.status === 409 && json.code === "already_done" && json.result?.id) {
-        setDone({ record: json.result, next: [], message: json.result.message, details: json.result.details });
+        finish({ record: json.result, next: [], message: json.result.message, details: json.result.details });
         return;
       }
       if (json.code === "duplicates_changed" && Array.isArray(json.duplicates)) { setDupes(json.duplicates); setAckDupes(true); }
@@ -220,7 +225,7 @@ export default function ConfirmCardView({ card, onOpen, onAsk, modelLocked = fal
         >
           {busy ? (creating ? "Creating…" : "Working…") : error && ackDupes ? `${card.primaryLabel} anyway` : card.primaryLabel}
         </button>
-        <button className="bms-dock-chip" onClick={() => setDismissed(true)} disabled={busy} data-guide="assistant.card.cancel" style={{ ...btn, background: "transparent", border: `1px solid ${c.line}`, color: c.muted }}>Cancel</button>
+        <button className="bms-dock-chip" onClick={cancel} disabled={busy} data-guide="assistant.card.cancel" style={{ ...btn, background: "transparent", border: `1px solid ${c.line}`, color: c.muted }}>Cancel</button>
       </div>
       <style>{`@media (max-width: 899px) { .bms-card-input { min-height: 44px !important; } }`}</style>
     </div>

@@ -6,6 +6,7 @@ import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import NovaTimelineSlot from "@/components/NovaTimelineSlot";
 import { useNovaSurfaces } from "@/lib/tenant-context";
+import { viaLabel } from "@/app/(app)/administration/change-history/changeHistoryRows";
 
 type Row = {
   id: string;
@@ -13,6 +14,7 @@ type Row = {
   changes: { field: string; from: unknown; to: unknown }[];
   actor_email: string | null;
   actor_name?: string | null;
+  via?: string | null;
   created_at: string;
 };
 
@@ -32,6 +34,24 @@ function summary(r: Row): string {
  * server -- a refusal just means the card is not shown. When neither source
  * has anything to show the tab says so instead of being blank.
  */
+/** One entry of the record's change history: what happened, who did it (and through what), when, and the changes. */
+export function ActivityRow({ r, first }: { r: Row; first: boolean }) {
+  const via = viaLabel(r.via);
+  return (
+    <div style={{ padding: "9px 0", borderTop: first ? "none" : `1px solid ${c.line}`, fontSize: 12.5 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", color: c.hint }}>
+        <span style={{ textTransform: "capitalize", fontWeight: 600, color: c.muted }}>{r.action}</span>
+        <span>
+          {r.actor_name || r.actor_email ? `${r.actor_name || r.actor_email?.split("@")[0]} · ` : ""}
+          {via ? `${via} · ` : ""}
+          {new Date(r.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+        </span>
+      </div>
+      <div style={{ color: c.ink, marginTop: 3, wordBreak: "break-word" }}>{summary(r)}</div>
+    </div>
+  );
+}
+
 export default function RecordActivity({
   objectType, objectId, changeLogType, extraChangeLogTypes, isAdmin,
 }: {
@@ -82,18 +102,7 @@ export default function RecordActivity({
       <NovaTimelineSlot objectType={objectType} objectId={objectId} />
       {history && (
         <Card title="Change history">
-          {history.map((r, i) => (
-            <div key={r.id} style={{ padding: "9px 0", borderTop: i === 0 ? "none" : `1px solid ${c.line}`, fontSize: 12.5 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", color: c.hint }}>
-                <span style={{ textTransform: "capitalize", fontWeight: 600, color: c.muted }}>{r.action}</span>
-                <span>
-                  {r.actor_name || r.actor_email ? `${r.actor_name || r.actor_email?.split("@")[0]} · ` : ""}
-                  {new Date(r.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                </span>
-              </div>
-              <div style={{ color: c.ink, marginTop: 3, wordBreak: "break-word" }}>{summary(r)}</div>
-            </div>
-          ))}
+          {history.map((r, i) => <ActivityRow key={r.id} r={r} first={i === 0} />)}
         </Card>
       )}
     </div>

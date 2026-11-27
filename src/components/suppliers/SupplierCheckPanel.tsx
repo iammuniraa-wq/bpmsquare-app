@@ -26,14 +26,14 @@ const ghost: React.CSSProperties = { ...btn, background: c.panel, color: c.ink, 
 
 const fmtDate = (s: string) => new Date(s).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
-export default function SupplierCheckPanel({ supplierId, seed }: { supplierId: string; seed?: DockSupplierCheck }) {
+export default function SupplierCheckPanel({ supplierId, seed, onSaved }: { supplierId: string; seed?: DockSupplierCheck; onSaved?: (result: SupplierCheckResult) => void }) {
   const dock = !!seed;
   const router = useRouter();
   const [data, setData] = useState<Loaded | null>(null);
   const [shown, setShown] = useState<SupplierCheckResult | null>(seed?.result ?? null);
   const [saveToken, setSaveToken] = useState<string | null>(seed?.saveToken ?? null);
   const [web, setWeb] = useState<Web | null>(seed?.web ? { available: true, searches: seed.web.searches, consent: seed.web.consent } : null);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(seed?.saved === true);
   const [ask, setAsk] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +82,7 @@ export default function SupplierCheckPanel({ supplierId, seed }: { supplierId: s
     try {
       const r = await fetch(`/api/suppliers/${supplierId}/check/save`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ result: shown, token: saveToken }) });
       const j = (await r.json().catch(() => ({}))) as { error?: string };
-      if (!r.ok) setError(j.error ?? "The check could not be saved."); else { setSaved(true); setSaveToken(null); router.refresh(); }
+      if (!r.ok) setError(j.error ?? "The check could not be saved."); else { setSaved(true); setSaveToken(null); router.refresh(); onSaved?.(shown); }
     } catch {
       setError("The check could not be saved.");
     } finally {

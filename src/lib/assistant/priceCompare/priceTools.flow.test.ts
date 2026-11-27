@@ -333,6 +333,45 @@ describe("propose_award", () => {
   });
 });
 
+describe("award of the lines the person named", () => {
+  const noModel = () => setup({ replies: [] });
+  const current = () => state.db.rows("rfq_line_awards").filter((a) => !a.superseded_at);
+
+  it("'Award the geotextile line on RFQ-0014 to Beta' is one card with that line alone, with no model, and the press awards only it", async () => {
+    const s = noModel();
+    const r = await askAssistant(ask("Award the geotextile line on RFQ-0014 to Beta"), s.ctx);
+    const c = asAward(r);
+    expect(s.create).not.toHaveBeenCalled();
+    expect(c.lines.map((l) => [l.item, l.supplier, l.cost, l.needsReason])).toEqual([["2", "Beta Trading", 4.5, false]]);
+    expect(c.plan.targets).toHaveLength(1);
+    expect(c.total).toBe(900);
+    expect(c.notices).toEqual(["Only the lines you named are on this card. The others are not changed."]);
+    const out = await pressAward({ admin: { from: (t: string) => state.db.from(t) } as never, tenantId: T1, userId: ME, perms: ALL, features: { ...ACTIONS }, baseUrl: "http://internal.invalid/api/ai/award" }, { card_id: c.id, token: c.token, plan: c.plan });
+    expect(out.body).toMatchObject({ ok: true, awarded: 1, of: 1 });
+    expect(current().map((a) => a.rfq_line_id)).toEqual([LINE_ID(2)]);
+    expect(state.changes.every((x) => x.via === "assistant")).toBe(true);
+  });
+  it("a named line that is not the lowest still needs a reason", async () => {
+    const c = asAward(await askAssistant(ask("Award line 1 on RFQ-0014 to Beta Trading"), noModel().ctx));
+    expect(c.lines.map((l) => [l.item, l.needsReason])).toEqual([["1", true]]);
+    expect(c.needsReason).toBe(true);
+  });
+  it("a supplier with no price on the named line gives a card that cannot be pressed", async () => {
+    const c = asAward(await askAssistant(ask("Award the ready mix line on RFQ-0014 to Gamma Industrial"), noModel().ctx));
+    expect(c.lines).toEqual([]);
+    expect(c.blocked).toMatch(/nothing to award: item 6 \(Gamma Industrial did not quote it\)/);
+  });
+  it("words that match no line say so and list the lines", async () => {
+    const r = await askAssistant(ask("Award the asphalt line on RFQ-0014 to Beta Trading"), noModel().ctx);
+    expect(r.price).toBeUndefined();
+    expect(r.answer).toContain('No line of RFQ-0014 matches "asphalt". Its lines are: 1 HDPE geomembrane 1.5 mm; 2 Geotextile 300 gsm');
+  });
+  it("the model's tool takes the named lines too", async () => {
+    const s = setup({ replies: [toolUse("propose_award", { reference: "RFQ-0014", mode: "single", supplier: "Beta Trading", lines: "geotextile" }), text("Check the card.")] });
+    expect(asAward(await askAssistant(ask("could the geotextile go to Beta"), s.ctx)).lines.map((l) => l.item)).toEqual(["2"]);
+  });
+});
+
 describe("the press of an award card", () => {
   async function card(mode: "single" | "split" = "single", supplier = "Beta Trading"): Promise<DockAward> {
     const s = setup({ replies: [toolUse("propose_award", { reference: "RFQ-0014", mode, supplier }), text("Check the card.")] });
@@ -595,6 +634,21 @@ describe("Award and price on a tender's RFQ", () => {
     const r2 = await askAssistant(ask("Compare the quotes for OPP-0002"), two.ctx);
     expect(r2.price).toBeUndefined();
     expect(JSON.stringify(two.params[1].messages)).toContain("OPP-0002 matches 2 RFQs: RFQ-0020 (Package 4 supplies); RFQ-0021 (Second). Ask the person which one.");
+  });
+  it("one named line of the deal: the card says its markup and where it comes from, and only that row is priced", async () => {
+    state.db.rows("rfqs").push({ id: "a0000000-0000-4000-8000-000000000011", tenant_id: T1, ref: "RFQ-0021", title: "Second", status: "sent", origin_type: "opportunity", origin_id: OPP });
+    state.db.rows("rfq_lines").push({ id: "a0000000-0000-4000-8000-000000000023", tenant_id: T1, rfq_id: "a0000000-0000-4000-8000-000000000011", sl_no: 1, product_id: null, description: "Cable", uom: "m", qty: 1, status: "open" });
+    const s = setup({ features: { ...TENDER }, replies: [] });
+    const c = asAward(await askAssistant(ask("Award the membrane line on OPP-0002 to Beta Trading"), s.ctx));
+    expect(c.rfq.ref).toBe("RFQ-0020");
+    expect(c.lines.map((l) => [l.item, l.cost, l.markupPct, l.rate])).toEqual([["2", 90, 20, 108]]);
+    expect(c.markupNote).toBe("Markup 20%, set on the BOQ row.");
+    await pressAward(ctxPress(), { card_id: c.id, token: c.token, plan: c.plan });
+    expect(dealLine(DB).rate).toBe(108);
+    expect(dealLine(DA).rate).toBe(0);
+  });
+  it("when the markup differs between lines the card says each one and its source", async () => {
+    expect((await tenderCard()).markupNote).toBe("Markup differs between lines: item 1 15% (the workspace default); item 2 20% (set on the BOQ row).");
   });
   it("a deal reference is not resolved for someone who cannot open deals", async () => {
     const s = setup({ features: { ...TENDER }, perms: VIEW_RFQS, replies: [toolUse("compare_quotes", { reference: "OPP-0002" }), text("No.")] });

@@ -61,6 +61,12 @@ vi.mock("@/lib/masterRef", () => ({
 }));
 vi.mock("@/lib/inbox/estimateLink", () => ({ linkEstimateToEmail: async () => {}, loadEstimatePrefill: async () => null }));
 vi.mock("resend", () => ({ Resend: class { emails = { send: async () => ({ error: null }) }; } }));
+vi.mock("@/lib/api/listSources", () => ({
+  LIST_SOURCES: {
+    opportunities: { label: "Deals", description: "deals", relatedWorkcenter: "pipeline", fields: [], load: async (tid: string) => S.db.rows("opportunities").filter((o) => o.tenant_id === tid) },
+  },
+}));
+vi.mock("@/lib/ai/reportCompile", () => ({ compileAndRun: vi.fn() }));
 
 import { resetViaColumnCache } from "@/lib/changeLog";
 import type { PermissionSet } from "@/lib/permissions";
@@ -68,6 +74,11 @@ import type { ConfirmCard } from "@/lib/assistant/cards";
 import { verbFor } from "./registry";
 import { buildVerbCard, type VerbInput } from "./verbs";
 import { executeCard, type ExecCtx } from "./execute";
+import { askAssistant, type AssistantReply, type ChatTurn } from "@/lib/ai/assistant";
+import { CURRENCIES } from "@/lib/currency";
+import { EMPTY_BOQ } from "./verbs";
+import { AssistantMeter } from "@/lib/assistant/meter";
+import { pressCompetitorCard } from "@/lib/assistant/competitors/press";
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
@@ -451,7 +462,7 @@ describe("(e) match to products and (f) price all", () => {
     const bad = await card("price", { deal: "OPP-0037", markup_pct: "5000" });
     expect(bad.fields[0].value).toBe("15");
     expect(bad.notices.join(" ")).toMatch(/between 0 and 1000/);
-    expect(await reason("price", { deal: "OPP-0036" })).toMatch(/no BOQ yet/);
+    expect(await reason("price", { deal: "OPP-0036" })).toMatch(/BOQ is empty\. Upload it on the BOQ tab first/);
     rows("opportunity_lines").filter((l) => l.opportunity_id === D_BOQ).forEach((l) => { l.rate = 10; });
     expect(await reason("price", { deal: "OPP-0037" })).toMatch(/already has a price/);
   });
@@ -501,5 +512,168 @@ describe("what every tender step shares", () => {
     const audit = JSON.stringify(rows("assistant_actions"));
     expect(audit).not.toContain(SUP_FOREIGN);
     expect(rows("assistant_actions")[0].params).toMatchObject({ id: D_RFQ, values: { title: "Pumps" } });
+  });
+});
+
+describe("the tester's sentences with a tender open: one card from tender_action, or the reason, with no model", () => {
+  const modelCalls = vi.fn(async () => { throw new Error("the model must not be asked"); });
+  const say = (history: ChatTurn[] | string, open: string | null = D_BOQ): Promise<AssistantReply> => askAssistant(
+    typeof history === "string" ? [{ role: "user", text: history }] : history,
+    {
+      supabase: { from: (t: string) => S.db.from(t) } as never, tenantId: T1, userId: ME, perms: ALL, currency: CURRENCIES.SAR, features: S.features, isAdmin: true,
+      route: open ? `/pipeline/${open}` : "/", meter: { allowed: false, open: async () => ({ allowed: false }) } as never,
+      anthropic: { messages: { create: modelCalls } } as never, screenDeps: { loadFields: async () => [] as never },
+    },
+  );
+  const MATCH = "Match the BOQ to products.";
+  const PRICE = "Price all lines with 12 percent markup.";
+  const RFQ = "Raise an RFQ to Gulf Steel Trading and Najd Valves for the geotextile lines.";
+
+  const addBoqSuppliers = () => rows("suppliers").push({ id: id(23), tenant_id: T1, name: "Tihama Geosynthetics", ref: "SUP-0003", email: "t@x.test", phone: null }, { id: id(24), tenant_id: T1, name: "Arkan Waterproofing Systems", ref: "SUP-0004", email: "a@x.test", phone: null });
+
+  async function upload(lines: (string | number)[][]) {
+    const file = await messyWorkbook({ rows: lines });
+    const { POST } = await import("@/app/api/opportunities/[id]/boq/route");
+    const form = new FormData();
+    form.set("file", new File([new Uint8Array(file)], "client boq.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const { NextRequest } = await import("next/server");
+    expect((await POST(new NextRequest(new URL("http://internal.invalid/x"), { method: "POST", body: form }), { params: Promise.resolve({ id: D_BOQ }) })).status).toBe(200);
+  }
+  const BOQ = [
+    ["1.1", "Supply and install gate valve 100mm DN100", "no", 4, "cc1"],
+    ["1.2", "Non-woven geotextile 300 gsm", "m2", 900, "cc2"],
+    ["1.3", "Mobilisation", "lot", 1, "cc4"],
+  ];
+
+  beforeEach(() => { modelCalls.mockClear(); addBoqSuppliers(); });
+
+  it("'Match the BOQ to products.' shows the match card, not a link, and writes nothing", async () => {
+    await upload(BOQ);
+    const r = await say(MATCH);
+    expect(r.card).toMatchObject({ action: "verb", object: "match", primaryLabel: "Match to products", title: "Match to products: OPP-0037 Valves for Plant 7" });
+    expect(r.cards).toBeUndefined();
+    expect(rows("opportunity_lines").filter((l) => l.opportunity_id === D_BOQ && l.product_id)).toHaveLength(0);
+    expect(modelCalls).not.toHaveBeenCalled();
+    expect((await press(r.card!)).status).toBe(200);
+  });
+
+  it("'Price all lines with 12 percent markup.' shows the price card with 12, never an unknown-screen answer", async () => {
+    await upload(BOQ);
+    const r = await say(PRICE);
+    expect(r.card).toMatchObject({ object: "price", primaryLabel: "Price all" });
+    expect(valuesOf(r.card!)).toEqual({ markup_pct: "12" });
+    expect(r.answer).not.toMatch(/screen/i);
+    expect(modelCalls).not.toHaveBeenCalled();
+  });
+
+  it("an RFQ for the geotextile lines holds only those lines, on the card and after the press", async () => {
+    await upload(BOQ);
+    const r = await say("Raise an RFQ to Tihama Geosynthetics and Arkan Waterproofing Systems for the geotextile lines.");
+    expect(r.card!.facts).toEqual([
+      { label: "Suppliers", value: "Tihama Geosynthetics, Arkan Waterproofing Systems" }, { label: "Lines without a price", value: "1" },
+      { label: "Only these lines", value: "1.2 Non-woven geotextile 300 gsm" },
+    ]);
+    expect(r.card!.summary).toContain('matching "geotextile" that have no price');
+    expect(modelCalls).not.toHaveBeenCalled();
+    expect((await press(r.card!)).status).toBe(200);
+    expect(rows("rfq_lines").map((l) => l.description)).toEqual(["Non-woven geotextile 300 gsm"]);
+    expect(rows("change_log").find((x) => x.object_type === "rfqs")).toMatchObject({ action: "create", via: "assistant" });
+  });
+
+  it("a BOQ with no geotextile line says which words matched nothing and what is there; no card", async () => {
+    await upload([BOQ[0], BOQ[2]]);
+    const r = await say(RFQ);
+    expect(r.card).toBeUndefined();
+    expect(r.answer).toBe('No line on this tender\'s BOQ matches "geotextile". Its lines include: 1.1 Supply and install gate valve 100mm DN100; 1.3 Mobilisation.');
+    expect(modelCalls).not.toHaveBeenCalled();
+  });
+
+  it("an empty BOQ: match, price and RFQ each say so, every time, with no card", async () => {
+    for (const sentence of [MATCH, PRICE, RFQ, "Raise an RFQ to Gulf Steel Trading for the geotextile lines."]) {
+      const r = await say(sentence);
+      expect(r.answer, sentence).toBe(EMPTY_BOQ);
+      expect(r.card, sentence).toBeUndefined();
+      expect(r.cards, sentence).toBeUndefined();
+    }
+    const twice = await say([{ role: "user", text: MATCH }, { role: "assistant", text: EMPTY_BOQ }, { role: "user", text: PRICE }]);
+    expect(twice.answer).toBe(EMPTY_BOQ);
+    expect(modelCalls).not.toHaveBeenCalled();
+  });
+
+  it("with no tender open it asks which one in one line, and the reference typed next gives the card", async () => {
+    await upload(BOQ);
+    const first = await say(PRICE, null);
+    expect(first.card).toBeUndefined();
+    expect(first.answer).toBe("Which tender is this for? Give its reference (for example OPP-0034), or open the tender and ask again.");
+    const second = await say([{ role: "user", text: PRICE }, { role: "assistant", text: first.answer }, { role: "user", text: "OPP-0037" }], null);
+    expect(second.card).toMatchObject({ object: "price", title: "Price all: OPP-0037 Valves for Plant 7" });
+    expect((await say(PRICE, D_PLAIN)).answer).toBe(first.answer);
+    expect((await say("Match the BOQ to products on OPP-0037", null)).card).toMatchObject({ object: "match" });
+    expect(modelCalls).not.toHaveBeenCalled();
+  });
+
+  it("a supplier name that is not exact is asked back with the closest ones", async () => {
+    await upload(BOQ);
+    const r = await say("Raise an RFQ to Tihama for the geotextile lines");
+    expect(r.card).toBeUndefined();
+    expect(r.answer).toBe('No supplier is called exactly "Tihama". Closest: SUP-0003 · Tihama Geosynthetics. Which one do you mean?');
+  });
+
+  it("another workspace's deal is never found, and without the actions flag the sentence is left to the model", async () => {
+    expect((await say("Price all lines on OPP-9999", null)).answer).toBe('I found no tender deal matching "OPP-9999" in this workspace.');
+    S.features = { ...ON, ai_assistant_actions: false };
+    expect((await say(PRICE)).overBudget).toBe(true);
+  });
+});
+
+describe("when the model is asked: a screen it names never replaces a tender step, and a typed name is kept", () => {
+  type Block = Record<string, unknown>;
+  const turn = (...content: Block[]) => ({ content, stop_reason: content.some((c) => c.type === "tool_use") ? "tool_use" : "end_turn", usage: { input_tokens: 10, output_tokens: 10 } });
+  const use = (name: string, input: unknown, tid: string) => ({ type: "tool_use", id: tid, name, input });
+  const words = (t: string) => ({ type: "text", text: t });
+
+  async function run(question: string, replies: unknown[], features: Record<string, boolean> = ON) {
+    S.features = features;
+    const create = vi.fn(async () => replies.shift());
+    const meter = new AssistantMeter({ tenantId: T1, userId: ME, budget: 1_000_000 }, {
+      allowanceFor: vi.fn(async () => ({ allowed: true, used: 0, budget: 1_000_000, remaining: 1_000_000 })), logUsage: vi.fn(async () => {}) as never,
+    });
+    const reply = await askAssistant([{ role: "user", text: question }], {
+      supabase: { from: (t: string) => S.db.from(t) } as never, tenantId: T1, userId: ME, perms: ALL, currency: CURRENCIES.SAR, features, isAdmin: true,
+      route: `/pipeline/${D_RFQ}`, meter, anthropic: { messages: { create } } as never, screenDeps: { loadFields: async () => [] as never },
+    });
+    return { reply, create };
+  }
+  const NAV = use("navigate", { target: "none", asked_for: "Bill of quantities" }, "n1");
+  const STEP = use("tender_action", { verb: "rfq", summary: "Ask for prices.", suppliers: ["SUP-0001"] }, "s1");
+
+  it.each([
+    ["navigate before the step, in one turn", [turn(NAV, STEP), turn(words("Check the card."))]],
+    ["navigate after the card, in a later turn", [turn(STEP), turn(NAV), turn(words("Check the card."))]],
+  ])("%s: the card is kept and nothing says the screen is unknown", async (_n, replies) => {
+    const { reply } = await run("get prices from Gulf Steel for what is still open here", [...replies]);
+    expect(reply.card).toMatchObject({ object: "rfq" });
+    expect(reply.answer).toBe("Check the card.");
+  });
+
+  it("an empty BOQ is answered in the server's words, whatever the model would have added", async () => {
+    const { reply, create } = await run("what about pricing this one for me", [turn(use("tender_action", { verb: "price", summary: "Price." }, "s1")), turn(words("All lines are priced."))]);
+    expect(reply.answer).toBe(EMPTY_BOQ);
+    expect(reply.card).toBeUndefined();
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("'Delta Contracting [qa]' keeps its suffix when the model drops it, and the pressed card is marked 'via assistant'", async () => {
+    S.db.tables.opportunity_competitors = [];
+    const { reply } = await run("Add Delta Contracting [qa] as a competitor", [turn(use("propose_competitor", { name: "Delta Contracting" }, "c1")), turn(words("Check the card."))]);
+    const c = reply.card!;
+    expect(c.fields.find((f) => f.key === "name")!.value).toBe("Delta Contracting [qa]");
+    const out = await pressCompetitorCard(
+      { supabase: { from: (t: string) => S.db.from(t) } as never, admin: { from: (t: string) => S.db.from(t) } as never, tenantId: T1, userId: ME, perms: ALL, features: ON, baseUrl: "https://kamco.example.com/api/ai/act/competitor" },
+      { card_id: c.id, token: c.token, values: valuesOf(c) },
+    );
+    expect(out.body).toMatchObject({ ok: true });
+    expect(rows("opportunity_competitors").map((x) => x.name)).toEqual(["Delta Contracting [qa]"]);
+    expect(rows("change_log").find((x) => x.object_type === "opportunity_competitors")).toMatchObject({ tenant_id: T1, via: "assistant" });
   });
 });

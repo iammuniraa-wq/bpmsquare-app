@@ -58,6 +58,9 @@ import {
   ANALYSE_COMPETITORS_TOOL, COMPETITOR_PROMPT_RULE, PROPOSE_COMPETITOR_TOOL, analyseCompetitorsTool, competitorGate, proposeCompetitorTool, runAnalyseCompetitors, runProposeCompetitor,
 } from "@/lib/assistant/competitors/tools";
 import type { DockCompetitors } from "@/lib/assistant/competitors/types";
+import { parseTenderAsk, parseWhichTenderAnswer } from "@/lib/assistant/tenderAsk";
+import { answerTenderAsk } from "@/lib/assistant/tenderDirect";
+import { keepTypedName } from "@/lib/assistant/typedName";
 import { createAdminSupabase } from "@/lib/supabase-server";
 
 import { readAllPages } from "@/lib/pagedRead";
@@ -149,6 +152,8 @@ export type AssistantReply = {
     | NonNullable<CreateFlowReply["consent"]>;
   /** The person gave only a company name: one question with two chips (type the details / look them up). */
   clarify?: ClarifyOffer;
+  /** A fixed refusal to a tender instruction: sent as it is, also when the one before it said the same. */
+  verbatim?: boolean;
   /** The card holds values proposed from the web: the dock marks the reply as web-derived for the tool lock, and shows no sources. */
   fromWeb?: boolean;
   /** A company analysis: the dock draws it as a card from these fields. The model's text beside it is one sentence. */
@@ -604,7 +609,7 @@ async function runOpenRecord(
 export async function askAssistant(history: ChatTurn[], ctx: AssistantAskCtx): Promise<AssistantReply> {
   const reply = await answerAsk(history, ctx);
   // Whatever path answered, the same words are never sent twice in a row. A repeated "Opening ..." is the person asking twice.
-  if (reply.autoFollow || reply.overBudget || reply.guide || reply.card || reply.consent) return reply;
+  if (reply.autoFollow || reply.overBudget || reply.guide || reply.card || reply.consent || reply.verbatim) return reply;
   return { ...reply, answer: notTheSameAgain(history.slice(0, -1), reply.answer) };
 }
 
@@ -692,6 +697,28 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
     const target = targets.find((t) => t.kind === "create" && t.href === ROUTES.estimateNew);
     return { answer: ESTIMATE_CREATE_ANSWER, cards: target ? [cardFor(target)] : undefined };
   };
+
+  // 0d. A plain tender instruction (match, price all, an RFQ to named suppliers, an award of named lines) gets its card, or the
+  // reason there is none, with no model: it can then never turn into a screen button or a claim of its own. Not while web text
+  // is in the recent turns, when the tools that act are off.
+  const tenderAsk = ctx.userId && !history.slice(-WEB_TAINT_WINDOW).some((t) => t.role === "assistant" && t.web === true)
+    ? parseTenderAsk(question) ?? parseWhichTenderAnswer(history)
+    : null;
+  if (tenderAsk && ctx.userId) {
+    const open = await resolvePageRecord(toolCtx, ctx.route).catch(() => null);
+    const direct = await answerTenderAsk(tenderAsk, {
+      supabase: ctx.supabase, tenantId: ctx.tenantId, userId: ctx.userId, perms: ctx.perms, features: ctx.features, isWorkspaceAdmin: ctx.isWorkspaceAdmin === true, open,
+      price: {
+        supabase: ctx.supabase, tenantId: ctx.tenantId, userId: ctx.userId, isAdmin: ctx.isAdmin, perms: ctx.perms, features: ctx.features,
+        access: priceAccess({ features: ctx.features, perms: ctx.perms, userId: ctx.userId }), currency: ctx.currency, now: ctx.now ?? new Date(),
+        client: null, allowed: () => false, openDealId: open?.objectType === "opportunity" ? open.recordId : null,
+      },
+    }).catch((e) => {
+      console.error("Assistant tender instruction failed:", e);
+      return { answer: "I could not read that tender just now. Nothing was changed; try again in a moment." };
+    });
+    if (direct) return { ...direct, verbatim: true };
+  }
 
   // 1. A plain "open ..." is answered without a model: free, instant, and it keeps working over the allowance.
   const direct = matchNavigation(question, targets);
@@ -1055,7 +1082,8 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
               if (o.kind === "error") out = `${o.message} Tell the person in one short line.`;
               else { lastCompetitors = o.card; out = o.out; }
             } else {
-              const o = await runProposeCompetitor(tu.input, env);
+              const typed = tu.input as { name?: unknown };
+              const o = await runProposeCompetitor(typeof typed.name === "string" ? { ...typed, name: keepTypedName(typed.name, userTurns) } : typed, env);
               if (o.kind === "error") out = `${o.message} Tell the person in one short line.`;
               else { confirmCard = o.card; out = o.out; }
             }
@@ -1099,6 +1127,9 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
               explainedMissing = true;
               addCards(verdict.related.filter((t) => isInternalPath(t.href)).map(cardFor));
               out = `No button: the person cannot open that. ${verdict.fact}`;
+            } else if (confirmCard || lastPrice || toolUses.some((t) => writer?.has(t.name) || t.name === AWARD_TOOL || t.name === PROPOSE_COMPETITOR_TOOL)) {
+              // A step with a card is under way: a screen that could not be matched does not replace its answer.
+              out = "No button was shown. Say nothing about that screen and answer about the step.";
             } else {
               // The answer is the server's own words, not the model's: it is final, so nothing can dress it up as a button.
               if (verdict.kind === "unknown") addCards(verdict.suggestions.filter((t) => isInternalPath(t.href)).map(cardFor));
@@ -1128,6 +1159,7 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
           if (cardHeld()) out = "Error: one card at a time. Tell the person to finish this one first.";
           else {
             const made = await writer.run(tu.name, tu.input, open ? { type: open.objectType, id: open.recordId } : null);
+            if (made.final) return { answer: made.final, verbatim: true, routed };
             confirmCard = made.card;
             out = made.out;
           }

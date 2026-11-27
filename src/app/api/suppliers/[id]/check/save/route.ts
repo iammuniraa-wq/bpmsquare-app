@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { actionsEnabled } from "@/lib/actions/registry";
+import { runVia } from "@/lib/actions/via";
 import { isUuid } from "@/lib/assistant/objects";
 import { isSession, logCheckSaved, resolveCheckSession } from "@/lib/suppliers/check/access";
 import { checkGate, persistCheck } from "@/lib/suppliers/check/service";
@@ -27,6 +28,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const saved = await persistCheck(s, result);
   if (!saved.ok) return NextResponse.json({ error: saved.error, pending: saved.pending }, { status: saved.pending ? 503 : 404 });
-  await logCheckSaved(s, result);
+  await runVia("assistant", () => logCheckSaved(s, result));
   return NextResponse.json({ saved: true, id: saved.id });
 }
