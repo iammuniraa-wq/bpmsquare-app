@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { c } from "@/lib/theme";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
@@ -88,6 +88,9 @@ export default function BoqRowPanel({ base, row, links, canEdit, markup, validit
   const [qty, setQty] = useState(numText(row.qty));
   const [rate, setRate] = useState(row.priced ? numText(row.rate) : "");
   const [cost, setCost] = useState(row.unit_cost != null ? numText(row.unit_cost) : "");
+  // The panel stays open while the line is re-priced from an estimate (a part picked, an unlink): the fields follow what the server now holds.
+  useEffect(() => { setCost(row.unit_cost != null ? numText(row.unit_cost) : ""); }, [row.unit_cost, row.price_source]);
+  useEffect(() => { setRate(row.priced ? numText(row.rate) : ""); }, [row.rate, row.priced]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [cands, setCands] = useState<Cand[] | null>(initialCandidates ?? null);

@@ -49,6 +49,8 @@ import { runDirectReport, stepReport, type ReportSetup, type ReportStepCtx } fro
 import { AWARD_TOOL, PRICE_COMPARE_PROMPT_RULE, PRICE_TOOL_NAMES, priceAccess, priceIntro, priceTools, runPriceTool, type PriceCard, type PriceEnv } from "@/lib/assistant/priceCompare";
 import { SUPPLIER_CHECK_PROMPT_RULE, SUPPLIER_CHECK_TOOL_NAME, parseSupplierCheckInput, supplierCheckTool, supplierCheckToolResult, type DockSupplierCheck } from "@/lib/assistant/supplierCheck/tool";
 import { stepSupplierCheck } from "@/lib/assistant/supplierCheck/run";
+import { ROUTES } from "@/lib/constants";
+import { ESTIMATE_CREATE_ANSWER, ESTIMATE_PROMPT_RULE, EXPLAIN_ESTIMATE_TOOL, claimsEstimateDone, estimateAccess, explainEstimateTool, isEstimateCreateAsk, runExplainEstimate } from "@/lib/assistant/estimateTool";
 import {
   clarifyOffer, clarifyQuestion, runCreateFlow, type ClarifyOffer, type CreateFlowInput, type CreateFlowIo, type CreateFlowReply,
 } from "@/lib/assistant/createResearch";
@@ -495,6 +497,8 @@ export function promptParts(args: {
   competitors?: boolean;
   /** check_supplier is offered: adds its rule to the cached block. */
   supplierCheck?: boolean;
+  /** explain_estimate is offered: adds the estimates rule (never claim to create one) to the cached block. */
+  estimates?: boolean;
   /** Web research is off for this workspace, and why: one line tells the assistant to say so. */
   webOff?: keyof typeof WEB_OFF_REASON_TEXT | null;
 }): { stable: string; volatile: string } {
@@ -550,6 +554,7 @@ export function promptParts(args: {
     (args.price ? PRICE_COMPARE_PROMPT_RULE : "") +
     (args.competitors ? COMPETITOR_PROMPT_RULE : "") +
     (args.supplierCheck ? SUPPLIER_CHECK_PROMPT_RULE : "") +
+    (args.estimates ? ESTIMATE_PROMPT_RULE : "") +
     (!args.web && args.webOff ? webOffPromptLine(args.webOff) : "");
 
   const volatile =
@@ -748,8 +753,9 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
   const priceOn = priceAcc.compare || priceAcc.check;
   const compGate = competitorGate({ features: ctx.features, perms: ctx.perms, userId: ctx.userId });
   const supplierCheckOn = !!ctx.userId && !webHistory && ctx.features.suppliers === true && canViewWorkcenter(ctx.perms, "suppliers");
+  const estimatesOn = estimateAccess({ features: ctx.features, perms: ctx.perms });
   const { stable, volatile } = promptParts({
-    sources, lookups, targets, currency: ctx.currency, today, web: !!web, analysis: analysisOn, report: reportOn, price: priceOn, competitors: compGate.analyse, supplierCheck: supplierCheckOn, webOff: ctx.webOff ?? null,
+    sources, lookups, targets, currency: ctx.currency, today, web: !!web, analysis: analysisOn, report: reportOn, price: priceOn, competitors: compGate.analyse, supplierCheck: supplierCheckOn, estimates: estimatesOn, webOff: ctx.webOff ?? null,
     openRecord: open ? { noun: open.record.def.noun, title: open.record.title, summary: open.record.summary } : null,
     actionCatalog,
     writeCatalog: writer?.catalog ?? null,
@@ -773,6 +779,7 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
   // Read-only: the app computes every figure from this workspace's own records and returns a card.
   if (compGate.analyse) tools.push(analyseCompetitorsTool());
   if (supplierCheckOn) tools.push(supplierCheckTool());
+  if (estimatesOn) tools.push(explainEstimateTool());
   // Offered only where the screen has something to point at. Read-only by construction: it returns data to the dock.
   const gt = webHistory ? null : guideTool(screen);
   if (gt) tools.push(gt);
@@ -938,7 +945,12 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
       const text = response.content
         .filter((b): b is Anthropic.TextBlock => b.type === "text")
         .map((b) => b.text).join("").trim();
-      return finish(text || (confirmCard ? "Check the card and press the button to create it." : cards.length ? "Here you go." : "I couldn't work out an answer to that. Try rephrasing?"));
+      if (!confirmCard && estimatesOn && isEstimateCreateAsk(question) && (!text || claimsEstimateDone(text))) {
+        const newEstimate = targets.find((t) => t.kind === "create" && t.href === ROUTES.estimateNew);
+        if (newEstimate) { cards.length = 0; addCards([cardFor(newEstimate)]); }
+        return finish(ESTIMATE_CREATE_ANSWER);
+      }
+      return finish(text || (confirmCard ? "Check the card and press the button to create it." : cards.length ? "The button is below." : "I couldn't work out an answer to that. Try rephrasing?"));
     }
 
     messages.push({ role: "assistant", content: response.content });
@@ -1047,6 +1059,11 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
             if (o.kind === "card") { lastSupplierCheck = o.check; out = supplierCheckToolResult(o.check); }
             else out = o.kind === "ask" ? o.message : `${o.message} Tell the person in one short line.`;
           }
+        } else if (tu.name === EXPLAIN_ESTIMATE_TOOL && estimatesOn) {
+          out = await runExplainEstimate(tu.input, {
+            supabase: ctx.supabase, tenantId: ctx.tenantId, perms: ctx.perms, features: ctx.features,
+            openEstimateId: open?.record.def.type === "estimate" ? String(open.record.row.id ?? "") : null,
+          });
         } else if (tu.name === "query_data") {
           out = await runQueryData(tu.input as QueryDataInput, toolCtx);
         } else if (tu.name === "chart") {

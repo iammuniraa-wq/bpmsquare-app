@@ -9,7 +9,7 @@
 import { computeEstimate } from "./compute";
 import type { ComputedLine, CostSummary } from "./compute";
 import { roundMoney } from "./compute";
-import { alternativesInput, buildQuoteLines } from "./quoteLines";
+import { alternativesInput, buildQuoteLines, quotedPrice } from "./quoteLines";
 import type { QuoteSourceLine } from "./quoteLines";
 import type { GeometryModel } from "./geometry";
 import type { EstimateParams, TemplateIssue } from "./template";
@@ -109,16 +109,21 @@ export function previewEstimate(input: PreviewInput): EstimatePreview {
 
   const view = buildPriceView(res.lines.map(toQuoteSource), { granularity, margin_pct: input.margin_pct, vat_pct: input.vat_pct });
 
+  const customerTotal = (price: number): number => {
+    const net = quotedPrice(price);
+    return roundMoney(net + roundMoney((net * input.vat_pct) / 100));
+  };
+
   let options: PreviewSuccess["options"] = null;
   const alt = alternativesInput(input.template.inputs);
   if (alt && res.complete) {
     const chosen = String(res.params[alt.key] ?? alt.default);
     const items: PriceOption[] = [];
     for (const o of alt.options ?? []) {
-      if (o.key === chosen) { items.push({ key: o.key, label: o.label, total: res.summary.price_incl_vat, delta: 0, selected: true }); continue; }
+      if (o.key === chosen) { items.push({ key: o.key, label: o.label, total: customerTotal(res.summary.price), delta: 0, selected: true }); continue; }
       const other = computeEstimate(input.template, { ...res.params, [alt.key]: o.key }, base);
       if (!other.ok) continue;
-      items.push({ key: o.key, label: o.label, total: other.summary.price_incl_vat, delta: 0, selected: false });
+      items.push({ key: o.key, label: o.label, total: customerTotal(other.summary.price), delta: 0, selected: false });
     }
     const first = items[0]?.total ?? 0;
     for (const i of items) i.delta = roundMoney(i.total - first);

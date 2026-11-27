@@ -17,15 +17,17 @@ describe("preview, rate-priced starter", () => {
   it("gives the engine's own golden figures (nothing is re-derived)", () => {
     expect(p.summary.cost_total).toBe(174256.59);
     expect(p.summary.price_incl_vat).toBe(236466.2);
-    expect(p.view.total).toBe(236466.2);
-    expect(p.view.price).toBe(p.summary.price);
-    expect(p.view.vat).toBe(p.summary.vat);
+    expect(p.view.price).toBe(Math.round(p.summary.price));
+    expect(p.view.vat).toBe(Math.round(p.view.price * 15) / 100);
+    expect(p.view.total).toBe(Math.round((p.view.price + p.view.vat) * 100) / 100);
+    expect(Math.abs(p.view.total - p.summary.price_incl_vat)).toBeLessThan(1);
     expect(p.complete).toBe(true);
     expect(p.model?.pieces).toHaveLength(137);
   });
 
-  it("sections add up to the price to the cent", () => {
-    const sum = p.view.sections.reduce((a, s) => Math.round((a + s.amount) * 100) / 100, 0);
+  it("sections are whole units and add up to the price exactly as printed", () => {
+    expect(p.view.sections.every((s) => Number.isInteger(s.amount))).toBe(true);
+    const sum = p.view.sections.reduce((a, s) => a + s.amount, 0);
     expect(sum).toBe(p.view.price);
     expect(p.view.sections.length).toBe(p.summary.by_group.length);
   });
@@ -70,7 +72,7 @@ describe("preview, finish options", () => {
     expect(p.options?.items.find((o) => o.selected)?.key).toBe("standard");
     const [basic, standard, premium] = p.options!.items;
     expect(basic.delta).toBe(0);
-    expect(standard.total).toBe(p.summary.price_incl_vat);
+    expect(standard.total).toBe(p.view.total);
     expect(premium.total).toBeGreaterThan(standard.total);
     expect(standard.total).toBeGreaterThan(basic.total);
     expect(premium.delta).toBeCloseTo(premium.total - basic.total, 2);
@@ -79,7 +81,7 @@ describe("preview, finish options", () => {
   it("each option equals a full compute with that option chosen", () => {
     const p = ok(previewEstimate({ template: flagged, params: {}, ...OPTS }));
     const direct = ok(previewEstimate({ template: flagged, params: { finish_level: "premium" }, ...OPTS }));
-    expect(p.options!.items.find((o) => o.key === "premium")!.total).toBe(direct.summary.price_incl_vat);
+    expect(p.options!.items.find((o) => o.key === "premium")!.total).toBe(direct.view.total);
   });
 
   it("the selected option follows the chosen input", () => {

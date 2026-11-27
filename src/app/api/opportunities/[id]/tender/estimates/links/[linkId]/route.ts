@@ -4,7 +4,7 @@ import { getAuthUser } from "@/lib/supabase-server";
 import { markReviewed, openEstimatesRequest, removeLink } from "@/lib/tender/estimates/server";
 
 // One link between a BOQ line and an estimate output (migration 0227).
-// DELETE         unlink: the line keeps its rate; with other links left it is priced from them, with none left it becomes a manual rate
+// DELETE         unlink: with other links left the line is priced from them; with none left it goes back to the client's file rate, or to unpriced
 // PATCH { reviewed: true }   "I looked at it": clears the review mark an RFQ award left when it re-priced the line
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string; linkId: string }> }) {

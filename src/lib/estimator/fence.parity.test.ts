@@ -173,7 +173,7 @@ describe("fence estimate -> quote lines (the one assembler)", () => {
     if (!built.ok) return;
     expect(built.lines).toHaveLength(r2.lines.length);
     expect(built.lines[0].description).toMatch(/^Line posts \(\d+ pcs\)$/);
-    expect(built.lines.reduce((a, l) => a + l.amount, 0)).toBeCloseTo(priceForCost(r2.summary.cost_total, 20), 2);
+    expect(built.lines.reduce((a, l) => a + l.amount, 0)).toBe(Math.round(priceForCost(r2.summary.cost_total, 20)));
     // Never a cost on the customer's quote.
     expect(JSON.stringify(built.lines)).not.toMatch(/unit_cost|cost_total|margin/);
   });

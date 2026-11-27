@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { requireFeature, getTenantCurrency } from "@/lib/tenant";
-import { requireTenantUser } from "@/lib/supabase-server";
-import { requireWorkcenterView } from "@/lib/permissions";
+import { requireFeature, getTenantCurrency, getTenant } from "@/lib/tenant";
+import { requireTenantUser, createAdminSupabase } from "@/lib/supabase-server";
+import { requireWorkcenterView, resolvePermissions, canViewWorkcenter } from "@/lib/permissions";
+import { estimateTenderTags } from "@/lib/tender/estimates/listTags";
+import StatusPill from "@/components/ui/StatusPill";
 import { moneyFormatter } from "@/lib/currency";
 import { c } from "@/lib/theme";
 import { ROUTES } from "@/lib/constants";
@@ -24,7 +26,7 @@ export default async function EstimatesPage({
 }) {
   await requireWorkcenterView("estimates");
   await requireFeature("estimator");
-  const { supabase, tenantId } = await requireTenantUser();
+  const { supabase, tenantId, userId, role } = await requireTenantUser();
   const raw = await searchParams;
   const money = moneyFormatter(await getTenantCurrency(), { maximumFractionDigits: 0 });
 
@@ -48,6 +50,11 @@ export default async function EstimatesPage({
     );
   }
 
+  const tenant = await getTenant();
+  const perms = await resolvePermissions(supabase, tenantId, userId, role);
+  const canOpenTender = canViewWorkcenter(perms, "pipeline");
+  const tenderOf: Awaited<ReturnType<typeof estimateTenderTags>> = canOpenTender ? await estimateTenderTags(createAdminSupabase(), tenantId, tenant?.features, list.rows.map((r) => r.id)) : new Map();
+
   const countOf = (i: number) => counts[i].total;
   const all = counts.reduce((a, r) => a + r.total, 0);
   const href = (status: string | null) => {
@@ -67,7 +74,14 @@ export default async function EstimatesPage({
     {
       id: "name", label: "Name", sortKey: "name", card: "title",
       render: (e) => (
-        <Link href={ROUTES.estimate(e.id)} style={{ fontWeight: 600, color: c.ink, textDecoration: "none", fontSize: 13.5 }}>{e.name}</Link>
+        <span style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: "2px 8px" }}>
+          <Link href={ROUTES.estimate(e.id)} style={{ fontWeight: 600, color: c.ink, textDecoration: "none", fontSize: 13.5 }}>{e.name}</Link>
+          {tenderOf.get(e.id) && (
+            <Link href={ROUTES.pipelineDetail(tenderOf.get(e.id)!.id)} title={`Tender: ${tenderOf.get(e.id)!.title}`} style={{ textDecoration: "none" }}>
+              <StatusPill label={`Tender ${tenderOf.get(e.id)!.ref ?? ""}`.trim()} tone="purple" />
+            </Link>
+          )}
+        </span>
       ),
     },
     { id: "account", label: "Account", cellStyle: { color: c.muted, fontSize: 13 }, render: (e) => e.account_name ?? "—" },

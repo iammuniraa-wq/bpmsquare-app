@@ -490,14 +490,37 @@ describe("estimate changed, re-price", () => {
 });
 
 describe("unlinking and review", () => {
-  it("unlinking the only link keeps the rate and makes it a manual rate", async () => {
+  it("unlinking the only link of a line the file gave no rate leaves it unpriced, with the source cleared", async () => {
     await price([link("1.3")], { markup_pct: 10 });
     const id = links()[0].id as string;
     const res = await linkDelete(json("DELETE", {}), ctx(OPP, { linkId: id }));
     expect(res.status).toBe(200);
     expect(links()).toEqual([]);
-    expect(dealLine("1.3").rate).toBe(45.89);
-    expect(boqRow("1.3")).toMatchObject({ price_source: "manual", unit_cost: null, markup_pct: null });
+    expect(dealLine("1.3")).toMatchObject({ rate: 0, amount: 0 });
+    expect(boqRow("1.3")).toMatchObject({ price_source: null, price_source_ref: null, price_as_of: null, unit_cost: null, markup_pct: null });
+    const s = await (await boqGet(get(), ctx())).json();
+    expect(s.lines.find((l: { item_no: string }) => l.item_no === "1.3")).toMatchObject({ priced: false, price_source: null });
+    expect(state.changes.flatMap((c) => c.changes ?? []).some((x) => x.field === "BOQ rate source" && x.from === "estimate" && x.to === null)).toBe(true);
+  });
+
+  it("unlinking the only link of a line the file did price puts the file's rate and source back", async () => {
+    boqRow("1.3").file_rate = 39.5;
+    await price([link("1.3")], { markup_pct: 10 });
+    expect(boqRow("1.3").price_source).toBe("estimate");
+    await linkDelete(json("DELETE", {}), ctx(OPP, { linkId: links()[0].id as string }));
+    expect(dealLine("1.3")).toMatchObject({ rate: 39.5, amount: 4740 });
+    expect(boqRow("1.3")).toMatchObject({ price_source: "boq_rate", unit_cost: null, markup_pct: null });
+    expect(String(boqRow("1.3").price_source_ref)).toContain("xlsx");
+  });
+
+  it("a line another source priced since the link was made is left alone when the link goes", async () => {
+    await price([link("1.3")]);
+    boqRow("1.3").price_source = "supplier";
+    boqRow("1.3").price_source_ref = "RFQ-0004 · Gulf Pipes";
+    const rate = dealLine("1.3").rate;
+    await linkDelete(json("DELETE", {}), ctx(OPP, { linkId: links()[0].id as string }));
+    expect(dealLine("1.3").rate).toBe(rate);
+    expect(boqRow("1.3")).toMatchObject({ price_source: "supplier", price_source_ref: "RFQ-0004 · Gulf Pipes" });
   });
 
   it("unlinking one of two re-prices the line from the other", async () => {

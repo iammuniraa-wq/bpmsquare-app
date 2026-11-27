@@ -584,15 +584,15 @@ begin
       (4, 3, 'Precast beam 300 x 600 x 6000', 'Nos', 140, 1437.52, 0),
       (4, 4, 'Hollow-core slab 200 mm', 'm2', 4800, 178.18, 0),
       (4, 5, 'Precast sandwich wall panel 2500 x 3000 x 200', 'Nos', 220, 1619.2, 0),
-      (4, 6, 'Precast staircase flight 1200 x 3300', 'Nos', 16, 996.58, 0),
-      (4, 7, 'Lifting inserts and fixings', 'lot', 1, 50574.8, 0),
+      (4, 6, 'Precast staircase flight 1200 x 3300', 'Nos', 16, 996.56, 0),
+      (4, 7, 'Lifting inserts and fixings', 'lot', 1, 50575, 0),
       (4, 8, 'Transport and erection', 'lot', 1, 367452, 0),
       (5, 1, 'Precast foundation 1000 x 1000 x 1200', 'Nos', 180, 1079.08, 0),
-      (5, 2, 'Precast column 400 x 400 x 4000', 'Nos', 90, 912.26, 0),
+      (5, 2, 'Precast column 400 x 400 x 4000', 'Nos', 90, 912.27, 0),
       (5, 3, 'Precast beam 300 x 600 x 6000', 'Nos', 120, 1413.16, 0),
       (5, 4, 'Hollow-core slab 200 mm', 'm2', 6200, 175.16, 0),
-      (5, 5, 'Lifting inserts and fixings', 'lot', 1, 26597.64, 0),
-      (5, 6, 'Transport and erection', 'lot', 1, 274293.6, 0)
+      (5, 5, 'Lifting inserts and fixings', 'lot', 1, 26598, 0),
+      (5, 6, 'Transport and erection', 'lot', 1, 274294, 0)
 -- END GENERATED QUOTE LINES
       ) as l(q, sl, descr, um, qty, rate, disc)
       where l.q = r.n;

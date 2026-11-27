@@ -29,3 +29,11 @@ export function resolveTenderTab(raw: string | null | undefined, available: read
   if (has(want)) return { tab: want, history };
   return { tab: want === "costing" && has("boq") ? "boq" : "overview", history };
 }
+
+/** The path + query of `href` with ?tab= set to `tab`; a stale boqfilter / row (they only mean something on the BOQ tab) goes with a switch away from it. */
+export function tabHref(href: string, tab: string): string {
+  const url = new URL(href, "http://x.invalid");
+  url.searchParams.set("tab", tab);
+  if (tab !== "boq") { url.searchParams.delete("boqfilter"); url.searchParams.delete("row"); }
+  return url.pathname + url.search + url.hash;
+}

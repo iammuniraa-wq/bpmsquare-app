@@ -39,3 +39,8 @@
   .buttons { flex-direction: column; align-items: stretch; }
   .buttons > * { width: 100%; justify-content: center; }
 }
+
+/* The assistant's round button is fixed at the bottom right of a phone (52px wide, 22px from the edge): the Next row keeps clear of that strip so its words and buttons are never under it. */
+@media (max-width: 899px) {
+  .next { padding-right: calc(14px + 66px); }
+}

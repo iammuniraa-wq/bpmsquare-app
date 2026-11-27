@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useCurrency } from "@/lib/tenant-context";
 import { moneyFormatter } from "@/lib/currency";
 import type { TemplateRate, TemplateRule } from "@/lib/estimator/types";
+import { getGeometry } from "@/lib/estimator/geometry";
 import Collapsible from "./Collapsible";
 import PriceBuilt from "./PriceBuilt";
 import ScheduleRiskSection from "../simulation/ScheduleRiskSection";
@@ -23,13 +24,17 @@ export function PriceBuiltFold({ shown, fold, estimateId, canReview }: { shown: 
 }
 
 /** The "Schedule & risk" tab: how long the build takes and how the cost could move (the old Simulation tab's panels). */
-export function ScheduleRiskPanel({ shown, rules, rates }: { shown: ShownData; rules: TemplateRule[]; rates: TemplateRate[] }) {
+export function ScheduleRiskPanel({ shown, rules, rates, geometry, record }: {
+  shown: ShownData; rules: TemplateRule[]; rates: TemplateRate[]; geometry: string | null | undefined;
+  record?: { id: string; canEdit: boolean; locked: boolean; hasQuote: boolean };
+}) {
   const cur = useCurrency();
   const t = shown.totals;
   return (
     <ScheduleRiskSection
       key={t?.margin_pct ?? 0}
       model={shown.model} lines={shown.lines} rules={rules} rates={rates}
+      hasLayout={!!getGeometry(geometry)} record={record}
       price={t?.price ?? 0} marginPct={t?.margin_pct ?? 0} vatPct={t?.vat_pct ?? 0} currency={cur}
     />
   );

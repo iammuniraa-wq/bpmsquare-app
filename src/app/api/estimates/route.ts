@@ -40,18 +40,30 @@ export async function POST(req: NextRequest) {
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 422 });
     const v = parsed.value;
 
-    const bad = await verifyForeignIds(supabase, tenantId, { account_id: v.account_id, contact_id: v.contact_id });
-    if (bad) return NextResponse.json({ error: bad }, { status: 404 });
-
     // An estimate made for a tender deal (GCC tender deals, slice 3c-1). Absent for every standard estimate, which is then untouched.
     const rawDeal = (raw as { opportunity_id?: unknown } | null)?.opportunity_id;
     let dealId: string | null = null;
+    let dealCustomer: { account_id: string | null; contact_id: string | null } | null = null;
     if (rawDeal !== undefined && rawDeal !== null && rawDeal !== "") {
       if (!isUuid(rawDeal)) return NextResponse.json({ error: "opportunity_id must be an id." }, { status: 422 });
       const { openTenderDealRequest } = await import("@/lib/tender/dealAccess");
       const gate = await openTenderDealRequest(rawDeal, false);
       if (!gate.ok) return NextResponse.json({ error: "Tender deal not found." }, { status: 404 });
       dealId = gate.req.opp.id;
+      dealCustomer = { account_id: gate.req.opp.account_id ?? null, contact_id: gate.req.opp.contact_id ?? null };
+    }
+
+    const bad = await verifyForeignIds(supabase, tenantId, { account_id: v.account_id, contact_id: v.contact_id });
+    if (bad) return NextResponse.json({ error: bad }, { status: 404 });
+
+    // An estimate made for a tender is for the tender's own customer unless the request names one. The deal's ids are checked against
+    // this workspace like any other; one that does not resolve is left off rather than blocking the estimate.
+    let accountId = v.account_id;
+    let contactId = v.contact_id;
+    if (dealCustomer && !accountId) {
+      const acct = dealCustomer.account_id && !(await verifyForeignIds(supabase, tenantId, { account_id: dealCustomer.account_id })) ? dealCustomer.account_id : null;
+      accountId = acct;
+      if (acct && !contactId && dealCustomer.contact_id && !(await verifyForeignIds(supabase, tenantId, { contact_id: dealCustomer.contact_id }))) contactId = dealCustomer.contact_id;
     }
 
     const tpl = await loadTemplate(supabase, tenantId, v.template_id);
@@ -63,7 +75,7 @@ export async function POST(req: NextRequest) {
 
     const meta = await loadTenantMeta(tenantId);
     const { data: created, error } = await insertEstimate(supabase, tenantId, {
-      tenant_id: tenantId, name: v.name, account_id: v.account_id, contact_id: v.contact_id,
+      tenant_id: tenantId, name: v.name, account_id: accountId, contact_id: contactId,
       template_id: tpl.data.id, template_version: tpl.data.version, status: "draft",
       params: v.params, currency: meta.currency, margin_pct: v.margin_pct, notes: v.notes,
       custom_data: Object.keys(v.custom_data).length > 0 ? v.custom_data : null, created_by: userId,
@@ -85,13 +97,13 @@ export async function POST(req: NextRequest) {
       tenantId, objectType: "estimates", objectId: created.id, objectLabel: created.ref ?? created.name,
       action: "create", actorId: userId, actorEmail: email,
       changes: [
-        ...diffForLog("estimates", {}, { name: v.name, account_id: v.account_id, template_id: tpl.data.id, margin_pct: v.margin_pct }),
+        ...diffForLog("estimates", {}, { name: v.name, account_id: accountId, template_id: tpl.data.id, margin_pct: v.margin_pct }),
         ...(dealId ? [{ field: "Tender deal", from: null, to: dealId }] : []),
       ],
     });
     // Started from the shared Inbox: link the email to this estimate and copy its files across (ignored if the person may not).
     const fromEmail = (raw as { source_email_id?: unknown } | null)?.source_email_id;
-    if (fromEmail) await linkEstimateToEmail({ sourceEmailId: fromEmail, estimate: { id: created.id, label: created.ref ?? created.name }, accountId: v.account_id });
+    if (fromEmail) await linkEstimateToEmail({ sourceEmailId: fromEmail, estimate: { id: created.id, label: created.ref ?? created.name }, accountId });
     return NextResponse.json({
       id: created.id, ref: created.ref, estimate: calc.estimate, lines: calc.lines, totals: calc.totals,
       warnings: calc.totals.warnings ?? [],

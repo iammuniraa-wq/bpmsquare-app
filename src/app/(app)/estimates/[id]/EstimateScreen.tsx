@@ -113,7 +113,8 @@ export default function EstimateScreen(p: EstimateScreenProps) {
               </Collapsible>
             </>
           )}
-          {active === "schedule" && <ScheduleRiskPanel shown={shown} rules={template?.rules ?? []} rates={template?.rates ?? []} />}
+          {active === "schedule" && <ScheduleRiskPanel shown={shown} rules={template?.rules ?? []} rates={template?.rates ?? []} geometry={template?.geometry}
+              record={{ id: e.id, canEdit: p.canEdit, locked, hasQuote: !!p.quote || !!e.standard_quote_id }} />}
           {active === "activity" && (
             <>
               <DetailsCard
