@@ -9,6 +9,7 @@ import type { GeometryModel } from "@/lib/estimator/geometry";
 import { buildCostModel, defaultTargetMargin, runRisk, scheduleQuantities, simulateSchedule, whatIf } from "@/lib/estimator/simulation";
 import type { SimLine } from "@/lib/estimator/simulation";
 import type { AllocLine } from "@/lib/estimator/pieceInfo";
+import { quotedPrice } from "@/lib/estimator/quoteLines";
 import type { TemplateRate, TemplateRule } from "@/lib/estimator/types";
 import ScheduleCard from "./ScheduleCard";
 import { scheduleGap } from "./scheduleState";
@@ -23,7 +24,7 @@ export type ScheduleRiskProps = {
   marginPct: number;
   vatPct: number;
   currency: CurrencyDef;
-  /** The template has a layout module, so a model (and a schedule) can exist. */
+  /** The template's layout can be scheduled, so a model and a schedule can exist. */
   hasLayout: boolean;
   /** The estimate is saved: its id (for Calculate), and whether it can still be recalculated or already has a quote. */
   record?: { id: string; canEdit: boolean; locked: boolean; hasQuote: boolean };
@@ -45,11 +46,13 @@ export default function ScheduleRiskSection(p: ScheduleRiskProps) {
   const [target, setTarget] = useState(defaultTargetMargin(p.marginPct));
 
   const schedule = useMemo(() => {
-    const q = scheduleQuantities(p.model?.pieces ?? [], p.lines, p.rates);
+    // The schedule is the precast casting and erection sequence: another trade's pieces are not scheduled.
+    const q = scheduleQuantities(p.hasLayout ? p.model?.pieces ?? [] : [], p.lines, p.rates);
     return { sim: simulateSchedule({ ...q, rates: p.rates }), volume: q.volume_m3 };
-  }, [p.model, p.lines, p.rates]);
-  const result = useMemo(() => whatIf(cost, mult, { margin_pct: margin, vat_pct: p.vatPct, base_price: p.price }), [cost, mult, margin, p.vatPct, p.price]);
-  const risk = useMemo(() => runRisk(cost, { price: p.price, target_margin_pct: target, multipliers: mult }), [cost, p.price, target, mult]);
+  }, [p.hasLayout, p.model, p.lines, p.rates]);
+  const price = quotedPrice(p.price);
+  const result = useMemo(() => whatIf(cost, mult, { margin_pct: margin, vat_pct: p.vatPct, base_price: price }), [cost, mult, margin, p.vatPct, price]);
+  const risk = useMemo(() => runRisk(cost, { price, target_margin_pct: target, multipliers: mult }), [cost, price, target, mult]);
 
   const gap = scheduleGap({
     hasLayout: p.hasLayout, saved: !!p.record, canEdit: p.record?.canEdit ?? false, locked: p.record?.locked ?? false,
@@ -63,7 +66,7 @@ export default function ScheduleRiskSection(p: ScheduleRiskProps) {
       <ScheduleCard schedule={schedule.sim} volume={schedule.volume} gap={gap} estimateId={p.record?.id} />
       <RiskSection
         model={cost} risk={risk} result={result} money={money} compact={compact}
-        mult={mult} margin={margin} baseMargin={p.marginPct} target={target} price={p.price} hasQuote={p.record?.hasQuote ?? false}
+        mult={mult} margin={margin} baseMargin={p.marginPct} target={target} price={price} hasQuote={p.record?.hasQuote ?? false}
         onMult={(k, v) => setMult((m) => ({ ...m, [k]: v }))} onMargin={setMargin} onTarget={setTarget}
         onReset={() => { setMult({}); setMargin(p.marginPct); setTarget(defaultTargetMargin(p.marginPct)); }}
       />

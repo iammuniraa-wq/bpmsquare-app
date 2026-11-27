@@ -4,10 +4,10 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { c } from "@/lib/theme";
-import { useCurrency } from "@/lib/tenant-context";
+import { useCurrency, useTenant } from "@/lib/tenant-context";
 import { moneyFormatter, moneyLabel } from "@/lib/currency";
 import { ROUTES } from "@/lib/constants";
-import { computeStandardQuoteTotals } from "@/lib/standardQuoteTotals";
+import { computeStandardQuoteTotals, quoteTaxLabel } from "@/lib/standardQuoteTotals";
 import { documentTotal, type SelectableLine } from "@/lib/sales/lineTotals";
 import { useUnsavedChangesGuard, setUnsavedGuard } from "@/lib/unsavedChanges";
 import StandardQuoteAttachments from "../[id]/StandardQuoteAttachments";
@@ -65,6 +65,8 @@ export default function StandardQuoteForm({
   docDetails?: { entities: { id: string; name: string; is_default: boolean }[] };
 }) {
   const cur = useCurrency();
+  const tenant = useTenant();
+  const taxLabel = quoteTaxLabel(tenant?.company_info, tenant?.config?.tax);
   const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -463,7 +465,7 @@ export default function StandardQuoteForm({
                 <Field label="Discount %" style={{ marginBottom: 0 }}>
                   <Input type="number" min="0" max="100" step="0.1" value={headerDiscountPct} onChange={(e) => setHeaderDiscountPct(e.target.value)} />
                 </Field>
-                <Field label="Tax %" style={{ marginBottom: 0 }}>
+                <Field label={`${taxLabel} %`} style={{ marginBottom: 0 }}>
                   <Input type="number" min="0" max="100" step="0.1" value={taxPct} onChange={(e) => setTaxPct(e.target.value)} />
                 </Field>
                 <Field label={moneyLabel("Shipping / Handling", cur)} style={{ marginBottom: 0 }}>
@@ -474,7 +476,7 @@ export default function StandardQuoteForm({
               <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
                 <TotalLine label="Subtotal" value={inr(totals.subtotal)} />
                 {totals.discountAmount > 0 && <TotalLine label={`Discount (${headerDiscountPct}%)`} value={`− ${inr(totals.discountAmount)}`} />}
-                {totals.taxAmount > 0 && <TotalLine label={`Tax (${taxPct}%)`} value={inr(totals.taxAmount)} />}
+                {totals.taxAmount > 0 && <TotalLine label={`${taxLabel} (${taxPct}%)`} value={inr(totals.taxAmount)} />}
                 {totals.shipping > 0 && <TotalLine label="Shipping" value={inr(totals.shipping)} />}
                 <div style={{ fontSize: 15, fontWeight: 700, color: c.ink, marginTop: 4 }}>Total: {inr(totals.total)}</div>
               </div>

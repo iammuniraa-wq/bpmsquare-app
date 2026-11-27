@@ -19,13 +19,14 @@ type Props = {
   blocks: StandardQuoteTemplateBlock[];
   docSections: DocSections | null | undefined;
   currency: CurrencyCode;
+  taxLabel?: string;
 };
 
 const pre = { whiteSpace: "pre-line" as const };
 const money = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const qtyFmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 3 });
 
-export default function StandardQuoteFramedBody({ quote, lines, account, contact, blocks, docSections, currency }: Props) {
+export default function StandardQuoteFramedBody({ quote, lines, account, contact, blocks, docSections, currency, taxLabel = "Tax" }: Props) {
   const cur = CURRENCIES[currency];
   const resolved = resolveFramedBlocks(blocks, docSections);
   const hasFront = resolved.some((r) => r.kind === "front");
@@ -181,7 +182,7 @@ export default function StandardQuoteFramedBody({ quote, lines, account, contact
                     <tbody>
                       {hasBreakdown && <tr><td>Subtotal</td><td className="num">{money(totals.subtotal)}</td></tr>}
                       {quote.header_discount_pct > 0 && <tr><td>Discount ({quote.header_discount_pct}%)</td><td className="num">- {money(totals.discountAmount)}</td></tr>}
-                      {quote.tax_pct > 0 && <tr><td>Tax ({quote.tax_pct}%)</td><td className="num">{money(totals.taxAmount)}</td></tr>}
+                      {quote.tax_pct > 0 && <tr><td>{taxLabel} ({quote.tax_pct}%)</td><td className="num">{money(totals.taxAmount)}</td></tr>}
                       {quote.shipping_amount > 0 && <tr><td>Shipping / Handling</td><td className="num">{money(totals.shipping)}</td></tr>}
                       <tr><td><b>Total ({cur.code})</b></td><td className="num"><b>{money(totals.total)}</b></td></tr>
                     </tbody>

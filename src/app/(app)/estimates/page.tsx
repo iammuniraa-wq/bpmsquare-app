@@ -12,6 +12,7 @@ import PageHeader from "@/components/PageHeader";
 import Card from "@/components/ui/Card";
 import EmptyState from "@/components/ui/EmptyState";
 import { parseListParams, ESTIMATE_STATUSES, DEFAULT_PAGE_SIZE } from "@/lib/estimator/requests";
+import { customerFigures } from "@/lib/estimator/quoteLines";
 import { PENDING_MESSAGE, listEstimates, type ListedEstimate } from "@/lib/estimator/server";
 import EstimateStatusPill from "./EstimateStatusPill";
 
@@ -89,7 +90,7 @@ export default async function EstimatesPage({
     { id: "status", label: "Status", sortKey: "status", render: (e) => <EstimateStatusPill status={e.status} /> },
     {
       id: "price", label: "Price incl. VAT", cellStyle: { whiteSpace: "nowrap", fontWeight: 600 },
-      render: (e) => (e.totals ? money(e.totals.price_incl_vat) : "—"),
+      render: (e) => (e.totals ? money(customerFigures(e.totals.price, e.totals.vat_pct).total) : "—"),
     },
     { id: "created_at", label: "Created", sortKey: "created_at", cellStyle: { color: c.muted, fontSize: 13, whiteSpace: "nowrap" }, render: (e) => fmtDate(e.created_at) },
   ];

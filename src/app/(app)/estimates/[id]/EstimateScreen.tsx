@@ -8,7 +8,7 @@ import { useUrlTab } from "@/components/ui/useUrlTab";
 import EstimateWorkspace from "@/components/estimator/workspace/EstimateWorkspace";
 import Collapsible from "@/components/estimator/workspace/Collapsible";
 import { PriceBuiltFold, ScheduleRiskPanel } from "@/components/estimator/workspace/InternalFolds";
-import { hasBuildSchedule } from "@/components/estimator/workspace/layoutKind";
+import { hasScheduleRiskTab } from "@/components/estimator/workspace/layoutKind";
 import { buildSavedEstimate, toWorkspaceTemplate } from "@/components/estimator/workspace/savedEstimate";
 import { ESTIMATE_TAB_IDS, estimateTabs, landingTab, scrollTargetFor, tabTarget } from "@/components/estimator/workspace/tabTargets";
 import type { AccountOption, ContactOption } from "@/components/estimator/AccountPicker";
@@ -49,7 +49,7 @@ export type EstimateScreenProps = {
  *
  *   Estimate            the working page: inputs, the model, the price with the one breakdown; "How the price is built" closed under it
  *   Materials           the bill of materials, and the files for the ERP (closed until opened)
- *   Schedule & risk     only for a template with a build schedule
+ *   Schedule & risk     for a template with a build schedule, or with rates the risk run can move
  *   Details & activity  status, notes, custom fields, the timeline and the change history
  *
  * The working page stays mounted behind the other tabs, so unsaved edits survive a look at the materials. An old `?tab=` link lands on
@@ -57,7 +57,7 @@ export type EstimateScreenProps = {
  */
 export default function EstimateScreen(p: EstimateScreenProps) {
   const { estimate: e, template } = p;
-  const schedule = hasBuildSchedule(template?.geometry);
+  const schedule = hasScheduleRiskTab(template);
   const tabs = useMemo(() => estimateTabs({ schedule, saved: true }), [schedule]);
   const [tab, setTab] = useUrlTab(ESTIMATE_TAB_IDS);
   const active = tabs.some((t) => t.id === tab) ? tab : "estimate";

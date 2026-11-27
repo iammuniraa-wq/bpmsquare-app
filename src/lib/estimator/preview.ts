@@ -9,7 +9,7 @@
 import { computeEstimate } from "./compute";
 import type { ComputedLine, CostSummary } from "./compute";
 import { roundMoney } from "./compute";
-import { alternativesInput, buildQuoteLines, quotedPrice } from "./quoteLines";
+import { alternativesInput, buildQuoteLines, customerFigures } from "./quoteLines";
 import type { QuoteSourceLine } from "./quoteLines";
 import type { GeometryModel } from "./geometry";
 import type { EstimateParams, TemplateIssue } from "./template";
@@ -48,13 +48,13 @@ export function buildPriceView(
 ): PriceView {
   const built = buildQuoteLines(sources, { granularity: opts.granularity, margin_pct: opts.margin_pct });
   if (!built.ok) return { sections: [], price: 0, vat_pct: opts.vat_pct, vat: 0, total: 0, problems: built.problems };
-  const vat = roundMoney((built.price * opts.vat_pct) / 100);
+  const { price, vat, total } = customerFigures(built.price, opts.vat_pct);
   return {
     sections: built.lines.map((l, i) => ({ key: String(i), name: l.description, amount: l.amount })),
-    price: built.price,
+    price,
     vat_pct: opts.vat_pct,
     vat,
-    total: roundMoney(built.price + vat),
+    total,
     problems: [],
   };
 }
@@ -109,10 +109,7 @@ export function previewEstimate(input: PreviewInput): EstimatePreview {
 
   const view = buildPriceView(res.lines.map(toQuoteSource), { granularity, margin_pct: input.margin_pct, vat_pct: input.vat_pct });
 
-  const customerTotal = (price: number): number => {
-    const net = quotedPrice(price);
-    return roundMoney(net + roundMoney((net * input.vat_pct) / 100));
-  };
+  const customerTotal = (price: number): number => customerFigures(price, input.vat_pct).total;
 
   let options: PreviewSuccess["options"] = null;
   const alt = alternativesInput(input.template.inputs);

@@ -5,6 +5,8 @@ import { createAdminSupabase } from "@/lib/supabase-server";
 import { canViewWorkcenter, type PermissionSet } from "@/lib/permissions";
 import { OBJECT_DEFS, objectDef, type AssistantObjectType, type ObjectDef } from "./objects";
 import { summarizeRow } from "./context";
+import { roundHalfAway } from "@/lib/estimator/formula";
+import { QUOTE_PRICE_DP } from "@/lib/estimator/quoteLines";
 import type { Related } from "./suggestions";
 
 // The assistant reads records through the same sources the REST API and Report Builder use (LIST_SOURCES): the
@@ -45,7 +47,20 @@ export const STANDARD_QUOTES_SOURCE: ListSource = {
   },
 };
 
-export const assistantSources = (): Record<string, ListSource> => ({ ...LIST_SOURCES, standard_quotes: STANDARD_QUOTES_SOURCE });
+/** The model reads an estimate's price as the screens print it (whole units), so it never holds a second figure for the same total. */
+function asPrinted(source: ListSource): ListSource {
+  return {
+    ...source,
+    load: async (tenantId) => (await source.load(tenantId)).map((r) =>
+      typeof r.quoted_total_incl_vat === "number" ? { ...r, quoted_total_incl_vat: roundHalfAway(r.quoted_total_incl_vat, QUOTE_PRICE_DP) } : r),
+  };
+}
+
+export const assistantSources = (): Record<string, ListSource> => ({
+  ...LIST_SOURCES,
+  ...(LIST_SOURCES.estimates ? { estimates: asPrinted(LIST_SOURCES.estimates) } : {}),
+  standard_quotes: STANDARD_QUOTES_SOURCE,
+});
 
 export type AssistantCtx = {
   tenantId: string;

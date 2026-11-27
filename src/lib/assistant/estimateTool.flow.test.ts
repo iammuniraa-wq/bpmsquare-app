@@ -37,7 +37,7 @@ import { askAssistant, type AssistantAskCtx } from "@/lib/ai/assistant";
 import { fakeAdmin, T1, T2, type Row } from "@/lib/middleware/testHarness";
 import { AssistantMeter } from "./meter";
 import type { PermissionSet } from "@/lib/permissions";
-import { ESTIMATE_CREATE_ANSWER, claimsEstimateDone, isEstimateCreateAsk } from "./estimateTool";
+import { ESTIMATE_CREATE_ANSWER, isEstimateCreateAsk } from "./estimateTool";
 
 const ALL: PermissionSet = { unrestricted: true, grants: new Map() };
 const ON = { ai_assistant: true, ai_assistant_actions: true, next_experience: true, estimator: true, accounts: true };
@@ -99,29 +99,47 @@ beforeEach(() => { vi.clearAllMocks(); });
 describe("asking for an estimate", () => {
   const Q = "Create an estimate for excavating 800 m3 of sand";
 
-  it("a model that says it was done is replaced by the honest answer and a button to the Estimator", async () => {
-    const s = setup({ replies: [text("Here you go.")] });
-    const reply = await askAssistant(ask(Q), s.ctx);
+  const BUTTON = [{ id: "create:/estimates/new", label: "New Estimate", href: "/estimates/new" }];
+  const fixed = (reply: Awaited<ReturnType<typeof askAssistant>>) => {
     expect(reply.answer).toBe(ESTIMATE_CREATE_ANSWER);
-    expect(reply.answer).not.toMatch(/here you go|created/i);
+    expect(reply.cards).toEqual(BUTTON);
     expect(reply.card).toBeUndefined();
-    expect(reply.cards).toEqual([{ id: "create:/estimates/new", label: "New Estimate", href: "/estimates/new" }]);
-    expect(s.db.tables.estimates).toHaveLength(1);
+    expect(reply.autoFollow).toBeUndefined();
+  };
+
+  it("whatever the model writes is replaced by the fixed sentence and the one button", async () => {
+    for (const said of [
+      "Here you go.",
+      "I can't create it. Use the button above to open the Estimator.",
+      "Estimates are made in the Estimator. For tender OPP-0040 I can make one there.",
+      "",
+    ]) {
+      const s = setup({ replies: [text(said)] });
+      fixed(await askAssistant(ask(Q), s.ctx));
+      expect(s.db.tables.estimates).toHaveLength(1);
+    }
   });
 
-  it("an empty model answer after the button is shown is not 'Here you go'", async () => {
-    const s = setup({ replies: [toolUse("navigate", { target: "create:/estimates/new", asked_for: "New Estimate" }), { content: [], stop_reason: "end_turn", usage: { input_tokens: 1, output_tokens: 1 } }] });
-    const reply = await askAssistant(ask(Q), s.ctx);
-    expect(reply.answer).toBe(ESTIMATE_CREATE_ANSWER);
-    expect(reply.cards?.map((c) => c.href)).toEqual(["/estimates/new"]);
+  it("a button to the Estimates list is never shown: no other navigation card survives", async () => {
+    const s = setup({ replies: [toolUse("navigate", { target: "nav:/estimates", asked_for: "Estimates" }), text("Open Estimates with the button above.")] });
+    fixed(await askAssistant(ask(Q), s.ctx));
+    expect(s.create).toHaveBeenCalledTimes(1);
   });
 
-  it("a model that already sends the person to the Estimator is left alone", async () => {
-    const own = "Estimates are made in the Estimator from a template. Open it to start this one.";
-    const s = setup({ replies: [toolUse("navigate", { target: "create:/estimates/new", asked_for: "New Estimate" }), text(own)] });
-    const reply = await askAssistant(ask(Q), s.ctx);
-    expect(reply.answer).toBe(own);
-    expect(reply.cards).toHaveLength(1);
+  it("a record looked up on the way adds no second button", async () => {
+    const s = setup({ replies: [toolUse("open_record", { object: "estimate", query: "EST-0001" }), text("Here is a similar one.")] });
+    fixed(await askAssistant(ask(Q), s.ctx));
+  });
+
+  it("the fixed sentence names no tender and does not say where the button is", () => {
+    expect(ESTIMATE_CREATE_ANSWER).not.toMatch(/tender|OPP-|button|above|below/i);
+  });
+
+  it("another question about estimates keeps the model's own answer", async () => {
+    const s = setup({ replies: [text("There is 1 draft estimate.")] });
+    const reply = await askAssistant(ask("How many new estimates are draft?"), s.ctx);
+    expect(reply.answer).toBe("There is 1 draft estimate.");
+    expect(reply.cards).toBeUndefined();
   });
 
   it("the cached prompt tells the model it cannot create or change an estimate", async () => {
@@ -131,14 +149,16 @@ describe("asking for an estimate", () => {
     expect(stable(s.params[0])).toContain("never write that it was created");
   });
 
-  it("the question and the claim are told apart", () => {
-    expect(isEstimateCreateAsk("Create an estimate for excavating 800 m3 of sand")).toBe(true);
-    expect(isEstimateCreateAsk("start a new estimate")).toBe(true);
-    expect(isEstimateCreateAsk("Explain how this price is built")).toBe(false);
-    expect(isEstimateCreateAsk("how many estimates are draft?")).toBe(false);
-    expect(claimsEstimateDone("Here you go.")).toBe(true);
-    expect(claimsEstimateDone("I created the estimate.")).toBe(true);
-    expect(claimsEstimateDone("Make it in the Estimator: it is created there.")).toBe(false);
+  it("a request to create one is told apart from other asks", () => {
+    for (const q of [
+      "Create an estimate for excavating 800 m3 of sand", "start a new estimate", "new estimate", "Can you make me a quick cost estimate for 800 m³ of sand?",
+      "I need an excavation estimate", "please prepare an estimate for a boundary wall",
+    ]) expect(isEstimateCreateAsk(q), q).toBe(true);
+    for (const q of [
+      "Explain how this price is built", "how many estimates are draft?", "How many new estimates this month?", "Show new estimates", "Did we create any estimates this week?",
+      "How do I create an estimate?", "Create a quote from this estimate", "make a standard quote from the estimate EST-0001", "Create an estimate template",
+      "Add a line to the estimate", "make this estimate cheaper", "Can you estimate 800 m3 of sand?", "Create an RFQ for the estimate",
+    ]) expect(isEstimateCreateAsk(q), q).toBe(false);
   });
 });
 
@@ -166,6 +186,19 @@ describe("explain_estimate", () => {
     expect(result).toContain("\\\"quote\\\":null");
     expect(result).not.toContain("unit_cost");
     expect(result).not.toContain("0.875");
+  });
+
+  it("gives the customer's figures as the price, and no second one: 12,749.69 reads as 12,750 / 1,913 / 14,663", async () => {
+    const s = setup({
+      estimates: [estimateRow({ totals: { cost_total: 11590.63, margin_pct: 10, margin_amount: 1159.06, price: 12749.69, vat_pct: 15, vat: 1912.45, price_incl_vat: 14662.14, by_group: [], by_component: {} } })],
+      replies: [toolUse("explain_estimate", { estimate: "EST-0001" }), text("ok")],
+    });
+    await askAssistant(ask("Explain how the price of EST-0001 is built"), s.ctx);
+    const result = JSON.stringify(s.params[1].messages);
+    for (const part of ["\\\"price_before_vat\\\":12750", "\\\"vat_amount\\\":1913", "\\\"price_including_vat\\\":14663", "\\\"cost_total\\\":11590.63", "\\\"margin_pct\\\":10"]) {
+      expect(result, part).toContain(part);
+    }
+    for (const other of ["12749.69", "14662", "1912"]) expect(result, other).not.toContain(other);
   });
 
   it("uses the estimate that is open when none is named", async () => {

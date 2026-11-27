@@ -6,7 +6,7 @@ import { useUrlTab } from "@/components/ui/useUrlTab";
 import EstimateWorkspace from "@/components/estimator/workspace/EstimateWorkspace";
 import type { WorkspaceProps } from "@/components/estimator/workspace/EstimateWorkspace";
 import { PriceBuiltFold, ScheduleRiskPanel } from "@/components/estimator/workspace/InternalFolds";
-import { hasBuildSchedule } from "@/components/estimator/workspace/layoutKind";
+import { hasScheduleRiskTab } from "@/components/estimator/workspace/layoutKind";
 import { ESTIMATE_TAB_IDS, estimateTabs, newEstimateTab } from "@/components/estimator/workspace/tabTargets";
 import { ESTIMATE_TIPS } from "@/lib/estimator/tips";
 
@@ -22,7 +22,7 @@ export default function NewEstimateScreen(props: Omit<WorkspaceProps, "renderInt
     <EstimateWorkspace
       {...props}
       tabs={(tpl) => {
-        const schedule = hasBuildSchedule(tpl?.geometry);
+        const schedule = hasScheduleRiskTab(tpl);
         const active = newEstimateTab(tab, schedule);
         return {
           strip: <Tabs tabs={estimateTabs({ schedule, saved: false, needsSaveTip: ESTIMATE_TIPS.needsSave })} value={active} onChange={setTab} label="Estimate sections" />,
@@ -31,7 +31,7 @@ export default function NewEstimateScreen(props: Omit<WorkspaceProps, "renderInt
       }}
       renderInternal={(shown, tpl) => {
         if (!tpl) return null;
-        const active = newEstimateTab(tab, hasBuildSchedule(tpl.geometry));
+        const active = newEstimateTab(tab, hasScheduleRiskTab(tpl));
         if (active === "schedule") return <ScheduleRiskPanel shown={shown} rules={tpl.rules} rates={tpl.rates} geometry={tpl.geometry} />;
         return shown.totals ? <PriceBuiltFold shown={shown} fold={{ open: priceOpen, onToggle: setPriceOpen }} /> : null;
       }}

@@ -12,7 +12,7 @@ export const ESTIMATE_TAB_LABEL: Record<EstimateTabId, string> = {
 };
 
 /**
- * The strip for an estimate. "Schedule & risk" exists only for a template with a build schedule. A new estimate has nothing saved yet,
+ * The strip for an estimate. "Schedule & risk" exists only when the template has a schedule or a risk run (hasScheduleRiskTab). A new estimate has nothing saved yet,
  * so the two tabs that belong to a saved record (`needsSave`) are shown but cannot be chosen, with the reason behind their "i".
  */
 export function estimateTabs(opts: { schedule: boolean; saved: boolean; needsSaveTip?: string }): TabDef[] {

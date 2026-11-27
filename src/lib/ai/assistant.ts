@@ -19,7 +19,7 @@ import { navigateTool, openRecordTool } from "@/lib/assistant/navTools";
 import { objectDef } from "@/lib/assistant/objects";
 import { modelFor, routeAsk, type ModelTier } from "@/lib/assistant/models";
 import { trimRows } from "@/lib/assistant/context";
-import { findRecords, usableObjects, type AssistantCtx } from "@/lib/assistant/sources";
+import { assistantSources, findRecords, usableObjects, type AssistantCtx } from "@/lib/assistant/sources";
 import { resolvePageRecord, type ResolvedPage } from "@/lib/assistant/pageService";
 import type { AssistantMeter } from "@/lib/assistant/meter";
 import { availableActions } from "@/lib/actions/registry";
@@ -50,7 +50,7 @@ import { AWARD_TOOL, PRICE_COMPARE_PROMPT_RULE, PRICE_TOOL_NAMES, priceAccess, p
 import { SUPPLIER_CHECK_PROMPT_RULE, SUPPLIER_CHECK_TOOL_NAME, parseSupplierCheckInput, supplierCheckTool, supplierCheckToolResult, type DockSupplierCheck } from "@/lib/assistant/supplierCheck/tool";
 import { stepSupplierCheck } from "@/lib/assistant/supplierCheck/run";
 import { ROUTES } from "@/lib/constants";
-import { ESTIMATE_CREATE_ANSWER, ESTIMATE_PROMPT_RULE, EXPLAIN_ESTIMATE_TOOL, claimsEstimateDone, estimateAccess, explainEstimateTool, isEstimateCreateAsk, runExplainEstimate } from "@/lib/assistant/estimateTool";
+import { ESTIMATE_CREATE_ANSWER, ESTIMATE_PROMPT_RULE, EXPLAIN_ESTIMATE_TOOL, estimateAccess, explainEstimateTool, isEstimateCreateAsk, runExplainEstimate } from "@/lib/assistant/estimateTool";
 import {
   clarifyOffer, clarifyQuestion, runCreateFlow, type ClarifyOffer, type CreateFlowInput, type CreateFlowIo, type CreateFlowReply,
 } from "@/lib/assistant/createResearch";
@@ -108,6 +108,7 @@ const MAX_TURNS = 6;         // model calls per question (tool-use rounds + fina
 const MAX_ROWS_TO_MODEL = 20; // rows a single query returns into context
 // Thinking tokens count against max_tokens, so this is not the length of the answer.
 const MAX_OUTPUT_TOKENS = 3000;
+const ESTIMATE_ASK_ENDS_ON = new Set(["navigate", "propose_web_search", "create_record", ANALYSE_TOOL_NAME, REPORT_TOOL_NAME]);
 
 /** `web` marks an assistant turn whose text came from a web result: it returns as data, and tools stay off (audit 2026-10-22 L1). */
 export type ChatTurn = { role: "user" | "assistant"; text: string; web?: boolean };
@@ -402,9 +403,12 @@ type QueryDataInput = CompiledQueryInput & { object?: string };
 
 type ToolCtx = AssistantCtx & { supabase: SupabaseClient };
 
+// An estimate reaches the model with its price as printed (assistant/sources.ts); every other object as the API has it.
+const modelSource = (key: string) => (key === "estimates" ? assistantSources().estimates : LIST_SOURCES[key]);
+
 async function runQueryData(input: QueryDataInput, ctx: ToolCtx): Promise<string> {
   const key = input.object ?? "";
-  const src = LIST_SOURCES[key];
+  const src = modelSource(key);
   if (!src || !canViewWorkcenter(ctx.perms, src.relatedWorkcenter) || !featureOn(ctx.features, key)) {
     return `Error: unknown or inaccessible object "${key}".`;
   }
@@ -442,7 +446,7 @@ async function runChart(
   onReport: (report: ReportResult) => void
 ): Promise<string> {
   const key = input.object ?? "";
-  const src = LIST_SOURCES[key];
+  const src = modelSource(key);
   if (!src || !canViewWorkcenter(ctx.perms, src.relatedWorkcenter) || !featureOn(ctx.features, key)) {
     return `Error: unknown or inaccessible object "${key}".`;
   }
@@ -680,8 +684,18 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
     return { answer: r.answer, card: r.card, consent: r.consent, fromWeb: r.fromWeb };
   }
 
+  // Asked to create an estimate, the assistant has one reply whatever the model writes (unless a tender's confirm card was made):
+  // the fixed sentence and the one button to the Estimator.
+  const estimatesOn = estimateAccess({ features: ctx.features, perms: ctx.perms });
+  const estimateAsk = estimatesOn && isEstimateCreateAsk(question);
+  const estimateReply = (): AssistantReply => {
+    const target = targets.find((t) => t.kind === "create" && t.href === ROUTES.estimateNew);
+    return { answer: ESTIMATE_CREATE_ANSWER, cards: target ? [cardFor(target)] : undefined };
+  };
+
   // 1. A plain "open ..." is answered without a model: free, instant, and it keeps working over the allowance.
   const direct = matchNavigation(question, targets);
+  if (estimateAsk && direct?.href === ROUTES.estimateNew) return estimateReply();
   if (direct) return { answer: `Opening ${direct.label.replace(/^Settings: /, "Settings · ")}.`, cards: [cardFor(direct)], autoFollow: true };
   // 1b. "where is X" for a screen this person cannot reach: the reason, with no button and no model. Never the nearest other screen.
   // Said once. A second ask or a pushback ("but I am the admin") goes to the model with the facts instead (see followUp below).
@@ -753,7 +767,6 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
   const priceOn = priceAcc.compare || priceAcc.check;
   const compGate = competitorGate({ features: ctx.features, perms: ctx.perms, userId: ctx.userId });
   const supplierCheckOn = !!ctx.userId && !webHistory && ctx.features.suppliers === true && canViewWorkcenter(ctx.perms, "suppliers");
-  const estimatesOn = estimateAccess({ features: ctx.features, perms: ctx.perms });
   const { stable, volatile } = promptParts({
     sources, lookups, targets, currency: ctx.currency, today, web: !!web, analysis: analysisOn, report: reportOn, price: priceOn, competitors: compGate.analyse, supplierCheck: supplierCheckOn, estimates: estimatesOn, webOff: ctx.webOff ?? null,
     openRecord: open ? { noun: open.record.def.noun, title: open.record.title, summary: open.record.summary } : null,
@@ -896,7 +909,7 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
     );
   }
 
-  const finish = (answer: string): AssistantReply => ({
+  const finish = (answer: string): AssistantReply => estimateAsk && !confirmCard ? { ...estimateReply(), routed } : ({
     // The card carries the analysis; whatever the model wrote beside it is cut to its first sentence.
     answer: lastPrice ? introSentence(answer, priceIntro(lastPrice))
       : lastAnalysis ? introSentence(answer, `Here is the analysis of ${lastAnalysis.card.name.replace(/\.+$/, "")}.`)
@@ -945,13 +958,11 @@ async function answerAsk(history: ChatTurn[], ctx: AssistantAskCtx): Promise<Ass
       const text = response.content
         .filter((b): b is Anthropic.TextBlock => b.type === "text")
         .map((b) => b.text).join("").trim();
-      if (!confirmCard && estimatesOn && isEstimateCreateAsk(question) && (!text || claimsEstimateDone(text))) {
-        const newEstimate = targets.find((t) => t.kind === "create" && t.href === ROUTES.estimateNew);
-        if (newEstimate) { cards.length = 0; addCards([cardFor(newEstimate)]); }
-        return finish(ESTIMATE_CREATE_ANSWER);
-      }
       return finish(text || (confirmCard ? "Check the card and press the button to create it." : cards.length ? "The button is below." : "I couldn't work out an answer to that. Try rephrasing?"));
     }
+
+    // Nothing these tools return can change the fixed estimate reply, and some of them would answer on their own.
+    if (estimateAsk && !confirmCard && toolUses.every((t) => ESTIMATE_ASK_ENDS_ON.has(t.name))) return finish("");
 
     messages.push({ role: "assistant", content: response.content });
     const results: Anthropic.ToolResultBlockParam[] = [];

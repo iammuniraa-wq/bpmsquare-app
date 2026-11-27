@@ -13,6 +13,7 @@ import { openTenderDealRequest, type TenderDealRequest } from "@/lib/tender/deal
 import { readAllPages } from "@/lib/pagedRead";
 import { isMissingSchema } from "@/lib/tender/server";
 import { defaultMarkupPct } from "@/lib/tender/boq/price";
+import { quotedPrice } from "@/lib/estimator/quoteLines";
 import { bundles, type BoqRequest } from "@/lib/tender/boq/server";
 import { proposeByMatch, proposeSpread, type BoqInput, type Proposal, type ProposalBy } from "./allocate";
 import {
@@ -62,12 +63,14 @@ export type EstimateHead = {
 
 const HEAD_COLS = "id, ref, name, status, template_id, currency, margin_pct, totals, standard_quote_id, opportunity_id, created_at, updated_at";
 
+const customerPrice = (stored: number | null): number | null => (stored === null ? null : quotedPrice(stored));
+
 function toHead(r: Record<string, unknown>): EstimateHead {
   const t = (r.totals ?? null) as { cost_total?: unknown; price?: unknown } | null;
   return {
     id: String(r.id), ref: (r.ref as string | null) ?? null, name: String(r.name ?? ""), status: String(r.status ?? "draft"),
     template_id: (r.template_id as string | null) ?? null, template_name: null, currency: (r.currency as string | null) ?? null,
-    margin_pct: Number(r.margin_pct ?? 0), cost_total: num(t?.cost_total), price: num(t?.price), standard_quote_id: (r.standard_quote_id as string | null) ?? null,
+    margin_pct: Number(r.margin_pct ?? 0), cost_total: num(t?.cost_total), price: customerPrice(num(t?.price)), standard_quote_id: (r.standard_quote_id as string | null) ?? null,
     opportunity_id: (r.opportunity_id as string | null) ?? null, created_at: String(r.created_at ?? ""), updated_at: String(r.updated_at ?? ""),
   };
 }

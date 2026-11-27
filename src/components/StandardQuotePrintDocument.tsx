@@ -20,6 +20,8 @@ export type StandardQuotePrintDocumentProps = {
    *  (print) layout with no TenantProvider, where the hook would silently
    *  fall back to INR. */
   currency?: CurrencyCode;
+  /** The workspace's name for the tax line (quoteTaxLabel). A prop for the same reason as the currency. */
+  taxLabel?: string;
 };
 
 const fmtDate = (s: string | null) =>
@@ -70,7 +72,7 @@ function parseSpecs(content: string): { label: string; value: string }[] {
 // StandardQuoteTemplate -- an ordered, toggleable block list (see
 // src/lib/standardQuoteTemplateBlocks.ts) rather than a fixed layout.
 export default function StandardQuotePrintDocument({
-  quote, lines, account, contact, companyInfo = {}, logoUrl, template, currency = "INR",
+  quote, lines, account, contact, companyInfo = {}, logoUrl, template, currency = "INR", taxLabel = "Tax",
 }: StandardQuotePrintDocumentProps) {
   const cur = CURRENCIES[currency];
   const inr = moneyFormatter(cur, { maximumFractionDigits: 0 });
@@ -270,7 +272,7 @@ export default function StandardQuotePrintDocument({
                       <TotalsRow label={`Discount (${quote.header_discount_pct}%)`} value={`− ${inr(totals.discountAmount)}`} />
                     )}
                     {quote.tax_pct > 0 && (
-                      <TotalsRow label={`Tax (${quote.tax_pct}%)`} value={inr(totals.taxAmount)} />
+                      <TotalsRow label={`${taxLabel} (${quote.tax_pct}%)`} value={inr(totals.taxAmount)} />
                     )}
                     {quote.shipping_amount > 0 && (
                       <TotalsRow label="Shipping / Handling" value={inr(totals.shipping)} />

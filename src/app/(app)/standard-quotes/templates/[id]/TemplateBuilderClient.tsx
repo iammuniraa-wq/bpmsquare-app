@@ -11,7 +11,8 @@ import type {
 } from "@/lib/types";
 import { STANDARD_QUOTE_REQUIRED_BLOCKS } from "@/lib/types";
 import StandardQuotePrintDocument from "@/components/StandardQuotePrintDocument";
-import { useCurrency } from "@/lib/tenant-context";
+import { useCurrency, useTenant } from "@/lib/tenant-context";
+import { quoteTaxLabel } from "@/lib/standardQuoteTotals";
 import BlockEditor, { hasEditor, newClauseSection, newScopeMatrix } from "./LayoutBlockEditors";
 import StandardQuoteFramedBody from "@/components/StandardQuoteFramedBody";
 import { resolvePdfFrame } from "@/lib/pdf/frame";
@@ -84,6 +85,7 @@ export default function TemplateBuilderClient({
 }) {
   const router = useRouter();
   const cur = useCurrency();
+  const taxLabel = quoteTaxLabel(companyInfo, useTenant()?.config?.tax);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -353,7 +355,7 @@ export default function TemplateBuilderClient({
                 <div style={{ padding: `4mm ${design!.page.margins_mm.right}mm 6mm ${design!.page.margins_mm.left}mm` }}>
                   <StandardQuoteFramedBody
                     quote={mockQuote()} lines={MOCK_LINES} account={MOCK_ACCOUNT} contact={MOCK_CONTACT}
-                    blocks={blocks} docSections={null} currency={cur.code}
+                    blocks={blocks} docSections={null} currency={cur.code} taxLabel={taxLabel}
                   />
                 </div>
                 <div dangerouslySetInnerHTML={{ __html: frame.previewFooterHtml }} />
@@ -369,6 +371,7 @@ export default function TemplateBuilderClient({
                 logoUrl={logoUrl}
                 template={previewTemplate}
                 currency={cur.code}
+                taxLabel={taxLabel}
               />
             </div>
             )}

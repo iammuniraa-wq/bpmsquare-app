@@ -30,6 +30,7 @@ import { loadAccountSignals } from "@/lib/coverage/signals";
 import type { SearchObjectType, SearchResult } from "@/lib/globalSearch";
 import { formatMoney, resolveCurrency, type CurrencyDef } from "@/lib/currency";
 import { tenantOwnsObject } from "@/lib/objectFeatures";
+import { customerFigures } from "@/lib/estimator/quoteLines";
 import { searchInboxMail } from "@/lib/inbox/search";
 import { getInboxAnalytics, NO_INBOX_ANALYTICS, type InboxAnalytics } from "@/lib/inbox/analytics";
 import { getTenderDeskData } from "@/lib/tenderDesk/server";
@@ -70,20 +71,23 @@ export async function estimatesForAccount(accountId: string): Promise<AccountEst
   if (!(await tenantOwnsObject(tenantId, "estimates"))) return [];
   const { data, error } = await createAdminSupabase()
     .from("estimates")
-    .select("id, ref, name, status, currency, standard_quote_id, updated_at, price:totals->price, price_incl_vat:totals->price_incl_vat, estimate_templates(name)")
+    .select("id, ref, name, status, currency, standard_quote_id, updated_at, price:totals->price, vat_pct:totals->vat_pct, estimate_templates(name)")
     .eq("tenant_id", tenantId)
     .eq("account_id", accountId)
     .order("updated_at", { ascending: false });
   if (error) return [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data ?? []).map((r: any) => ({
-    id: r.id, ref: r.ref ?? null, name: r.name, status: r.status, currency: r.currency ?? null,
-    template_name: (Array.isArray(r.estimate_templates) ? r.estimate_templates[0]?.name : r.estimate_templates?.name) ?? null,
-    standard_quote_id: r.standard_quote_id ?? null,
-    price: typeof r.price === "number" ? r.price : null,
-    price_incl_vat: typeof r.price_incl_vat === "number" ? r.price_incl_vat : null,
-    updated_at: r.updated_at,
-  }));
+  return (data ?? []).map((r: any) => {
+    const figures = typeof r.price === "number" ? customerFigures(r.price, Number(r.vat_pct ?? 0)) : null;
+    return {
+      id: r.id, ref: r.ref ?? null, name: r.name, status: r.status, currency: r.currency ?? null,
+      template_name: (Array.isArray(r.estimate_templates) ? r.estimate_templates[0]?.name : r.estimate_templates?.name) ?? null,
+      standard_quote_id: r.standard_quote_id ?? null,
+      price: figures?.price ?? null,
+      price_incl_vat: figures?.total ?? null,
+      updated_at: r.updated_at,
+    };
+  });
 }
 
 // ── Invoices ──────────────────────────────────────────────────────────────────

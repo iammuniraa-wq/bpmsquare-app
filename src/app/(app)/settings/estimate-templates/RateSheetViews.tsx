@@ -128,7 +128,7 @@ export function PreviewStep({
                   {picked && (
                     <div className="bpm-t-help">
                       Now {num(picked.current_rate)}{picked.current_as_of ? ` as of ${picked.current_as_of}` : ", no date"}
-                      {picked.illustrative ? " · illustrative placeholder" : ""}
+                      {picked.illustrative ? " · placeholder" : ""}
                     </div>
                   )}
                 </>

@@ -16,13 +16,14 @@ type Props = {
   blocks: StandardQuoteTemplateBlock[];
   docSections: DocSections | null | undefined;
   currency: CurrencyCode;
+  taxLabel?: string;
   frame: { bodyCss: string; fontFaceCss: string; previewHeaderHtml: string; previewFooterHtml: string; marginsMm: { top: number; right: number; bottom: number; left: number }; pageFormat: "A4" | "Letter" };
   pdfMode: boolean;
   /** "?rev=" the page is showing, for the Download link. */
   rev?: number | null;
 };
 
-export default function StandardQuoteFramedPrint({ quote, lines, account, contact, blocks, docSections, currency, frame, pdfMode, rev }: Props) {
+export default function StandardQuoteFramedPrint({ quote, lines, account, contact, blocks, docSections, currency, taxLabel, frame, pdfMode, rev }: Props) {
   const m = frame.marginsMm;
   const href = `/api/standard-quotes/${quote.id}/pdf${rev != null ? `?rev=${rev}` : ""}`;
   return (
@@ -52,7 +53,7 @@ export default function StandardQuoteFramedPrint({ quote, lines, account, contac
       <div className={pdfMode ? undefined : "pfscreen"}>
         <div className="pfsheet">
           {!pdfMode && <div className="pfhead" dangerouslySetInnerHTML={{ __html: frame.previewHeaderHtml }} />}
-          <StandardQuoteFramedBody quote={quote} lines={lines} account={account} contact={contact} blocks={blocks} docSections={docSections} currency={currency} />
+          <StandardQuoteFramedBody quote={quote} lines={lines} account={account} contact={contact} blocks={blocks} docSections={docSections} currency={currency} taxLabel={taxLabel} />
           {!pdfMode && <div className="pffoot" style={{ marginTop: "8mm" }} dangerouslySetInnerHTML={{ __html: frame.previewFooterHtml }} />}
         </div>
       </div>

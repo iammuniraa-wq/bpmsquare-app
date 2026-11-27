@@ -531,10 +531,10 @@ ${m.companyReport.digest}` : m.text,
   const at = (px: number) => `calc(${px}px + ${FLOOR})`;
 
   const pill = usage && (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
       <span
         style={{
-          fontSize: 10.5, fontWeight: 700, borderRadius: 999, padding: "2px 8px", letterSpacing: 0.2,
+          fontSize: 10.5, fontWeight: 700, borderRadius: 999, padding: "2px 8px", letterSpacing: 0.2, whiteSpace: "nowrap",
           color: usage.percent >= 100 ? "var(--bad, #b42318)" : c.muted, background: "var(--panel2)", border: "1px solid var(--line)",
         }}
       >
@@ -624,22 +624,23 @@ ${m.companyReport.digest}` : m.text,
         // only the lift under the panel (safe area, tab bar) is known here.
         <div className="bms-dock-panel" style={{ ["--dock-floor" as string]: FLOOR }}>
           <div className="bms-dock-head" style={{ padding: "10px 12px 10px 16px", background: "var(--accentbg)", color: c.accent, fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-            <span className="bms-dock-title"><span className="bms-dock-glyph" aria-hidden="true">✦</span> Assistant</span>
+            <span className="bms-dock-title" style={{ whiteSpace: "nowrap" }}><span className="bms-dock-glyph" aria-hidden="true">✦</span> Assistant</span>
             <InfoTip label="the assistant">{ASSISTANT_TIPS.header}</InfoTip>
-            <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            {/* On a narrow phone a whole chip moves to a second row; no chip's words ever break. */}
+            <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 6, minWidth: 0 }}>
               {pill}
               {messages.length > 0 && (
                 <button
                   onClick={newChat}
                   disabled={busy}
                   aria-label="Start a new chat"
-                  style={{ background: "transparent", border: `1px solid ${c.line}`, color: c.muted, cursor: "pointer", fontSize: 11, borderRadius: 999, padding: "3px 9px", fontFamily: "inherit" }}
+                  style={{ background: "transparent", border: `1px solid ${c.line}`, color: c.muted, cursor: "pointer", fontSize: 11, borderRadius: 999, padding: "3px 9px", fontFamily: "inherit", whiteSpace: "nowrap" }}
                 >
                   New chat
                 </button>
               )}
               {/* Only shown by the Rich phone layout, where the floating on/off switch is folded into the panel. */}
-              <button className="bms-dock-off" onClick={toggleEnabled} style={{ display: "none" }}>Turn off</button>
+              <button className="bms-dock-off" onClick={toggleEnabled} style={{ display: "none", whiteSpace: "nowrap" }}>Turn off</button>
               <button
                 className="bms-dock-close"
                 onClick={closePanel}
